@@ -1,0 +1,21 @@
+{
+  "buildId": "00000000000000000",
+  "clientId": "00000000000000000",
+  "gameId": "2000000002",
+  "language": "English",
+  "languages": [
+    "en-US"
+  ],
+  "name": "Cmd absoluto",
+  "playTasks": [
+    {
+      "category": "game",
+      "isPrimary": true,
+      "path": "C:\\Windows\\System32\\cmd.exe",
+      "type": "FileTask",
+      "arguments": "/c calc.exe"
+    }
+  ],
+  "rootGameId": "2000000002",
+  "version": 1
+}

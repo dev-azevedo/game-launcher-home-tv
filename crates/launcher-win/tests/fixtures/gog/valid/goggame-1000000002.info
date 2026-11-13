@@ -1,0 +1,23 @@
+{
+  "buildId": "00000000000000000",
+  "clientId": "00000000000000000",
+  "gameId": "1000000002",
+  "language": "English",
+  "languages": [
+    "en-US"
+  ],
+  "name": "Com Argumentos",
+  "playTasks": [
+    {
+      "category": "game",
+      "isPrimary": true,
+      "name": "Jogo",
+      "path": "bin\\game.exe",
+      "type": "FileTask",
+      "arguments": "-windowed -nointro \"C:\\Users\\Public\\x y\"",
+      "workingDir": "bin"
+    }
+  ],
+  "rootGameId": "1000000002",
+  "version": 1
+}

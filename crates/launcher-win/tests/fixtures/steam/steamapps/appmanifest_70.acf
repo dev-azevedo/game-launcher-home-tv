@@ -1,0 +1,16 @@
+"AppState"
+{
+	"appid"		"70"
+	"Universe"		"1"
+	"LauncherPath"		"C:\\Program Files (x86)\\Steam\\steam.exe"
+	"name"		"Half-Life"
+	"StateFlags"		"1026"
+	"installdir"		"Half-Life"
+	"LastUpdated"		"1700000000"
+	"SizeOnDisk"		"1000000"
+	"buildid"		"1234567"
+	"LastOwner"		"76561190000000000"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+}

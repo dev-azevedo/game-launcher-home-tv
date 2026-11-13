@@ -1,0 +1,50 @@
+{
+  "buildId": "00000000000000000",
+  "clientId": "00000000000000000",
+  "gameId": "1000000001",
+  "language": "English",
+  "languages": [
+    "en-US"
+  ],
+  "name": "Sample GOG Game",
+  "playTasks": [
+    {
+      "category": "game",
+      "isPrimary": true,
+      "languages": [
+        "en-US"
+      ],
+      "name": "Sample GOG Game",
+      "path": "SampleGog.exe",
+      "type": "FileTask",
+      "workingDir": ""
+    },
+    {
+      "category": "game",
+      "languages": [
+        "en-US"
+      ],
+      "name": "Configurar",
+      "path": "Config.exe",
+      "type": "FileTask",
+      "arguments": "--setup"
+    },
+    {
+      "category": "document",
+      "languages": [
+        "en-US"
+      ],
+      "name": "Manual",
+      "path": "manual.pdf",
+      "type": "FileTask"
+    },
+    {
+      "category": "launcher",
+      "name": "Site",
+      "link": "https://example.com",
+      "type": "URLTask"
+    }
+  ],
+  "rootGameId": "1000000001",
+  "version": 1
+}

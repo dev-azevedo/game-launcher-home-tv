@@ -1,0 +1,13 @@
+{
+  "buildId": "00000000000000000",
+  "clientId": "00000000000000000",
+  "gameId": "1000000003",
+  "language": "English",
+  "languages": [
+    "en-US"
+  ],
+  "name": "DLC de Sample",
+  "playTasks": [],
+  "rootGameId": "1000000001",
+  "version": 1
+}

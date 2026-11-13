@@ -1,0 +1,40 @@
+{
+  "1000000001": {
+    "gameID": "1000000001",
+    "gameName": "Sample GOG Game",
+    "exe": "C:\\GOG Games\\Sample GOG Game\\SampleGog.exe",
+    "path": "C:\\GOG Games\\Sample GOG Game",
+    "workingDir": "C:\\GOG Games\\Sample GOG Game",
+    "launchCommand": "C:\\GOG Games\\Sample GOG Game\\SampleGog.exe",
+    "launchParam": "",
+    "ver": "1.0",
+    "dependsOn": ""
+  },
+  "1000000002": {
+    "gameID": "1000000002",
+    "gameName": "Sem info",
+    "exe": "C:\\GOG Games\\SemInfo\\g.exe",
+    "path": "C:\\GOG Games\\SemInfo",
+    "workingDir": "C:\\GOG Games\\SemInfo"
+  },
+  "2000000101": {
+    "gameID": "2000000101",
+    "gameName": "Path raiz",
+    "exe": "C:\\g.exe",
+    "path": "C:\\",
+    "workingDir": "C:\\"
+  },
+  "2000000102": {
+    "gameID": "2000000102",
+    "gameName": "Exe fora da pasta",
+    "exe": "C:\\Windows\\System32\\cmd.exe",
+    "path": "C:\\GOG Games\\Fora",
+    "workingDir": "C:\\GOG Games\\Fora"
+  },
+  "abc": {
+    "gameID": "abc",
+    "gameName": "Id invalido",
+    "exe": "C:\\GOG Games\\X\\g.exe",
+    "path": "C:\\GOG Games\\X"
+  }
+}

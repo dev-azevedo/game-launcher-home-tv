@@ -1,0 +1,20 @@
+{
+  "buildId": "00000000000000000",
+  "clientId": "00000000000000000",
+  "gameId": "2000000007",
+  "language": "English",
+  "languages": [
+    "en-US"
+  ],
+  "name": "Lnk",
+  "playTasks": [
+    {
+      "category": "game",
+      "isPrimary": true,
+      "path": "game.lnk",
+      "type": "FileTask"
+    }
+  ],
+  "rootGameId": "2000000007",
+  "version": 1
+}
