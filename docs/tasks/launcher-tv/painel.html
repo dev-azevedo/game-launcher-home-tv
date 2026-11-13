@@ -1,0 +1,2645 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel da feature</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --ink: #1c1c1a; --muted: #6b6b66; --line: #e4e4df;
+    --accent: #2f5bea; --ok: #1f8a4c; --warn: #b7791f; --bad: #c53030; --soft: #eef2ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --card: #1d1d1b; --ink: #ecece8; --muted: #9a9a93; --line: #2e2e2b;
+      --accent: #7b9cff; --ok: #4cc283; --warn: #e0a84a; --bad: #f07272; --soft: #22263a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+  header h1 { margin: 0 0 4px; font-size: 24px; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: var(--ok); }
+  .resumo { display: flex; gap: 16px; align-items: center; margin: 16px 0 8px; flex-wrap: wrap; }
+  .resumo .bar { flex: 1; min-width: 200px; }
+  .filtros { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 8px 0 24px; font-size: 14px; }
+  select, textarea, button { font: inherit; color: inherit; }
+  select { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+  h2 { font-size: 18px; margin: 32px 0 12px; }
+  details.modulo { background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; }
+  details.modulo > summary { cursor: pointer; padding: 12px 16px; display: grid; grid-template-columns: 1fr 140px auto; gap: 12px; align-items: center; list-style: none; }
+  details.modulo > summary::-webkit-details-marker { display: none; }
+  .modulo-nome { font-weight: 600; }
+  .modulo-desc { color: var(--muted); font-size: 13px; padding: 0 16px 8px; }
+  .contagem { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  ul.tarefas { list-style: none; margin: 0; padding: 0 8px 8px; }
+  ul.tarefas li { display: grid; grid-template-columns: 20px 72px 1fr auto; gap: 10px; padding: 8px; border-top: 1px solid var(--line); align-items: start; }
+  .check { width: 16px; height: 16px; border: 1.5px solid var(--muted); border-radius: 4px; margin-top: 3px; display: grid; place-items: center; font-size: 12px; }
+  li.feito .check { background: var(--ok); border-color: var(--ok); color: #fff; }
+  li.feito .titulo { text-decoration: line-through; color: var(--muted); }
+  .id { font: 12px/1.9 ui-monospace, Consolas, monospace; color: var(--muted); }
+  .detalhe { color: var(--muted); font-size: 12.5px; }
+  .tag { font-size: 12px; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line); white-space: nowrap; }
+  .st-andamento { color: var(--accent); border-color: var(--accent); }
+  .st-bloqueado { color: var(--bad); border-color: var(--bad); }
+  .st-feito { color: var(--ok); border-color: var(--ok); }
+  .duvida { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  .duvida.decidida { border-left-color: var(--ok); opacity: .75; }
+  .duvida h3 { margin: 0 0 4px; font-size: 15.5px; }
+  .duvida .ctx { color: var(--muted); font-size: 13.5px; margin: 0 0 10px; }
+  .opcao { display: flex; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
+  .opcao:has(input:checked) { border-color: var(--accent); background: var(--soft); }
+  .opcao small { display: block; color: var(--muted); }
+  .rec { color: var(--ok); font-size: 12px; font-weight: 600; margin-left: 6px; }
+  textarea { width: 100%; min-height: 70px; margin-top: 6px; padding: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+  .acoes { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0; display: flex; gap: 12px; align-items: center; border-top: 1px solid var(--line); }
+  button { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  button.sec { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .vazio { color: var(--muted); font-style: italic; }
+  @media (max-width: 640px) {
+    details.modulo > summary { grid-template-columns: 1fr auto; }
+    details.modulo > summary .bar { display: none; }
+    ul.tarefas li { grid-template-columns: 20px 1fr; }
+    ul.tarefas li .id, ul.tarefas li .tag { grid-column: 2; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="titulo"></h1>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <div class="resumo">
+    <strong id="pct"></strong>
+    <div class="bar"><span id="barra"></span></div>
+    <span class="contagem" id="totais"></span>
+  </div>
+
+  <h2 id="h-duvidas">Dúvidas para sua decisão</h2>
+  <div id="duvidas"></div>
+
+  <h2>Tarefas por módulo</h2>
+  <div class="filtros">
+    <label>Agente <select id="f-agente"><option value="">todos</option></select></label>
+    <label><input type="checkbox" id="f-ocultar"> ocultar concluídas</label>
+  </div>
+  <div id="modulos"></div>
+
+  <div class="acoes">
+    <button id="copiar">Copiar respostas</button>
+    <button class="sec" id="limpar">Limpar respostas</button>
+    <span class="meta" id="aviso"></span>
+  </div>
+</main>
+
+<!--
+  DADOS DO PAINEL — única parte a editar. Layout e script abaixo ficam iguais.
+  status de tarefa: "a fazer" | "em andamento" | "feito" | "bloqueado: <motivo>"
+  status de dúvida: "pendente" | "decidida" (com "decisao" preenchida)
+-->
+<script type="application/json" id="dados">
+{
+  "feature": "launcher-tv",
+  "atualizado": "2026-11-13 19:11",
+  "docs": "D:/GIT/STD/gamelaucher/docs",
+  "modulos": [
+    {
+      "nome": "Spikes e decisões técnicas",
+      "descricao": "Spikes descartáveis fora do repo que fecham os ADRs 0003, 0005 e 0006 e a tabela de detectores. Vários precisam do usuário no PC da sala.",
+      "tarefas": [
+        {
+          "id": "BE-01",
+          "agente": "dev-backend",
+          "titulo": "SP-01 primeiro plano + Guide (técnico, sem o usuário): exe mínimo fora do repo com thread XInput a 20 Hz e escada de 4 degraus com log de degrau e ms, testado na máquina de dev contra apps sintéticos de \"jogo\" (janela, sem borda, tela cheia exclusiva via DXGI, app elevado, app que registra teclas recebidas)",
+          "depende": [],
+          "refs": [
+            "R-01",
+            "R-05",
+            "RA-02",
+            "CA-32",
+            "CA-33",
+            "CA-63",
+            "RN-24",
+            "M-04",
+            "SEC-28",
+            "ADR-0003"
+          ],
+          "pronto": "`docs/arch/spikes/SP-01.md` com tabela app sintético × modo × degrau × ms, app elevado, retorno após o app fechar, `XInputGetState` vs `XInputGetStateEx` com Game Bar ligado e desligado, efeito da tecla sintética (neutra e Alt) no app que registra teclas; todo caso ≤ 3 s ou limitação descrita; jogos reais e anti-cheat ficam para o QA-17",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-02",
+          "agente": "dev-backend",
+          "titulo": "SP-02 fim de sessão (técnico, sem o usuário): probe a 1 Hz com handles, fora do repo, na máquina de dev; apps sintéticos que imitam os padrões de risco (processo filho, relançamento em < 5 s, launcher intermediário que sai, processo homônimo fora da pasta, processo protegido) e, se houver, um jogo gratuito instalado pela Steam, pela Epic e pelo GOG na máquina de dev",
+          "depende": [],
+          "refs": [
+            "R-02",
+            "R-03",
+            "RN-10",
+            "E-01",
+            "E-14",
+            "E-16",
+            "CA-29",
+            "CA-30",
+            "SEC-15",
+            "SEC-17",
+            "RN-21",
+            "ADR-0005"
+          ],
+          "pronto": "`docs/arch/spikes/SP-02.md` com início < 60 s, fim ≤ 3 s + 5 s de tolerância, nenhum falso fim, CPU da varredura < 0,2% e comportamento com processo protegido; o que não pôde ser testado com loja real fica listado para o QA-17",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-03",
+          "agente": "dev-backend",
+          "titulo": "SP-08 formatos (técnico, sem o usuário): dump de `.item` da Epic, registro GOG (Galaxy e avulso), `goggame-*.info`, `libraryfolders.vdf`/`appmanifest`, layouts do `librarycache` e URI Epic com a loja deslogada, a partir das lojas instaladas na máquina de dev (jogos gratuitos)",
+          "depende": [],
+          "refs": [
+            "R-08",
+            "E-16",
+            "E-17",
+            "CA-16",
+            "CA-56",
+            "CA-57",
+            "SEC-11",
+            "SEC-12",
+            "SEC-13",
+            "SEC-14"
+          ],
+          "pronto": "`docs/arch/spikes/SP-08.md` confirma ou corrige cada linha da tabela 2.2 da arquitetura; fixtures anonimizadas + variantes maliciosas da seção 5 do doc de segurança prontas para `crates/launcher-win/tests/fixtures/`; formatos não observados ficam marcados para o QA-17",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-04",
+          "agente": "dev-backend",
+          "titulo": "SP-07 instalador e autostart (técnico, sem o usuário): NSIS mínimo com hooks, em VM Windows 10 22H2 (principal) e Windows 11, com conta padrão + credencial de outra conta admin criadas pelo dev, Process Monitor com DLLs plantadas, junction-isca; medir logon → 1º paint com tarefa e com Run",
+          "depende": [],
+          "refs": [
+            "E-19",
+            "RA-03",
+            "RA-07",
+            "RN-17",
+            "M-02",
+            "CA-51",
+            "SEC-19",
+            "SEC-21",
+            "SEC-22",
+            "SEC-23",
+            "SEC-25",
+            "ADR-0006"
+          ],
+          "pronto": "`docs/arch/spikes/SP-07.md` responde as 5 perguntas do SP-07 (seção 9 da arquitetura) nas duas VMs e informa se o mutex do `tauri-plugin-single-instance` inclui o SID",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-05",
+          "agente": "dev-backend",
+          "titulo": "SP-06 WebView2 em segundo plano: app Tauri descartável com 300 capas, janela oculta + `TrySuspend`",
+          "depende": [],
+          "refs": [
+            "RN-21",
+            "M-04"
+          ],
+          "pronto": "`docs/arch/spikes/SP-06.md` com CPU suspenso (meta < 0,3%), tempo de retomada (meta < 300 ms) e memória na frente e suspenso",
+          "status": "a fazer"
+        },
+        {
+          "id": "SG-02",
+          "agente": "seguranca",
+          "titulo": "Revisar o resultado do SP-01 técnico (apps sintéticos) antes de implementar os degraus 2 e 3 da escada (ponto C-02) e o uso de `XInputGetStateEx`, se proposto",
+          "depende": [
+            "BE-01"
+          ],
+          "refs": [
+            "SEC-28",
+            "R-07",
+            "ADR-0003"
+          ],
+          "pronto": "Parecer registrado: implementação dos degraus 2 e 3 liberada atrás de configuração de runtime desligada por padrão (ou vetada, com motivo); itens que exigem jogo real e anti-cheat apontados para QA-17 e SG-10",
+          "status": "a fazer"
+        },
+        {
+          "id": "SG-03",
+          "agente": "seguranca",
+          "titulo": "Revisar o resultado do SP-07 técnico (VMs Windows 10 e 11): tarefa `LeastPrivilege` dentro de SEC-22 e SEC-29 emendados, fallback automático para `Run`, RunAsUser, DLL plantada, junction-isca",
+          "depende": [
+            "BE-04"
+          ],
+          "refs": [
+            "SEC-21",
+            "SEC-22",
+            "SEC-23",
+            "SEC-25",
+            "SEC-29",
+            "AF-05",
+            "AF-10"
+          ],
+          "pronto": "Parecer registrado; achados viram ajuste no ADR-0006 pelo ARQ-03",
+          "status": "a fazer"
+        },
+        {
+          "id": "ARQ-01",
+          "agente": "arquiteto",
+          "titulo": "Fechar o ADR-0003 com o SP-01 técnico: ordem e tempos dos degraus, degraus configuráveis em runtime (2 e 3 desligados por padrão até SG-10), condições do parecer SG-02, função XInput (`XInputGetState` ou `XInputGetStateEx`) e confirmação sobre o botão Guide",
+          "depende": [
+            "BE-01",
+            "SG-02"
+          ],
+          "refs": [
+            "R-01",
+            "R-05",
+            "CA-32",
+            "CA-63",
+            "M-04",
+            "SEC-28"
+          ],
+          "pronto": "ADR-0003 com `status: accepted` (ou revisado), registrando que o padrão final dos degraus 2 e 3 sai do SG-10/BE-43; seções 2.1 e 9 da arquitetura atualizadas",
+          "status": "a fazer"
+        },
+        {
+          "id": "ARQ-02",
+          "agente": "arquiteto",
+          "titulo": "Fechar o ADR-0005 com o SP-02 técnico: estratégia por origem, frequência da varredura e tolerância de 5 s; listar o que só o QA-17 confirma com lojas e jogos reais",
+          "depende": [
+            "BE-02"
+          ],
+          "refs": [
+            "R-02",
+            "R-03",
+            "RN-10",
+            "E-14",
+            "SEC-15",
+            "SEC-17"
+          ],
+          "pronto": "ADR-0005 com `status: accepted` (ou revisado)",
+          "status": "a fazer"
+        },
+        {
+          "id": "ARQ-03",
+          "agente": "arquiteto",
+          "titulo": "Fechar o ADR-0006 com o SP-07 técnico (VMs Windows 10 e 11): P-03 com fallback automático tarefa → `Run`, RunAsUser, DLL plantada, remoção sem elevação (SEC-31), remoção de tarefas (SEC-32), mutex da instância única com SID",
+          "depende": [
+            "BE-04",
+            "SG-03"
+          ],
+          "refs": [
+            "E-19",
+            "RA-03",
+            "RN-17",
+            "M-02",
+            "SEC-19",
+            "SEC-21",
+            "SEC-22",
+            "SEC-23",
+            "SEC-25",
+            "SEC-31",
+            "SEC-32"
+          ],
+          "pronto": "ADR-0006 com `status: accepted`, mecanismo de autostart e fallback definidos; módulo SingleInstance definido (plugin ou adapter próprio)",
+          "status": "a fazer"
+        },
+        {
+          "id": "ARQ-04",
+          "agente": "arquiteto",
+          "titulo": "Atualizar a tabela 2.2 com o SP-08 e as metas de CPU e memória da seção 6 com o SP-06",
+          "depende": [
+            "BE-03",
+            "BE-05"
+          ],
+          "refs": [
+            "R-08",
+            "E-17",
+            "RN-21",
+            "M-04"
+          ],
+          "pronto": "Seções 2.2 e 6 da arquitetura sem item pendente de SP-08 ou SP-06 (itens que dependem do PC da sala marcados para o QA-17)",
+          "status": "a fazer"
+        },
+        {
+          "id": "SG-09",
+          "agente": "seguranca",
+          "titulo": "Conferir o ADR-0006 e o ADR-0003 revisados pelo arquiteto contra o threat model rev. 2: remoção de dados sem elevação (`--purge-user-data`, SEC-31), remoção de tarefas (SEC-32), escopo de perfis (DR-03), alvo do autostart (DR-04), condições dos degraus 2 e 3 (SEC-28)",
+          "depende": [
+            "ARQ-01",
+            "ARQ-03"
+          ],
+          "refs": [
+            "SEC-22",
+            "SEC-25",
+            "SEC-28",
+            "SEC-31",
+            "SEC-32",
+            "DR-01",
+            "DR-02",
+            "DR-03",
+            "DR-04",
+            "AF-10"
+          ],
+          "pronto": "Parecer registrado em `docs/security/launcher-tv.md` com DR-01 a DR-04 fechados ou ajustes devolvidos ao arquiteto; libera BE-38, BE-41 e BE-42",
+          "status": "a fazer"
+        }
+      ]
+    },
+    {
+      "nome": "Fundação e contrato",
+      "descricao": "Workspace Rust, projeto ui/, contrato de comandos e eventos revisado pela segurança, shell Tauri endurecido, erros, persistência JSON, guards de CI e componentes base.",
+      "tarefas": [
+        {
+          "id": "BE-06",
+          "agente": "dev-backend",
+          "titulo": "Workspace Rust: `Cargo.toml` de workspace, `rust-toolchain.toml` estável ≥ 1.77.2, crates `launcher-core` e `launcher-win`, `src-tauri` mínimo apontando para `ui/`, `Cargo.lock` commitado, `deny.toml`",
+          "depende": [],
+          "refs": [
+            "SEC-24",
+            "SEC-30",
+            "RN-01",
+            "INV-01",
+            "INV-07"
+          ],
+          "pronto": "`cargo build` e `cargo test` passam; `cargo tree -p launcher-core` sem `windows`/`tauri`; `cargo deny check` passa e bane `reqwest`/`hyper`/`ureq`",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-07",
+          "agente": "dev-backend",
+          "titulo": "Contrato de API em `docs/api/launcher-tv.md`: os 30 comandos e 8 eventos da seção 4 da arquitetura, DTOs, formatos de `GameId`, estados de sessão, todos os códigos de `ErrorDto` com `params` e exemplos JSON",
+          "depende": [],
+          "refs": [
+            "SEC-03",
+            "SEC-05",
+            "SEC-06",
+            "INV-02",
+            "CA-26 a CA-49"
+          ],
+          "pronto": "Cobre 100% das tabelas 4.1 e 4.2; nenhum comando recebe caminho de exe, argumentos, URI, PID ou chave de registro (exceções: `fs_list_dir` e `library_add_manual`); entregue para SG-01",
+          "status": "a fazer"
+        },
+        {
+          "id": "SG-01",
+          "agente": "seguranca",
+          "titulo": "Revisão do contrato (modo contrato): `docs/api/launcher-tv.md` contra SEC-03, SEC-05, SEC-06 e a baseline das seções 4.1 e 4.3 da arquitetura",
+          "depende": [
+            "BE-07"
+          ],
+          "refs": [
+            "SEC-03",
+            "SEC-05",
+            "SEC-06",
+            "SEC-07",
+            "SEC-08",
+            "SEC-09",
+            "SEC-27"
+          ],
+          "pronto": "Parecer aprovado em `docs/security/launcher-tv.md`, ou ajustes devolvidos e resolvidos no contrato",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-08",
+          "agente": "dev-backend",
+          "titulo": "Shell Tauri: `tauri.conf.json` com a CSP exata da seção 4.4, `withGlobalTauri=false`, janela `main` sem borda em tela cheia, capability única gerada por `build.rs`, sem `core:default`, `core:window:*` nem plugins proibidos; teste que compara `generate_handler!` e `main.json` com a tabela 4.1",
+          "depende": [
+            "BE-06",
+            "SG-01"
+          ],
+          "refs": [
+            "SEC-01",
+            "SEC-04",
+            "SEC-05",
+            "CA-03",
+            "INV-02"
+          ],
+          "pronto": "Teste de lista de comandos passa; `main.json` sem `remote`; janela abre sem barra de título",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-09",
+          "agente": "dev-backend",
+          "titulo": "Endurecimento: `webview_hardening.rs` (DevTools, aceleradores, menu de contexto e status bar desligados no release; `on_navigation` só aceita a origem local; `NewWindowRequested` cancelado), `sofa.exe.manifest` com `asInvoker` e `uiAccess=false`, `SetDefaultDllDirectories` como 1ª instrução do `main`, log + flag quando `TokenElevation` for verdadeiro",
+          "depende": [
+            "BE-08"
+          ],
+          "refs": [
+            "SEC-02",
+            "SEC-20",
+            "SEC-23",
+            "RN-27",
+            "CA-74",
+            "INV-06"
+          ],
+          "pronto": "No build de release, F12, Ctrl+Shift+I, F5 e Ctrl+P não fazem nada e `location.href` externo não navega; manifesto embutido conferido por teste; Process Explorer mostra integridade Medium",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-10",
+          "agente": "dev-backend",
+          "titulo": "Erros e IPC: `errors.rs` (`AppError` → `ErrorDto` num lugar só), `catch_unwind` em cada comando, serialização com `Busy`, DTOs com `deny_unknown_fields`, bindings TS gerados por `tauri-specta` (fallback `ts-rs`) em `ui/src/shared/ipc`",
+          "depende": [
+            "BE-08",
+            "SG-01"
+          ],
+          "refs": [
+            "SEC-03",
+            "SEC-06",
+            "INV-02",
+            "RA-06"
+          ],
+          "pronto": "Comando com tipo errado ou campo extra é rejeitado (teste); bindings regenerados no build, sem edição manual",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-11",
+          "agente": "dev-backend",
+          "titulo": "Persistência (ADR-0004): `LibraryRepository` e `SettingsRepository` JSON em `%LOCALAPPDATA%\\app.sofa.launcher`, escrita atômica, `schemaVersion` com migração, schema fechado e limites (4 MB, 5.000 jogos manuais, strings ≤ 1.024), arquivo inválido renomeado como backup e recriado; logs `tracing` 5 MB × 3",
+          "depende": [
+            "BE-06"
+          ],
+          "refs": [
+            "RN-18",
+            "CA-25",
+            "CA-75",
+            "SEC-18",
+            "SEC-29",
+            "INV-09"
+          ],
+          "pronto": "Testes de adapter: gravação interrompida não corrompe o arquivo anterior, campo desconhecido leva o arquivo para backup, arquivo acima de 4 MB é recusado; nenhuma escrita fora da pasta de dados",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-12",
+          "agente": "dev-backend",
+          "titulo": "Guards de CI: script com `cargo deny`, audit JS e grep das chamadas de INV-03, INV-05, INV-08 e INV-09 fora dos arquivos donos (`XInputGetState`, `SetForegroundWindow`, `SendInput`, `AttachThreadInput`, `EWX_FORCE`, `SeDebugPrivilege`, `PROCESS_ALL_ACCESS`, `shutdown.exe`, `SetWindowsHookEx`, `CreateRemoteThread`, `ReadProcessMemory`, `WriteProcessMemory`, `remove_file`, `remove_dir_all`, `DeleteFileW`); com a rev. 2 de SEC-28, também `WINEVENT_INCONTEXT`, `SPI_SETFOREGROUNDLOCKTIMEOUT`, `uiAccess=\"true\"` e `SetWinEventHook` fora de `foreground.rs`/`system_events.rs`; grep no script NSIS por `nsExec`/`ExecWait` sem `$SYSDIR\\` (SEC-32)",
+          "depende": [
+            "BE-06"
+          ],
+          "refs": [
+            "INV-01 a INV-09",
+            "SEC-24",
+            "SEC-27",
+            "SEC-28",
+            "SEC-29",
+            "SEC-30",
+            "SEC-32",
+            "RN-01"
+          ],
+          "pronto": "`scripts/ci.ps1` (D-34) roda local e falha com uma violação plantada de teste; uso documentado no README do repo",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-01",
+          "agente": "dev-frontend",
+          "titulo": "Projeto `ui/`: Vite + React + TS, alias `@brand` → `docs/brand/sofa` com `server.fs.allow`, `tokens.css` importado em `main.tsx`, `shared/theme/tokens.ts` lendo `tokens.json`, ESLint (`react/no-danger`, `no-restricted-properties` para `innerHTML`, `no-restricted-imports` de `@tauri-apps/*` fora de `shared/ipc`), Vitest + Testing Library, lockfile commitado e `ignore-scripts`",
+          "depende": [
+            "BE-06"
+          ],
+          "refs": [
+            "SEC-01",
+            "SEC-07",
+            "SEC-24",
+            "SEC-30",
+            "INV-02; reusa: docs/brand/sofa/tokens.css",
+            "tokens.json",
+            "assets/fonts"
+          ],
+          "pronto": "Build, lint e testes passam; fontes empacotadas com hash e nenhuma URL externa no bundle; ESLint acusa um `dangerouslySetInnerHTML` de teste",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-02",
+          "agente": "dev-frontend",
+          "titulo": "`shared/ipc` e domínio do front: wrappers gerados no BE-10, harness com `mockIPC`, `shared/domain/errors.ts` com texto por `code` (catálogo do DES-07), truncamento de nome (E-13)",
+          "depende": [
+            "BE-10",
+            "DES-07"
+          ],
+          "refs": [
+            "SEC-03",
+            "SEC-06",
+            "SEC-07",
+            "INV-02",
+            "E-13"
+          ],
+          "pronto": "Testes Vitest do mapeamento `code` → texto para 100% dos códigos do contrato; nenhum import de `@tauri-apps/api` fora de `shared/ipc`",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-04",
+          "agente": "dev-frontend",
+          "titulo": "Componentes base conforme DES-01: `Focusable` (anel duplo + halo, sem escala com redução de movimento), `MenuList`, `ConfirmDialog` genérico, `CoverImage`/`CoverPlaceholder`, `OriginBadge`, `InProgressBadge`, `Banner`, `BootSplash`, `Brand*`",
+          "depende": [
+            "FE-01",
+            "DES-08"
+          ],
+          "refs": [
+            "CA-24",
+            "CA-43",
+            "CA-54",
+            "CA-55",
+            "CA-60",
+            "RN-14",
+            "RN-25",
+            "SEC-07",
+            "SEC-08",
+            "E-13; reusa: docs/brand/sofa/assets/splash.svg",
+            "logo-horizontal.svg",
+            "symbol.svg"
+          ],
+          "pronto": "Testes: `ConfirmDialog` abre com \"Cancelar\" em foco; nome `<img src=x onerror=alert(1)>` aparece literal; capa com 404 vira placeholder; capas com `loading=\"lazy\"`, `decoding=\"async\"` e dimensões fixas",
+          "status": "a fazer"
+        }
+      ]
+    },
+    {
+      "nome": "Entrada (controle)",
+      "descricao": "Leitura XInput no núcleo, zona morta, repetição, gatilhos, combinação de retorno e navegação por intenção na UI.",
+      "tarefas": [
+        {
+          "id": "BE-13",
+          "agente": "dev-backend",
+          "titulo": "Domínio de entrada: zona morta 25%, repetição após 400 ms, borda do gatilho no meio do curso, `ReturnComboDetector` (1,5 s, uma vez por pressão, cancela ao soltar), vários controles como um, gating por modo (`Foreground`/`Background`/`Off`)",
+          "depende": [
+            "BE-06"
+          ],
+          "refs": [
+            "CA-06",
+            "CA-07",
+            "CA-08",
+            "CA-11",
+            "CA-12",
+            "CA-33",
+            "CA-64",
+            "CA-65",
+            "RN-06",
+            "RN-08",
+            "RN-11",
+            "RN-23",
+            "E-05",
+            "E-06",
+            "E-20"
+          ],
+          "pronto": "Testes por tabela em `launcher-core`, sem I/O e com relógio fake, cobrindo cada CA/RN listado",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-14",
+          "agente": "dev-backend",
+          "titulo": "XInput e thread de entrada: adapter `GamepadSource` (função definida no ARQ-01), 120 Hz na frente e 20 Hz em segundo plano, slot vazio consultado a cada 1 s, eventos `input://intent` e `input://controllers`, comando `input_status`, sem hook global",
+          "depende": [
+            "BE-13",
+            "BE-10",
+            "ARQ-01"
+          ],
+          "refs": [
+            "CA-06",
+            "CA-11",
+            "CA-12",
+            "CA-13",
+            "CA-14",
+            "CA-15",
+            "M-05",
+            "RN-08",
+            "RN-21",
+            "SEC-28",
+            "INV-03",
+            "INV-04"
+          ],
+          "pronto": "Conexão e desconexão emitidas em ≤ 2 s; latência botão → `emit` medida e registrada (meta total de 50 ms botão → foco, seção 6 da arquitetura); CPU da thread em segundo plano medida; só `xinput.rs` chama `XInputGetState`",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-03",
+          "agente": "dev-frontend",
+          "titulo": "Navegação e entrada: pilha de telas (`app/navigation`), `InputBridge` (`input://intent` + `shared/input/keyboard.ts` do teclado de emergência), `norigin-spatial-navigation`, tabela intenção → ação por tela, B volta e é ignorado na Home, `CursorAutoHide` (3 s), `SafeArea`",
+          "depende": [
+            "FE-01",
+            "FE-02",
+            "DES-08"
+          ],
+          "refs": [
+            "CA-03",
+            "CA-06",
+            "CA-07",
+            "CA-09",
+            "CA-10",
+            "CA-54",
+            "CA-55",
+            "RN-07",
+            "M-05"
+          ],
+          "pronto": "Testes de intenção → ação por tela e de teclado → intenção; foco redesenhado em ≤ 50 ms após o evento (medido); sempre exatamente um item em foco",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-06",
+          "agente": "dev-frontend",
+          "titulo": "Controle ausente: `ControllerBanner` com `input_status` + `input://controllers`, aviso de desconexão mantendo o foco",
+          "depende": [
+            "FE-03",
+            "FE-04",
+            "BE-14"
+          ],
+          "refs": [
+            "CA-13",
+            "CA-14",
+            "CA-15"
+          ],
+          "pronto": "Testes com `mockIPC`: aviso aparece e some ao receber o evento, foco preservado, teclado e mouse seguem funcionando",
+          "status": "a fazer"
+        }
+      ]
+    },
+    {
+      "nome": "Sessão e retorno",
+      "descricao": "Iniciar jogo, acompanhar a sessão (Job Object e varredura por pasta), combinação de retorno com a escada de primeiro plano, fechar e forçar, painel do jogo em andamento.",
+      "tarefas": [
+        {
+          "id": "BE-15",
+          "agente": "dev-backend",
+          "titulo": "Domínio de sessão: máquina de estados da seção 2.4 com relógio fake (60 s, 5 s, 10 s), `NeedsElevation`, troca de jogo, regras de exclusão de processo",
+          "depende": [
+            "BE-06",
+            "ARQ-02"
+          ],
+          "refs": [
+            "CA-29",
+            "CA-30",
+            "CA-31",
+            "CA-35",
+            "RN-09",
+            "RN-10",
+            "RN-12",
+            "E-04",
+            "E-14",
+            "SEC-15",
+            "SEC-17"
+          ],
+          "pronto": "Testes cobrem todas as transições do diagrama 2.4, inclusive processo que reaparece em < 5 s e `force_close` recusado fora de `CloseOverdue`",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-16",
+          "agente": "dev-backend",
+          "titulo": "`GameStarter`: `CreateProcessW` + Job Object (manual e GOG; args como lista; `bInheritHandles=FALSE`), `ShellExecuteExW` com template fixo `steam://rungameid/<appid>` e URI Epic com percent-encoding, erro 740 → `NeedsElevation`, `launch_with_uac` com verbo padrão (nunca `runas`) nas condições da exceção AF-01 de SEC-10 (só após 740 do mesmo jogo na sessão, caminho revalidado imediatamente antes, extensão `.exe`, manual sem `lpParameters`, GOG com parâmetros pela mesma rotina de escape), `AllowSetForegroundWindow(ASFW_ANY)` antes de iniciar",
+          "depende": [
+            "BE-15",
+            "BE-23"
+          ],
+          "refs": [
+            "CA-26",
+            "CA-27",
+            "CA-73",
+            "RN-27",
+            "SEC-10",
+            "SEC-11",
+            "AF-01"
+          ],
+          "pronto": "Exe de teste em pasta `A & B` com aspas e espaços inicia o arquivo certo, sem `cmd.exe`/`powershell.exe` como pai; exe de teste com `requireAdministrator` retorna `NeedsElevation`; `launch_with_uac` fora de `NeedsElevation`, para outro `gameId` ou com o exe trocado depois do 740 é recusado (teste)",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-17",
+          "agente": "dev-backend",
+          "titulo": "`SessionProbe`: Job com completion port (`ACTIVE_PROCESS_ZERO`) e varredura por pasta a 1 Hz só em sessão de loja; handles `PROCESS_QUERY_LIMITED_INFORMATION` + `SYNCHRONIZE` com tempo de criação; sinal `RunningAppID` da Steam; exclusões de SEC-17; sem `SeDebugPrivilege` nem `PROCESS_ALL_ACCESS`",
+          "depende": [
+            "BE-15",
+            "BE-23",
+            "ARQ-02"
+          ],
+          "refs": [
+            "RN-10",
+            "RN-21",
+            "E-01",
+            "E-14",
+            "SEC-15",
+            "SEC-16",
+            "SEC-17"
+          ],
+          "pronto": "Teste de integração com exe de teste: processo homônimo fora da pasta não entra no conjunto; CPU da varredura < 0,2% (meta do SP-02)",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-18",
+          "agente": "dev-backend",
+          "titulo": "`ForegroundBroker`: escada com verificação a cada ~150 ms, `HWND_TOPMOST` temporário, degraus configuráveis em runtime conforme o ADR-0003 revisado (padrão: só 1 e 4; 2 e 3 desligados até o parecer SG-10; o perfil de diagnóstico do roteiro do usuário consegue ligá-los sem rebuild e cada tentativa registra degrau e ms no log), degraus 2 e 3 implementados nas condições de SEC-28 rev. 2 (degrau 2: um único par de tecla, preferindo tecla neutra como `VK_F24` a `VK_MENU`, disparado só pelo núcleo na combinação de retorno ou no fim de sessão, no máximo uma vez por tentativa, com log; degrau 3: só à thread da janela em primeiro plano, em thread de trabalho com tempo limite, desanexar por guarda RAII); `give_front_to`; restaurar o jogo minimizado; fake de `WindowSystem`",
+          "depende": [
+            "BE-06",
+            "ARQ-01"
+          ],
+          "refs": [
+            "CA-27",
+            "CA-30",
+            "CA-32",
+            "CA-34",
+            "CA-63",
+            "RN-24",
+            "M-04",
+            "SEC-28",
+            "INV-03",
+            "INV-08"
+          ],
+          "pronto": "Teste de aplicação com `WindowSystem` que recusa o primeiro plano chega ao degrau 4 em < 3 s; teste de que o degrau 2 envia um único par por tentativa e que o degrau 3 desanexa também em erro e timeout; nenhum comando IPC dispara a escada; só `foreground.rs` chama as APIs de primeiro plano (guard do BE-12)",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-19",
+          "agente": "dev-backend",
+          "titulo": "`SystemEvents`: janela `HWND_MESSAGE` com `WM_DISPLAYCHANGE` e `WM_POWERBROADCAST`, `SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, NULL, cb, 0, 0, WINEVENT_OUTOFCONTEXT \\",
+          "depende": [
+            "WINEVENT_SKIPOWNPROCESS)` com callback que só lê PID e caminho de imagem",
+            "evento `system://resumed`"
+          ],
+          "refs": [
+            "BE-06"
+          ],
+          "pronto": "CA-46, CA-66, CA-67, E-09, SEC-28 | Teste manual: suspender e acordar emite `system://resumed`; plugar e desplugar monitor gera `DisplayChanged`; nenhum `SetWindowsHookEx` nem `WINEVENT_INCONTEXT`",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-20",
+          "agente": "dev-backend",
+          "titulo": "Iniciar jogo: casos de uso `launch_game`, `launch_game_with_uac`, `replace_game`; comandos `session_get`, `session_launch`, `session_launch_with_uac`, `session_replace`, `session_retry`, `session_dismiss`; evento `session://state`; `mark_played` na transição para `Running`; janela oculta + WebView2 suspenso durante a sessão (resultado do SP-06); `set_mode(Background)`",
+          "depende": [
+            "BE-14",
+            "BE-16",
+            "BE-17",
+            "BE-18",
+            "BE-29",
+            "ARQ-04"
+          ],
+          "refs": [
+            "CA-12",
+            "CA-26",
+            "CA-27",
+            "CA-28",
+            "CA-29",
+            "CA-31",
+            "CA-73",
+            "CA-75",
+            "RN-05",
+            "RN-09",
+            "RN-21",
+            "SEC-06",
+            "E-10",
+            "E-16"
+          ],
+          "pronto": "Testes de aplicação com fakes para cada erro do contrato; 20 `session_launch` seguidos geram no máximo um processo; CPU do Sofá em sessão < 1% medida",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-21",
+          "agente": "dev-backend",
+          "titulo": "Retorno e fim de sessão: `handle_return_combo` (retomar WebView2, `session://panel`, escada), `session_return_to_game`, `session_close` (`WM_CLOSE`), `session_force_close` (handle duplicado + tempo de criação, ou `TerminateJobObject`); fim pelo menu do jogo traz o Sofá com `focusGameId`",
+          "depende": [
+            "BE-20"
+          ],
+          "refs": [
+            "CA-30",
+            "CA-32",
+            "CA-34",
+            "CA-35",
+            "CA-36",
+            "CA-63",
+            "RN-11",
+            "RN-12",
+            "RN-24",
+            "M-04",
+            "SEC-15",
+            "SEC-17"
+          ],
+          "pronto": "Com exe de teste: combinação → painel em ≤ 3 s (meta interna ≤ 1 s nos degraus 1 a 3); forçar oferecido após 10 s; PID reaproveitado não é encerrado",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-08",
+          "agente": "dev-frontend",
+          "titulo": "Iniciar jogo: store de sessão (`session_get` + `session://state`), `LaunchingOverlay` (abrindo, arquivo não encontrado com Ocultar e Voltar, pasta de rede, não confirmado com Tentar de novo, pede administrador, UAC recusado), diálogo de troca de jogo",
+          "depende": [
+            "FE-05",
+            "BE-20"
+          ],
+          "refs": [
+            "CA-26",
+            "CA-28",
+            "CA-29",
+            "CA-31",
+            "CA-71",
+            "CA-73",
+            "E-10"
+          ],
+          "pronto": "Testes com `mockIPC` para cada estado e erro do contrato; troca de jogo abre com \"Cancelar\" em foco",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-09",
+          "agente": "dev-frontend",
+          "titulo": "Painel do jogo em andamento: Voltar ao jogo (e B), Fechar jogo com confirmação, Forçar fechamento após 10 s com \"Cancelar\" em foco, Ir para a biblioteca, acesso ao menu rápido",
+          "depende": [
+            "FE-08",
+            "BE-21"
+          ],
+          "refs": [
+            "CA-32",
+            "CA-34",
+            "CA-35",
+            "CA-36",
+            "CA-37",
+            "CA-63",
+            "RN-12"
+          ],
+          "pronto": "Testes com `mockIPC` dos estados `Closing` e `CloseOverdue`; painel abre ao receber `session://panel`",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-14",
+          "agente": "dev-frontend",
+          "titulo": "Segundo plano e suspensão: animações pausadas com a janela oculta; `system://resumed` mantém a tela atual e recarrega o estado",
+          "depende": [
+            "FE-03",
+            "BE-19"
+          ],
+          "refs": [
+            "CA-46",
+            "RN-21"
+          ],
+          "pronto": "Teste: ao receber `system://resumed`, a pilha de telas continua igual; nenhuma animação rodando com a janela oculta",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-43",
+          "agente": "dev-backend",
+          "titulo": "Aplicar o parecer SG-10 aos degraus da escada: definir o padrão de runtime dos degraus 2 e 3 (ligar os aprovados, manter desligados os vetados) e a tecla do degrau 2 escolhida",
+          "depende": [
+            "SG-10"
+          ],
+          "refs": [
+            "CA-32",
+            "CA-63",
+            "M-04",
+            "SEC-28",
+            "ADR-0003"
+          ],
+          "pronto": "Padrão da configuração igual ao parecer SG-10; testes do `ForegroundBroker` atualizados e passando; ADR-0003 aponta o padrão final (via ARQ-05)",
+          "status": "a fazer"
+        }
+      ]
+    },
+    {
+      "nome": "Biblioteca",
+      "descricao": "Detecção Steam, Epic e GOG, cadastro manual com navegador de pastas, capas por cover://, ordenação, ocultar, renomear e as telas da biblioteca.",
+      "tarefas": [
+        {
+          "id": "BE-22",
+          "agente": "dev-backend",
+          "titulo": "Domínio da biblioteca: `Game`, `GameId`, `Origin`, fusão scan + camada do usuário, unicidade, ordenação sem acento, nome exibido e restaurar nome, lista fixa `steam_non_games`",
+          "depende": [
+            "BE-06"
+          ],
+          "refs": [
+            "CA-20",
+            "CA-21",
+            "CA-22",
+            "CA-25",
+            "CA-60",
+            "CA-62",
+            "CA-69",
+            "CA-75",
+            "RN-02",
+            "RN-03",
+            "RN-04",
+            "RN-05",
+            "RN-22",
+            "RN-25",
+            "RN-28",
+            "E-12",
+            "E-15",
+            "E-18"
+          ],
+          "pronto": "Testes por tabela: mesmo jogo em duas pastas da Steam = 1 item; Steam + Epic = 2 itens; oculto não volta após scan; jogo de unidade desconectada some e volta com nome e estado de oculto preservados",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-23",
+          "agente": "dev-backend",
+          "titulo": "Políticas de segurança puras: `normalize_display_name` (C0/C1, bidi, 256), `id_formats` por origem, `install_path_policy` (confinamento por componente, profundidade ≥ 2, pastas proibidas), `manual_exe_policy`, executável de loja `.exe` fora de `%SystemRoot%`",
+          "depende": [
+            "BE-06"
+          ],
+          "refs": [
+            "SEC-07",
+            "SEC-09",
+            "SEC-11",
+            "SEC-12",
+            "SEC-14",
+            "SEC-16",
+            "RN-29",
+            "CA-71"
+          ],
+          "pronto": "Testes por tabela com `10//-console`, `x?action=foo&y`, `a b`, `..\\..\\Windows`, `C:\\Jogos2` vs `C:\\Jogos`, `C:\\`, `\\u202Eexe.txt` e `<img src=x onerror=alert(1)>`: cada um rejeitado ou normalizado conforme o SEC",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-24",
+          "agente": "dev-backend",
+          "titulo": "`path_canon.rs` + `FolderBrowser` + comando `fs_list_dir`: só `DRIVE_FIXED`/`DRIVE_REMOVABLE`, sem UNC, `\\\\?\\` nem `\\\\.\\`, só pastas e `.exe`, nunca lê conteúdo",
+          "depende": [
+            "BE-23",
+            "BE-10"
+          ],
+          "refs": [
+            "CA-19",
+            "CA-71",
+            "RN-29",
+            "SEC-09",
+            "AF-02"
+          ],
+          "pronto": "Teste: unidade mapeada e `\\\\127.0.0.1\\c$` não aparecem e retornam `PathNotAllowed`; listagem traz só `Drive`, `Dir` e `Exe`",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-25",
+          "agente": "dev-backend",
+          "titulo": "Scanner Steam: `SteamPath` no HKCU, `libraryfolders.vdf`, `appmanifest_*.acf` com bit 4 em `StateFlags`, `keyvalues-parser` com pré-checagem de 4 MB e profundidade 32, capa do `librarycache`, filtro `steam_non_games`",
+          "depende": [
+            "BE-23",
+            "ARQ-04"
+          ],
+          "refs": [
+            "CA-16",
+            "CA-17",
+            "CA-18",
+            "CA-69",
+            "E-12",
+            "E-18",
+            "RN-28",
+            "SEC-11",
+            "SEC-12",
+            "SEC-13",
+            "SEC-16"
+          ],
+          "pronto": "Testes com fixtures do SP-08 + VDF de 10 MB e de 1.000 níveis: a loja some sem `panic` e as outras carregam; Steam ausente = `NotInstalled`, sem erro na UI",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-26",
+          "agente": "dev-backend",
+          "titulo": "Scanner Epic: `%ProgramData%\\Epic\\EpicGamesLauncher\\Data\\Manifests\\*.item`, ignora instalação incompleta e DLC, IDs validados, `LaunchExecutable` confinado à pasta",
+          "depende": [
+            "BE-23",
+            "ARQ-04"
+          ],
+          "refs": [
+            "CA-56",
+            "CA-58",
+            "CA-59",
+            "E-16",
+            "SEC-11",
+            "SEC-12",
+            "SEC-13",
+            "SEC-16"
+          ],
+          "pronto": "Testes com fixtures do SP-08 e manifestos maliciosos (`AppName` com `?`/`&`, `InstallLocation = C:\\`) rejeitados com log; Epic ausente sem erro",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-27",
+          "agente": "dev-backend",
+          "titulo": "Scanner GOG: `HKLM\\SOFTWARE\\WOW6432Node\\GOG.com\\Games\\<id>` + `goggame-<id>.info` (`playTask` primário), sem SQLite do Galaxy",
+          "depende": [
+            "BE-23",
+            "ARQ-04"
+          ],
+          "refs": [
+            "CA-57",
+            "CA-58",
+            "CA-59",
+            "E-17",
+            "SEC-12",
+            "SEC-13",
+            "SEC-14",
+            "SEC-16",
+            "AF-06"
+          ],
+          "pronto": "Testes com fixtures: `playTasks.path = \"start.bat\"` e `C:\\Windows\\System32\\cmd.exe` rejeitados; jogo de instalador avulso detectado se o SP-08 confirmar",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-28",
+          "agente": "dev-backend",
+          "titulo": "`CoverCache` + protocolo `cover://`: só `GameId` existente; limites de 20 MB e 8192×8192 checados no cabeçalho; reencode JPEG q85 até 600×900 e ícone PNG 256×256 em `cache\\covers\\` e `cache\\icons\\`; ícone do exe; 404 → placeholder",
+          "depende": [
+            "BE-22",
+            "BE-11"
+          ],
+          "refs": [
+            "CA-16",
+            "CA-19",
+            "CA-24",
+            "CA-56",
+            "CA-57",
+            "SEC-08"
+          ],
+          "pronto": "Testes: `cover://../../Windows/win.ini` e id inexistente → 404; PNG declarando 100000×100000 → 404 sem pico de memória; nenhum `assetProtocol` habilitado",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-29",
+          "agente": "dev-backend",
+          "titulo": "Casos de uso e comandos de biblioteca: `library_get` (lê do cache), `library_refresh` (origens em paralelo, `catch_unwind` por origem, `Busy`), `library_hidden`, `game_rename`, `game_restore_name`, `game_hide`, `game_unhide`, evento `library://changed`; jogos manuais revalidados na carga",
+          "depende": [
+            "BE-10",
+            "BE-11",
+            "BE-22",
+            "BE-25",
+            "BE-26",
+            "BE-27",
+            "BE-28"
+          ],
+          "refs": [
+            "CA-16",
+            "CA-17",
+            "CA-18",
+            "CA-21",
+            "CA-22",
+            "CA-25",
+            "CA-56 a CA-59",
+            "CA-61",
+            "CA-62",
+            "CA-70",
+            "RN-04",
+            "RN-05",
+            "RN-18",
+            "RN-22",
+            "SEC-03",
+            "SEC-06",
+            "SEC-07",
+            "SEC-13",
+            "SEC-18",
+            "SEC-29"
+          ],
+          "pronto": "Testes de aplicação com scanner que falha e que entra em `panic`; varredura < 500 ms para 300 jogos em SSD (medida); renomear com nome vazio → `EmptyName`",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-30",
+          "agente": "dev-backend",
+          "titulo": "Cadastro manual: `add_manual_game` + `library_add_manual` (canonicaliza, confere `MZ` + `PE`, duplicata, rede recusada); no lançamento, caminho de rede → erro de CA-71 e arquivo ausente → `GameFileMissing`",
+          "depende": [
+            "BE-24",
+            "BE-29"
+          ],
+          "refs": [
+            "CA-19",
+            "CA-20",
+            "CA-28",
+            "CA-71",
+            "CA-72",
+            "RN-03",
+            "RN-29",
+            "E-10",
+            "SEC-09",
+            "SEC-18"
+          ],
+          "pronto": "Testes: `.lnk`, `.bat`, `.txt` renomeado para `.exe`, `C:\\jogo.exe:ads`, UNC e duplicata recusados com o código certo; jogo manual editado à mão para `script.bat` em `library.json` não inicia",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-05",
+          "agente": "dev-frontend",
+          "titulo": "Home e Todos os jogos: store da biblioteca (`library_get` + `library://changed`), herói, recentes, grade virtualizada com `@tanstack/react-virtual` acima de ~60 itens, estado vazio com \"Adicionar jogo\" em foco, LB/RB, foco inicial no último jogado, indicador \"Em andamento\"",
+          "depende": [
+            "FE-03",
+            "FE-04",
+            "BE-29"
+          ],
+          "refs": [
+            "CA-22",
+            "CA-23",
+            "CA-36",
+            "CA-60",
+            "RN-05",
+            "E-13"
+          ],
+          "pronto": "Testes de componente para biblioteca vazia, cheia e foco inicial; 500 jogos navegam sem queda de quadro perceptível (medido no perfil do WebView2)",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-07",
+          "agente": "dev-frontend",
+          "titulo": "Opções do jogo: `GameOptions`, Ocultar com confirmação, `RenameDialog` lazy (teclado físico, Enter confirma, Esc e B cancelam, nome vazio recusado), Restaurar nome original",
+          "depende": [
+            "FE-05"
+          ],
+          "refs": [
+            "CA-21",
+            "CA-61",
+            "CA-62",
+            "RN-04",
+            "RN-14",
+            "RN-22",
+            "SEC-07"
+          ],
+          "pronto": "Testes: nome vazio mostra erro; Esc não altera; Ocultar exige confirmação com \"Cancelar\" em foco",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-13",
+          "agente": "dev-frontend",
+          "titulo": "Navegador de pastas (lazy) e Adicionar jogo: unidades → pastas → `.exe` com o controle; erros de duplicata, exe inválido e rede",
+          "depende": [
+            "FE-12",
+            "BE-30"
+          ],
+          "refs": [
+            "CA-19",
+            "CA-20",
+            "CA-71",
+            "CA-72",
+            "RN-29"
+          ],
+          "pronto": "Chunk separado; testes com `mockIPC` para cada erro; lista longa navegável",
+          "status": "a fazer"
+        }
+      ]
+    },
+    {
+      "nome": "Volume",
+      "descricao": "Volume mestre do dispositivo padrão pelo menu rápido e por LT/RT na biblioteca, com indicador na tela.",
+      "tarefas": [
+        {
+          "id": "BE-31",
+          "agente": "dev-backend",
+          "titulo": "Domínio de volume: `apply(VolumeState, VolumeCommand)` com passo 5, limite 0 a 100, mudo e desmudo, RT no mudo desmuta e sobe, LT no mudo baixa o nível guardado e mantém o mudo; casos de uso `step_volume` e `toggle_mute` com fake",
+          "depende": [
+            "BE-06"
+          ],
+          "refs": [
+            "CA-38",
+            "CA-39",
+            "CA-40",
+            "CA-64",
+            "RN-13",
+            "SEC-27"
+          ],
+          "pronto": "Testes por tabela para cada regra listada",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-32",
+          "agente": "dev-backend",
+          "titulo": "Core Audio: `AudioEndpoint` em thread MTA (`IAudioEndpointVolume`, callback de volume externo, `IMMNotificationClient`); comandos `volume_get`, `volume_step`, `volume_toggle_mute`; evento `volume://changed`",
+          "depende": [
+            "BE-31",
+            "BE-10"
+          ],
+          "refs": [
+            "CA-38",
+            "CA-41",
+            "CA-42",
+            "RN-13",
+            "SEC-27"
+          ],
+          "pronto": "Teste `win-integration`: comando → evento em < 200 ms; volume mudado pelo teclado gera `volume://changed`; sem dispositivo → `available=false` e `NoAudioDevice`",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-11",
+          "agente": "dev-frontend",
+          "titulo": "`VolumeHud` e LT/RT: só na Home em primeiro plano; ignorados em menus, diálogos e painel; HUD some após 2 s sem uso",
+          "depende": [
+            "FE-05",
+            "BE-32"
+          ],
+          "refs": [
+            "CA-40",
+            "CA-64",
+            "CA-65",
+            "RN-23",
+            "E-20"
+          ],
+          "pronto": "Testes de intenção por tela; HUD visível em < 200 ms após o evento; direção + gatilho juntos movem foco e volume",
+          "status": "a fazer"
+        }
+      ]
+    },
+    {
+      "nome": "Energia e menu rápido",
+      "descricao": "Desligar, reiniciar e suspender com confirmação e ticket de 30 s; menu rápido com volume, energia, configurações e sair.",
+      "tarefas": [
+        {
+          "id": "BE-33",
+          "agente": "dev-backend",
+          "titulo": "Energia: `PowerTicket` (30 s, uso único), `GetPwrCapabilities`, `ExitWindowsEx` com `EWX_POWEROFF`/`EWX_REBOOT` e `SHTDN_REASON_FLAG_PLANNED`, sem `EWX_FORCE*`, `SetSuspendState(FALSE, FALSE, FALSE)`, `SeShutdownPrivilege` só durante a chamada; comandos `power_capabilities`, `power_prepare`, `power_execute`",
+          "depende": [
+            "BE-10"
+          ],
+          "refs": [
+            "CA-43",
+            "CA-44",
+            "CA-45",
+            "CA-46",
+            "CA-47",
+            "CA-49",
+            "RN-14",
+            "RN-15",
+            "SEC-27",
+            "AF-04",
+            "INV-05",
+            "RA-04"
+          ],
+          "pronto": "Testes: ticket expirado ou reutilizado → `TicketInvalid`; ação fora do enum rejeitada; guard sem `EWX_FORCE`/`shutdown.exe`; com fake, suspensão indisponível → `Unavailable`",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-10",
+          "agente": "dev-frontend",
+          "titulo": "Menu rápido: volume com ←/→, Mudo, sem dispositivo, energia com `power_prepare` ao abrir a confirmação e `power_execute` ao confirmar, suspensão indisponível, aviso de jogo aberto, Sair do launcher (`app_exit`)",
+          "depende": [
+            "FE-03",
+            "FE-04",
+            "BE-32",
+            "BE-33",
+            "BE-35"
+          ],
+          "refs": [
+            "CA-05",
+            "CA-37",
+            "CA-38",
+            "CA-39",
+            "CA-40",
+            "CA-41",
+            "CA-42",
+            "CA-43",
+            "CA-44",
+            "CA-45",
+            "CA-46",
+            "CA-47",
+            "CA-48",
+            "RN-14",
+            "SEC-27"
+          ],
+          "pronto": "Testes: B cancela; confirmação abre com \"Cancelar\" em foco; nível exibido vem de `volume://changed`; botões de volume desabilitados com `available=false`",
+          "status": "a fazer"
+        }
+      ]
+    },
+    {
+      "nome": "Tela e configurações",
+      "descricao": "Monitor do launcher com fallback ao principal e a tela de Configurações.",
+      "tarefas": [
+        {
+          "id": "BE-34",
+          "agente": "dev-backend",
+          "titulo": "Monitor e configurações: `DisplayTopology` (`monitorDevicePath`), `choose_monitor` (RN-20), tela cheia sem borda no monitor escolhido, fallback ao principal sem perder a preferência, reação a `DisplayChanged`; comandos `display_monitors`, `settings_get`, `settings_set_monitor`; evento `display://changed`",
+          "depende": [
+            "BE-10",
+            "BE-11",
+            "BE-19"
+          ],
+          "refs": [
+            "CA-01",
+            "CA-66",
+            "CA-67",
+            "RN-20",
+            "E-08",
+            "E-09"
+          ],
+          "pronto": "Teste de domínio do fallback; teste manual com 2 telas (trocar move na hora, desplugar cai no principal, religar e reabrir volta ao escolhido); `MonitorId` fora da lista → `UnknownMonitor`",
+          "status": "a fazer"
+        },
+        {
+          "id": "FE-12",
+          "agente": "dev-frontend",
+          "titulo": "Configurações (lazy): Tela (monitores), Geral (\"Iniciar com o Windows\", aviso de execução elevada), Biblioteca (Atualizar biblioteca, Adicionar jogo), Itens ocultos (restaurar com confirmação, \"Nenhum item oculto\")",
+          "depende": [
+            "FE-03",
+            "FE-04",
+            "BE-29",
+            "BE-34",
+            "BE-36"
+          ],
+          "refs": [
+            "CA-04",
+            "CA-16",
+            "CA-66",
+            "CA-67",
+            "CA-70",
+            "SEC-20"
+          ],
+          "pronto": "Chunk separado no build; testes com `mockIPC` para cada seção e para o estado vazio",
+          "status": "a fazer"
+        }
+      ]
+    },
+    {
+      "nome": "Instalação e inicialização",
+      "descricao": "Instância única, Iniciar com o Windows por usuário sem elevação, instalador e desinstalador NSIS, release com SHA-256 e boot em até 5 s.",
+      "tarefas": [
+        {
+          "id": "BE-35",
+          "agente": "dev-backend",
+          "titulo": "Instância única e saída: mutex em `Local\\` com identificador + SID (plugin ou adapter próprio, conforme ARQ-03), `argv` da 2ª instância ignorado salvo `--autostart` (`--purge-user-data` do BE-41 é tratado só no início do próprio processo, nunca repassado pelo canal da instância única), comando `app_exit` que mantém a sessão do jogo",
+          "depende": [
+            "BE-08",
+            "ARQ-03"
+          ],
+          "refs": [
+            "CA-02",
+            "CA-05",
+            "RN-16",
+            "SEC-19"
+          ],
+          "pronto": "Com o Sofá aberto, `sofa.exe C:\\Windows\\System32\\calc.exe --launch x` e `sofa.exe --purge-user-data` só trazem a janela, sem apagar nada; `app_exit` com jogo aberto deixa o jogo rodando",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-36",
+          "agente": "dev-backend",
+          "titulo": "`AutostartRegistry` conforme SEC-22 rev. 2: mecanismo fechado no ARQ-03 (tarefa `ITaskService` montada campo a campo, sem `schtasks.exe` nem XML concatenado, com `UserId` = SID atual, `TASK_LOGON_INTERACTIVE_TOKEN`, `TASK_RUNLEVEL_LUA`, `LogonTrigger` do mesmo SID, `ExecutionTimeLimit=PT0S`, `IgnoreNew`; ou `HKCU\\...\\Run` respeitando `StartupApproved`), caminho entre aspas + `--autostart`, um mecanismo por vez e desligar remove os dois; fallback automático tarefa → `HKCU\\...\\Run` quando a criação da tarefa falhar em runtime (ADR-0006 revisado), com log; tarefa `Sofa Autostart (<SID>)` só é considerada do Sofá se `UserId`, `RunLevel`, `LogonType` e `Path` baterem, senão é recriada; ligar recusado se o exe em execução não estiver em `%ProgramFiles%` (DR-04); `apply_install_default_once` lendo `InstallDefaults` como DWORD 0/1 (outro valor = desligado); comando `settings_set_autostart`",
+          "depende": [
+            "BE-10",
+            "BE-11",
+            "ARQ-03"
+          ],
+          "refs": [
+            "CA-04",
+            "CA-51",
+            "CA-74",
+            "RN-17",
+            "E-19",
+            "SEC-21",
+            "SEC-22",
+            "SEC-29",
+            "AF-05",
+            "RA-07"
+          ],
+          "pronto": "Teste `win-integration` como usuário comum: ligar cria um único mecanismo com caminho entre aspas para `Program Files`; desligar remove os dois; nenhum UAC; XML exportado com `LeastPrivilege`, `InteractiveToken` e SID do usuário; tarefa forjada com o mesmo nome apontando para `calc.exe` não é tratada como válida; cópia fora de `Program Files` recusa ligar; `InstallDefaults` com valor 7 = desligado; com a criação da tarefa forçada a falhar (fake e VM), o `Run` é criado sozinho",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-37",
+          "agente": "dev-backend",
+          "titulo": "Instalador NSIS: `perMachine` em `%ProgramFiles%\\Sofa`, `embedBootstrapper`, ícone da marca, caixa \"Iniciar com o Windows\" marcada gravando `InstallDefaults` no HKLM, abrir ao terminar via `RunAsUser`, orientação sobre entrar no Windows sem teclado, licenças OFL das fontes incluídas, atualização preservando dados; o instalador elevado escreve só a pasta de instalação, `HKLM\\Software\\app.sofa.launcher` (inclui `InstallLocation`), atalhos e a entrada de \"Aplicativos instalados\" (SEC-29); executável externo só por `$SYSDIR\\` (SEC-32)",
+          "depende": [
+            "BE-09",
+            "ARQ-03"
+          ],
+          "refs": [
+            "CA-50",
+            "CA-51",
+            "CA-53",
+            "RN-19",
+            "RN-26",
+            "SEC-20",
+            "SEC-21",
+            "SEC-23",
+            "SEC-29",
+            "SEC-32",
+            "AF-07"
+          ],
+          "pronto": "Instalador gerado com atalho no menu Iniciar; reinstalar por cima mantém `library.json`, `settings.json` e autostart; `icacls` da pasta sem `Users:(M)`/`(F)`; app aberto ao final com integridade Medium; mensagem de WebView2 sem internet igual à de CA-50 ou divergência registrada no ADR-0006",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-38",
+          "agente": "dev-backend",
+          "titulo": "Desinstalador (orquestração, SEC-31 e DR-03): caixa \"Manter dados\" marcada; desmarcada, o desinstalador elevado só decide e, antes de apagar os binários, inicia via `RunAsUser` `\"<pasta de instalação>\\sofa.exe\" --purge-user-data` (BE-41) como o usuário interativo; só os dados desse usuário (nenhum outro perfil); remove `HKLM\\Software\\app.sofa.launcher`; autostart de todos os perfis pelo BE-42; sem rotina recursiva elevada (fallback só se o ADR-0006 revisado mandar: apagar como admin apenas arquivos de nome conhecido de SEC-31)",
+          "depende": [
+            "BE-37",
+            "BE-41",
+            "SG-09"
+          ],
+          "refs": [
+            "CA-52",
+            "CA-68",
+            "RN-18",
+            "SEC-25",
+            "SEC-29",
+            "SEC-31",
+            "AF-10"
+          ],
+          "pronto": "Desinstalar sem manter dados apaga a pasta do usuário interativo com o token dele (Process Monitor, integridade Medium); dados de outro perfil logado ficam intactos; perfil não resolvido ou `RunAsUser` falhou → nada apagado e aviso; com \"Manter dados\", reinstalar recupera a biblioteca",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-39",
+          "agente": "dev-backend",
+          "titulo": "Build de release: `SHA256SUMS.txt` ao lado do instalador, README com `Get-FileHash`, build a partir de tag, relatórios de `cargo deny` e audit JS anexados, ícones gerados com `npx tauri icon docs/brand/sofa/assets/png/icon-512.png`",
+          "depende": [
+            "BE-37",
+            "BE-12"
+          ],
+          "refs": [
+            "CA-76",
+            "RN-30",
+            "SEC-24",
+            "SEC-26; reusa: docs/brand/sofa/assets/png/icon-512.png",
+            "assets/icon.ico"
+          ],
+          "pronto": "Instalador e `SHA256SUMS.txt` gerados por `scripts/ci.ps1` na pasta de releases local (D-34); hash publicado confere com o arquivo; audit sem achado crítico ou alto alcançável",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-40",
+          "agente": "dev-backend",
+          "titulo": "Boot rápido: `library_get` do cache antes da varredura, varredura em segundo plano após o primeiro paint, `--autostart` tratado, medição do logon até navegável (log com marca de tempo do 1º paint e de \"navegável\", usada também no roteiro do usuário)",
+          "depende": [
+            "BE-29",
+            "BE-34",
+            "BE-36",
+            "FE-05"
+          ],
+          "refs": [
+            "CA-01",
+            "M-02"
+          ],
+          "pronto": "Medido na VM Windows 10 22H2: navegável em ≤ 5 s após a área de trabalho, com o mecanismo do ARQ-03; medição no PC da sala fica no QA-17",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-41",
+          "agente": "dev-backend",
+          "titulo": "Modo `sofa.exe --purge-user-data` (SEC-31): reconhecido só no início do processo, antes da instância única, sem janela nem WebView2, sem nenhum outro argumento aceito; apaga só `app_local_data_dir()` com as travas de SEC-25 (alvo um nível abaixo de `%LOCALAPPDATA%`, identificador fixo no build, contém `library.json` ou `settings.json`), abrindo cada entrada com `FILE_FLAG_OPEN_REPARSE_POINT` e apagando pelo handle (ponto de reanálise apagado sem descer nele), inclusive `EBWebView\\`; nunca roda elevado",
+          "depende": [
+            "BE-11",
+            "BE-35",
+            "SG-09"
+          ],
+          "refs": [
+            "CA-68",
+            "RN-18",
+            "SEC-20",
+            "SEC-25",
+            "SEC-29",
+            "SEC-31",
+            "AF-10"
+          ],
+          "pronto": "Teste `win-integration`: junction trocada em loop para uma pasta-isca durante a remoção deixa a isca intacta; pasta sem `library.json`/`settings.json` → nada apagado; rodando elevado (`TokenElevation`) → recusa e sai sem apagar; argumento extra → sai sem apagar; código de saída distingue sucesso, recusa e falha parcial",
+          "status": "a fazer"
+        },
+        {
+          "id": "BE-42",
+          "agente": "dev-backend",
+          "titulo": "Remoção do autostart de todos os perfis no desinstalador (SEC-32, DR-03): tarefas `Sofa Autostart (<SID>)` por COM enumerando a raiz do Agendador pelo prefixo, ou `$SYSDIR\\schtasks.exe` com SID validado em `^S-1-5-21(-[0-9]{1,10}){4}$` e nome montado de constante + SID (conforme o ADR-0006 revisado); valores `Sofa` em `HKU\\<SID>\\...\\Run` dos hives carregados; nenhum executável externo do instalador ou desinstalador chamado por nome relativo",
+          "depende": [
+            "BE-37",
+            "SG-09"
+          ],
+          "refs": [
+            "CA-52",
+            "RN-17",
+            "SEC-22",
+            "SEC-29",
+            "SEC-32"
+          ],
+          "pronto": "Process Monitor na desinstalação mostra só `C:\\Windows\\System32\\schtasks.exe` (ou nenhum processo externo, se via COM), sem busca na pasta temporária; SID malformado é ignorado sem executar nada; tarefa e `Run` somem de todos os perfis testados; grep do script NSIS sem `nsExec`/`ExecWait` fora de `$SYSDIR\\`",
+          "status": "a fazer"
+        }
+      ]
+    },
+    {
+      "nome": "Transversal",
+      "descricao": "Design (mockups e aprovação), QA geral e testes com o usuário, verificação de segurança e revisão final da arquitetura.",
+      "tarefas": [
+        {
+          "id": "DES-01",
+          "agente": "designer-ux",
+          "titulo": "Fundamentos de 10 pés e componentes base: área segura, escala, `Focusable` (foco, desabilitado), `MenuList`, `ConfirmDialog` (\"Cancelar\" em foco), faixa de aviso, `VolumeHud`, `OriginBadge`, `InProgressBadge`, capa e placeholder, truncamento de nome",
+          "depende": [],
+          "refs": [
+            "CA-03",
+            "CA-24",
+            "CA-54",
+            "CA-55",
+            "CA-60",
+            "RN-14",
+            "E-13; reusa: docs/brand/sofa/tokens.css",
+            "docs/brand/sofa/assets/"
+          ],
+          "pronto": "`docs/design/launcher-tv/componentes.html` usa os tokens sem cópia; texto ≥ 24 px a 1080p; contraste ≥ 4,5:1; variante com `prefers-reduced-motion`",
+          "status": "a fazer"
+        },
+        {
+          "id": "DES-02",
+          "agente": "designer-ux",
+          "titulo": "Mockup Home e Todos os jogos: herói, recentes, grade, foco, estado vazio com \"Adicionar jogo\" em foco, faixa \"Nenhum controle conectado\", aviso de desconexão, \"Em andamento\", indicador de volume",
+          "depende": [
+            "DES-01"
+          ],
+          "refs": [
+            "CA-06",
+            "CA-13",
+            "CA-14",
+            "CA-15",
+            "CA-22",
+            "CA-23",
+            "CA-24",
+            "CA-36",
+            "CA-60",
+            "CA-64",
+            "RN-05",
+            "E-13"
+          ],
+          "pronto": "`docs/design/launcher-tv/home.html` em 1080p e 4K, com biblioteca cheia, vazia e com nome longo",
+          "status": "a fazer"
+        },
+        {
+          "id": "DES-03",
+          "agente": "designer-ux",
+          "titulo": "Mockup opções do jogo: Renomear (campo de teclado físico, Enter e Esc), Ocultar com confirmação, Restaurar nome original",
+          "depende": [
+            "DES-01"
+          ],
+          "refs": [
+            "CA-21",
+            "CA-61",
+            "CA-62",
+            "RN-04",
+            "RN-14",
+            "RN-22"
+          ],
+          "pronto": "`docs/design/launcher-tv/opcoes-jogo.html` com todos os estados, inclusive nome vazio recusado",
+          "status": "a fazer"
+        },
+        {
+          "id": "DES-04",
+          "agente": "designer-ux",
+          "titulo": "Mockup fluxo de jogo: \"Abrindo <nome>…\", arquivo não encontrado, pasta de rede, não confirmado, pede administrador, UAC recusado, troca de jogo, painel do jogo em andamento, fechando e forçar fechamento",
+          "depende": [
+            "DES-01"
+          ],
+          "refs": [
+            "CA-26",
+            "CA-28",
+            "CA-29",
+            "CA-31",
+            "CA-32",
+            "CA-34",
+            "CA-35",
+            "CA-36",
+            "CA-63",
+            "CA-71",
+            "CA-73",
+            "E-10"
+          ],
+          "pronto": "`docs/design/launcher-tv/sessao.html` com cada estado e a opção em foco por padrão marcada",
+          "status": "a fazer"
+        },
+        {
+          "id": "DES-05",
+          "agente": "designer-ux",
+          "titulo": "Mockup menu rápido: volume (←/→), Mudo, sem dispositivo, Desligar/Reiniciar/Suspender (suspensão indisponível), confirmações com aviso de jogo aberto, Configurações, Sair do launcher",
+          "depende": [
+            "DES-01"
+          ],
+          "refs": [
+            "CA-05",
+            "CA-37",
+            "CA-38",
+            "CA-39",
+            "CA-42",
+            "CA-43",
+            "CA-47",
+            "CA-48",
+            "RN-14"
+          ],
+          "pronto": "`docs/design/launcher-tv/menu-rapido.html` com cada diálogo e \"Cancelar\" em foco",
+          "status": "a fazer"
+        },
+        {
+          "id": "DES-06",
+          "agente": "designer-ux",
+          "titulo": "Mockup Configurações (Tela, Biblioteca, Geral, Itens ocultos) e navegador de pastas: lista de monitores, Atualizar biblioteca, Adicionar jogo, \"Iniciar com o Windows\", aviso de execução elevada, lista de ocultos e \"Nenhum item oculto\", erros de duplicata e exe inválido",
+          "depende": [
+            "DES-01"
+          ],
+          "refs": [
+            "CA-04",
+            "CA-19",
+            "CA-20",
+            "CA-66",
+            "CA-70",
+            "CA-71",
+            "CA-72",
+            "SEC-20"
+          ],
+          "pronto": "`docs/design/launcher-tv/configuracoes.html` e `navegador-pastas.html` com estados vazio, erro e lista longa",
+          "status": "a fazer"
+        },
+        {
+          "id": "DES-07",
+          "agente": "designer-ux",
+          "titulo": "Catálogo de microcopy pt-BR na voz da marca: todos os textos de tela e um texto por código de `ErrorDto` do contrato",
+          "depende": [
+            "DES-02",
+            "DES-03",
+            "DES-04",
+            "DES-05",
+            "DES-06",
+            "BE-07"
+          ],
+          "refs": [
+            "CA-13",
+            "CA-20",
+            "CA-28",
+            "CA-29",
+            "CA-31",
+            "CA-35",
+            "CA-42",
+            "CA-47",
+            "CA-48",
+            "CA-50",
+            "CA-71",
+            "CA-72",
+            "CA-73",
+            "RN-19"
+          ],
+          "pronto": "`docs/design/launcher-tv/microcopy.md` cobre 100% dos códigos do contrato e usa as frases literais da spec",
+          "status": "a fazer"
+        },
+        {
+          "id": "DES-08",
+          "agente": "designer-ux",
+          "titulo": "Protótipo navegável por teclado ligando os mockups e rodada de aprovação com o usuário",
+          "depende": [
+            "DES-07"
+          ],
+          "refs": [
+            "CA-09",
+            "CA-10",
+            "CA-55"
+          ],
+          "pronto": "`docs/design/launcher-tv/index.html` navegável com setas, Enter e Esc; aprovação do usuário registrada no handoff; ajustes pedidos aplicados",
+          "status": "a fazer"
+        },
+        {
+          "id": "DES-09",
+          "agente": "designer-ux",
+          "titulo": "Revisão de design da UI implementada contra os mockups aprovados",
+          "depende": [
+            "FE-05",
+            "FE-07",
+            "FE-08",
+            "FE-09",
+            "FE-10",
+            "FE-11",
+            "FE-12",
+            "FE-13"
+          ],
+          "refs": [
+            "CA-54",
+            "CA-55",
+            "CA-60",
+            "E-13"
+          ],
+          "pronto": "Lista de divergências entregue ao dev-frontend e resolvida, ou registro de \"sem divergências\"",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-01",
+          "agente": "qa",
+          "titulo": "Plano de testes em `docs/qa/launcher-tv.md`: caso por CA/RN/SEC, quem executa (automatizado, QA em VM ou roteiro do usuário), matriz R-01 (jogo × modo × degrau), VMs e contas necessárias",
+          "depende": [],
+          "refs": [
+            "CA-01 a CA-76",
+            "RN-01 a RN-30",
+            "SEC-01 a SEC-32",
+            "M-01 a M-05"
+          ],
+          "pronto": "Cada CA, RN e SEC tem caso com passos e resultado esperado; casos que exigem o PC da sala marcados \"roteiro do usuário\"",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-02",
+          "agente": "qa",
+          "titulo": "Suíte E2E smoke (`tauri-driver` + WebdriverIO): abrir, navegar, menu rápido, cancelar desligar; F12 e Ctrl+P sem efeito; `eval` e `location.href` externo bloqueados",
+          "depende": [
+            "QA-01",
+            "FE-10",
+            "BE-09"
+          ],
+          "refs": [
+            "CA-09",
+            "CA-10",
+            "CA-43",
+            "RN-14",
+            "SEC-01",
+            "SEC-02"
+          ],
+          "pronto": "Suíte roda no `scripts/ci.ps1` (BE-12) e passa no build de release",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-03",
+          "agente": "qa",
+          "titulo": "Navegação e entrada sem o usuário: E2E pelo teclado de emergência (mesmas intenções do controle), revisão dos testes de domínio de BE-13 (zona morta, repetição, vários controles, combinação) e de conexão/desconexão de BE-14; casos com controle físico vão para o roteiro (QA-16)",
+          "depende": [
+            "QA-01",
+            "FE-06",
+            "BE-14"
+          ],
+          "refs": [
+            "CA-06 a CA-15",
+            "CA-55",
+            "RN-06",
+            "RN-07",
+            "RN-08",
+            "M-05"
+          ],
+          "pronto": "Resultado por caso no relatório; casos físicos listados no roteiro do usuário",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-04",
+          "agente": "qa",
+          "titulo": "Biblioteca e detecção com as lojas da máquina de dev (jogos gratuitos) e fixtures do SP-08: Steam, Epic, GOG (Galaxy e avulso), desinstalar, unidade externa, ocultar e restaurar, renomear, itens que não são jogo; biblioteca real do usuário fica no roteiro",
+          "depende": [
+            "QA-01",
+            "FE-07",
+            "FE-12",
+            "BE-29"
+          ],
+          "refs": [
+            "CA-16",
+            "CA-17",
+            "CA-18",
+            "CA-21",
+            "CA-22",
+            "CA-23",
+            "CA-24",
+            "CA-56 a CA-62",
+            "CA-69",
+            "CA-70",
+            "RN-02",
+            "RN-03",
+            "RN-04",
+            "RN-05",
+            "RN-22",
+            "RN-25",
+            "RN-28",
+            "E-12",
+            "E-13",
+            "E-15",
+            "E-17",
+            "E-18"
+          ],
+          "pronto": "Resultado por caso; jogos não detectados ou com capa errada listados",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-05",
+          "agente": "qa",
+          "titulo": "Cadastro manual e caminhos: arquivos inválidos, rede, ADS, duplicata, pasta com `&` e aspas no nome, biblioteca editada à mão, unidade externa desconectada",
+          "depende": [
+            "QA-01",
+            "FE-13",
+            "BE-30"
+          ],
+          "refs": [
+            "CA-19",
+            "CA-20",
+            "CA-28",
+            "CA-71",
+            "CA-72",
+            "RN-29",
+            "E-10",
+            "SEC-09",
+            "SEC-10",
+            "SEC-18"
+          ],
+          "pronto": "Todos os casos de teste de SEC-09 e SEC-10 recusados ou iniciados conforme esperado, com evidência",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-06",
+          "agente": "qa",
+          "titulo": "Sessão e retorno com apps sintéticos (janela, sem borda, tela cheia exclusiva, app que reinicia em < 5 s, launcher intermediário, app que exige admin, app que trava): matriz app × modo × degrau (1 e 4 por padrão; 2 e 3 ligados por configuração), fim pela própria janela, fechar e forçar, troca de jogo, CPU em segundo plano; jogos reais vão para o roteiro",
+          "depende": [
+            "QA-01",
+            "FE-09",
+            "BE-21"
+          ],
+          "refs": [
+            "CA-12",
+            "CA-26 a CA-37",
+            "CA-63",
+            "CA-73",
+            "CA-75",
+            "RN-09",
+            "RN-10",
+            "RN-11",
+            "RN-12",
+            "RN-21",
+            "RN-24",
+            "RN-27",
+            "E-01 a E-07",
+            "E-14",
+            "E-16",
+            "E-23",
+            "M-04"
+          ],
+          "pronto": "Matriz preenchida com tempos; retorno ≤ 3 s ou limitação registrada; CPU < 1% em segundo plano",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-07",
+          "agente": "qa",
+          "titulo": "Volume: menu rápido, gatilhos (via intenção), mudo, mudança externa, sem dispositivo, gatilho + direção",
+          "depende": [
+            "QA-01",
+            "FE-10",
+            "FE-11"
+          ],
+          "refs": [
+            "CA-38 a CA-42",
+            "CA-64",
+            "CA-65",
+            "RN-13",
+            "RN-23",
+            "E-20"
+          ],
+          "pronto": "Resultado por caso; tempo até o indicador ≤ 200 ms",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-08",
+          "agente": "qa",
+          "titulo": "Menu rápido e energia em VM: desligar com Bloco de Notas não salvo, reiniciar com autostart, suspender e acordar (se a VM suportar), suspensão indisponível, aviso de jogo aberto, Sair do launcher; hardware real e controle Bluetooth após suspensão vão para o roteiro",
+          "depende": [
+            "QA-01",
+            "FE-10",
+            "FE-14",
+            "BE-33"
+          ],
+          "refs": [
+            "CA-05",
+            "CA-43 a CA-49",
+            "RN-14",
+            "RN-15",
+            "SEC-27",
+            "RA-04",
+            "RA-05"
+          ],
+          "pronto": "Resultado por caso; o Windows mostra a própria tela de bloqueio de desligamento (CA-49)",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-09",
+          "agente": "qa",
+          "titulo": "Tela e DPI em VM: 1080p e 4K (resolução virtual), escala de 100% a 300%, área segura, dois monitores virtuais (escolher, desplugar, religar); TV real e leitura a 3 m vão para o roteiro",
+          "depende": [
+            "QA-01",
+            "FE-12",
+            "BE-34",
+            "BE-40"
+          ],
+          "refs": [
+            "CA-01",
+            "CA-03",
+            "CA-54",
+            "CA-55",
+            "CA-66",
+            "CA-67",
+            "RN-20",
+            "E-08",
+            "E-09"
+          ],
+          "pronto": "Prints por resolução e escala sem corte; texto ≥ 24 px equivalentes; resultado por caso",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-10",
+          "agente": "qa",
+          "titulo": "Instalação, autostart, instância e privilégio em VM Windows 10 22H2 limpa, sem WebView2 (principal), e Windows 11: instalar, atualizar, desinstalar mantendo e apagando dados, WebView2 ausente com e sem internet, conta padrão + admin de outra conta criadas pelo QA, DLL plantada, junction-isca, boot ≤ 5 s, 2ª instância com argumentos, integridade Medium, `icacls`, SHA-256; testes de SEC-22 rev. 2 (XML da tarefa exportado com `LeastPrivilege`, `InteractiveToken` e SID; tarefa forjada `Sofa Autostart (<SID>)` → `calc.exe` não é aceita; ligar Run remove a tarefa e vice-versa; cópia fora de `Program Files` recusa ligar; fallback automático para `Run` quando a tarefa falha) e `InstallDefaults` com valor inválido = desligado (SEC-21)",
+          "depende": [
+            "QA-01",
+            "BE-35",
+            "BE-36",
+            "BE-38",
+            "BE-39",
+            "BE-40"
+          ],
+          "refs": [
+            "CA-01",
+            "CA-02",
+            "CA-04",
+            "CA-45",
+            "CA-50 a CA-53",
+            "CA-68",
+            "CA-74",
+            "CA-76",
+            "RN-16",
+            "RN-17",
+            "RN-18",
+            "RN-19",
+            "RN-26",
+            "RN-27",
+            "RN-30",
+            "E-19",
+            "M-02",
+            "SEC-19",
+            "SEC-20",
+            "SEC-21",
+            "SEC-22",
+            "SEC-23",
+            "SEC-25",
+            "SEC-26"
+          ],
+          "pronto": "Resultado por caso nas duas VMs, com prints do Process Explorer, do Process Monitor e do `icacls`",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-11",
+          "agente": "qa",
+          "titulo": "Segurança dinâmica: manifestos maliciosos (XSS no nome, IDs, `installdir`, `playTasks`), `cover://` com `..` e imagem gigante, 20 `session_launch` seguidos, PID reaproveitado, Steam mantida ao forçar fechamento, fuzz de VDF e JSON, rede zero por 10 min no Resource Monitor",
+          "depende": [
+            "QA-01",
+            "BE-21",
+            "BE-29",
+            "BE-30",
+            "FE-05"
+          ],
+          "refs": [
+            "SEC-06",
+            "SEC-07",
+            "SEC-08",
+            "SEC-11",
+            "SEC-12",
+            "SEC-13",
+            "SEC-14",
+            "SEC-15",
+            "SEC-16",
+            "SEC-17",
+            "SEC-30",
+            "RN-01"
+          ],
+          "pronto": "Cada teste listado na seção 6 do doc de segurança para esses SEC executado, com evidência; achados viram bug",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-12",
+          "agente": "qa",
+          "titulo": "Robustez e persistência: configuração inválida vira backup, imagem corrompida, loja falhando, processo morto durante gravação, fechar e reabrir mantém dados, queda do Sofá durante a sessão",
+          "depende": [
+            "QA-01",
+            "BE-11",
+            "BE-29"
+          ],
+          "refs": [
+            "CA-25",
+            "CA-75",
+            "RN-18",
+            "SEC-18"
+          ],
+          "pronto": "Resultado por caso; o Sofá abre em todos os cenários",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-13",
+          "agente": "qa",
+          "titulo": "Relatório final de QA: consolida QA-02 a QA-12, QA-15 e o resultado do roteiro do usuário (QA-17), bugs com severidade e CA afetado, cobertura por CA/RN/SEC",
+          "depende": [
+            "QA-02",
+            "QA-03",
+            "QA-04",
+            "QA-05",
+            "QA-06",
+            "QA-07",
+            "QA-08",
+            "QA-09",
+            "QA-10",
+            "QA-11",
+            "QA-12",
+            "QA-15",
+            "QA-17"
+          ],
+          "refs": [
+            "CA-01 a CA-76",
+            "RN-01 a RN-30",
+            "SEC-01 a SEC-32"
+          ],
+          "pronto": "`docs/qa/launcher-tv.md` com cada CA/RN/SEC como passou, falhou ou não verificado (com motivo)",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-14",
+          "agente": "qa",
+          "titulo": "Aceite de uso (**com o usuário**): 2 semanas de uso real com registro de sessões sem teclado e mouse",
+          "depende": [
+            "QA-13"
+          ],
+          "refs": [
+            "M-01",
+            "M-02",
+            "M-03",
+            "M-04",
+            "M-05"
+          ],
+          "pronto": "M-01 a M-05 medidas e registradas no relatório (não bloqueia ARQ-05)",
+          "status": "a fazer"
+        },
+        {
+          "id": "SG-04",
+          "agente": "seguranca",
+          "titulo": "Verificação do código: IPC, WebView e renderização",
+          "depende": [
+            "BE-08",
+            "BE-09",
+            "BE-10",
+            "BE-28",
+            "BE-29",
+            "FE-02",
+            "FE-04",
+            "FE-05"
+          ],
+          "refs": [
+            "SEC-01",
+            "SEC-02",
+            "SEC-03",
+            "SEC-04",
+            "SEC-05",
+            "SEC-06",
+            "SEC-07",
+            "SEC-08"
+          ],
+          "pronto": "Cada SEC listado com evidência (arquivo, teste ou print) em `docs/security/launcher-tv.md`; achados abertos como tarefa",
+          "status": "a fazer"
+        },
+        {
+          "id": "SG-05",
+          "agente": "seguranca",
+          "titulo": "Verificação do código: caminhos, lançamento e parsers",
+          "depende": [
+            "BE-16",
+            "BE-23",
+            "BE-24",
+            "BE-25",
+            "BE-26",
+            "BE-27",
+            "BE-30"
+          ],
+          "refs": [
+            "SEC-09",
+            "SEC-10",
+            "SEC-11",
+            "SEC-12",
+            "SEC-13",
+            "SEC-14",
+            "SEC-16",
+            "AF-02",
+            "AF-03",
+            "AF-06"
+          ],
+          "pronto": "Cada SEC listado com evidência em `docs/security/launcher-tv.md`; achados abertos como tarefa",
+          "status": "a fazer"
+        },
+        {
+          "id": "SG-06",
+          "agente": "seguranca",
+          "titulo": "Verificação do código: sessão, processos, entrada e primeiro plano, incluindo as condições de SEC-28 rev. 2 para os degraus 2 e 3 e para o `SetWinEventHook`",
+          "depende": [
+            "BE-14",
+            "BE-17",
+            "BE-18",
+            "BE-19",
+            "BE-21"
+          ],
+          "refs": [
+            "SEC-15",
+            "SEC-17",
+            "SEC-28",
+            "AF-01",
+            "AF-04"
+          ],
+          "pronto": "Cada SEC listado com evidência em `docs/security/launcher-tv.md`; achados abertos como tarefa",
+          "status": "a fazer"
+        },
+        {
+          "id": "SG-07",
+          "agente": "seguranca",
+          "titulo": "Verificação: persistência, instância única, privilégio, instalador, desinstalador e cadeia de dependências",
+          "depende": [
+            "BE-11",
+            "BE-12",
+            "BE-35",
+            "BE-36",
+            "BE-37",
+            "BE-38",
+            "BE-39",
+            "BE-41",
+            "BE-42",
+            "QA-15"
+          ],
+          "refs": [
+            "SEC-18",
+            "SEC-19",
+            "SEC-20",
+            "SEC-21",
+            "SEC-22",
+            "SEC-23",
+            "SEC-24",
+            "SEC-25",
+            "SEC-26",
+            "SEC-29",
+            "SEC-31",
+            "SEC-32",
+            "AF-05",
+            "AF-07",
+            "AF-09",
+            "AF-10"
+          ],
+          "pronto": "Cada SEC listado com evidência em `docs/security/launcher-tv.md`; achados abertos como tarefa",
+          "status": "a fazer"
+        },
+        {
+          "id": "SG-08",
+          "agente": "seguranca",
+          "titulo": "Verificação de energia e rede + parecer final consolidado com o QA",
+          "depende": [
+            "BE-32",
+            "BE-33",
+            "SG-04",
+            "SG-05",
+            "SG-06",
+            "SG-07",
+            "SG-10",
+            "QA-11"
+          ],
+          "refs": [
+            "SEC-27",
+            "SEC-30",
+            "AF-04",
+            "AF-08"
+          ],
+          "pronto": "SEC-01 a SEC-32 com status verificado; parecer final aprovado ou com bloqueios listados",
+          "status": "a fazer"
+        },
+        {
+          "id": "ARQ-05",
+          "agente": "arquiteto",
+          "titulo": "Revisão final (modo revisão): código contra a arquitetura, INV-01 a INV-09, lista de comandos da seção 4.1, capability da 4.3, termos da spec na UI e padrão final dos degraus no ADR-0003",
+          "depende": [
+            "QA-13",
+            "SG-08",
+            "DES-09",
+            "BE-39",
+            "BE-40",
+            "BE-43"
+          ],
+          "refs": [
+            "INV-01 a INV-09",
+            "SEC-03",
+            "SEC-05",
+            "SEC-28"
+          ],
+          "pronto": "Parecer registrado em `docs/arch/launcher-tv.md` sem pendência bloqueante, ou lista de correções devolvida ao PO",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-15",
+          "agente": "qa",
+          "titulo": "Desinstalador seguro em VM: corrida de junction durante a remoção (processo do usuário trocando em loop `...\\app.sofa.launcher\\cache\\covers` por junction para pasta-isca só de administradores), remoção com o token do usuário, outro perfil logado com dados intactos (DR-03), autostart removido de todos os perfis, `schtasks.exe` só por `C:\\Windows\\System32\\`, `sofa.exe --purge-user-data` com o Sofá aberto e com argumentos extras",
+          "depende": [
+            "QA-01",
+            "BE-38",
+            "BE-41",
+            "BE-42"
+          ],
+          "refs": [
+            "CA-52",
+            "CA-68",
+            "RN-18",
+            "SEC-25",
+            "SEC-31",
+            "SEC-32"
+          ],
+          "pronto": "Arquivos-isca intactos; Process Monitor mostra as exclusões na pasta de dados com integridade Medium e nenhuma busca de executável na pasta temporária; dados do outro perfil intactos; resultado por caso com evidência",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-16",
+          "agente": "qa",
+          "titulo": "Roteiro único de teste do usuário: (1) build de teste = instalador do BE-39 + perfil de diagnóstico que liga os degraus 2 e 3 e o log detalhado sem rebuild; (2) `docs/qa/roteiro-usuario.md` com passo a passo curto, em blocos com tempo estimado, cobrindo instalação no Windows 10 da sala, boot com autostart, controle (com fio, adaptador, Bluetooth, 2 controles, drift, desconexão), cada jogo da lista D-29 em cada modo de tela com degraus 1/4 e depois 2/3, um jogo com anti-cheat em modo offline (D-30), fim pelo menu do jogo, fechar/forçar, jogo como admin, volume, energia e suspensão, TV e monitor, conta padrão + outro admin (D-31), desinstalação; (3) coletor `scripts/coletar-logs.ps1` que junta logs, versão do Windows e hardware num zip, sem dados além dos já permitidos em SEC-18",
+          "depende": [
+            "QA-02",
+            "QA-03",
+            "QA-04",
+            "QA-05",
+            "QA-06",
+            "QA-07",
+            "QA-08",
+            "QA-09",
+            "QA-10",
+            "QA-11",
+            "QA-12",
+            "QA-15",
+            "BE-39",
+            "BE-40 (D-29)"
+          ],
+          "refs": [
+            "CA-01",
+            "CA-06 a CA-15",
+            "CA-26 a CA-37",
+            "CA-43 a CA-55",
+            "CA-63",
+            "CA-66",
+            "CA-67",
+            "CA-73",
+            "E-19",
+            "E-21",
+            "M-02",
+            "M-03",
+            "M-04",
+            "M-05",
+            "SEC-21",
+            "SEC-28",
+            "R-01",
+            "R-03",
+            "R-07"
+          ],
+          "pronto": "Roteiro cobre todos os casos marcados \"roteiro do usuário\" no QA-01; ensaio completo do roteiro feito pelo QA na VM Windows 10, coletor gera o zip; uma única entrega ao usuário",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-17",
+          "agente": "qa",
+          "titulo": "Execução do roteiro pelo usuário (**com o usuário**) e análise dos logs: matriz jogo × modo × degrau × ms, efeito da tecla sintética, anti-cheat, controle, boot (M-02), retorno (M-04), cliques para abrir o último jogo (M-03), jogos de E-21 e R-03, conta padrão + outro admin, detecção da biblioteca real",
+          "depende": [
+            "QA-16"
+          ],
+          "refs": [
+            "CA-01",
+            "CA-06 a CA-15",
+            "CA-16",
+            "CA-26 a CA-37",
+            "CA-43 a CA-55",
+            "CA-56",
+            "CA-57",
+            "CA-63",
+            "CA-66",
+            "CA-67",
+            "CA-73",
+            "E-19",
+            "E-21",
+            "M-02",
+            "M-03",
+            "M-04",
+            "M-05",
+            "RN-06",
+            "RN-21",
+            "SEC-21",
+            "SEC-28",
+            "R-01",
+            "R-03",
+            "R-07"
+          ],
+          "pronto": "Zip do coletor recebido e analisado; matriz no relatório; bugs abertos; casos sem hardware marcados \"não verificado\"; dados entregues ao SG-10",
+          "status": "a fazer"
+        },
+        {
+          "id": "SG-10",
+          "agente": "seguranca",
+          "titulo": "Revisão pós-QA final para habilitar os degraus 2 e 3: com os logs do roteiro do usuário (QA-17) — degrau usado por jogo e modo, tempos, efeito da tecla sintética, comportamento do jogo com anti-cheat em modo offline — aplicar os critérios de veto de SEC-28",
+          "depende": [
+            "QA-17",
+            "SG-06"
+          ],
+          "refs": [
+            "SEC-28",
+            "R-07",
+            "CA-32",
+            "CA-63",
+            "M-04",
+            "ADR-0003"
+          ],
+          "pronto": "Parecer registrado em `docs/security/launcher-tv.md`: degrau 2, degrau 3, ambos ou nenhum ligados por padrão, com a tecla do degrau 2 e o motivo; entregue para BE-43",
+          "status": "a fazer"
+        }
+      ]
+    }
+  ],
+  "duvidas": [
+    {
+      "id": "D-29",
+      "pergunta": "Quais jogos seus vamos usar nos spikes SP-01 e SP-02 e no teste de sessão do QA?",
+      "contexto": "O SP-01 precisa de 3 a 5 jogos cobrindo janela, sem borda e tela cheia exclusiva, mais um que exija administrador. O SP-02 precisa de 1 jogo Steam, 1 Epic, 1 GOG e 1 com launcher de publicadora. Sem essa lista os spikes não começam e os ADRs 0003 e 0005 continuam propostos, o que trava o caminho crítico.",
+      "origem": "po (arquitetura seção 9, spec R-01/R-02)",
+      "bloqueia": [
+        "BE-01",
+        "BE-02",
+        "QA-01",
+        "QA-06"
+      ],
+      "sugestoes": [
+        {
+          "texto": "Você envia a lista (nome, loja e modo de tela de cada jogo) cobrindo todos os casos",
+          "motivo": "Resultado vale para os jogos que você joga de verdade.",
+          "recomendada": true
+        },
+        {
+          "texto": "O dev escolhe entre os jogos já instalados no PC e você só confirma",
+          "motivo": "Menos trabalho seu; pode faltar algum caso (ex.: tela cheia exclusiva)."
+        },
+        {
+          "texto": "Completar com jogos gratuitos instalados só para o teste",
+          "motivo": "Cobre lacunas da sua biblioteca; instala coisas que você não usa."
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Usuário envia a lista de jogos depois, quando o roteiro de teste final estiver pronto."
+    },
+    {
+      "id": "D-30",
+      "pergunta": "Podemos testar o Sofá com um jogo que tem anti-cheat na sua conta?",
+      "contexto": "O SP-01 inclui um jogo com anti-cheat para confirmar que a escada de primeiro plano (Alt sintético, AttachThreadInput, minimizar) não é acusada (SEC-28, R-07). O risco de punição é baixo, porque o Sofá não injeta nada, mas não é zero.",
+      "origem": "arquiteto (SP-01) / seguranca (SEC-28)",
+      "bloqueia": [
+        "BE-01",
+        "SG-02"
+      ],
+      "sugestoes": [
+        {
+          "texto": "Testar com um jogo com anti-cheat em modo offline ou numa conta secundária",
+          "motivo": "Mede a reação sem arriscar a conta principal.",
+          "recomendada": true
+        },
+        {
+          "texto": "Testar na conta principal, aceitando o risco",
+          "motivo": "Mais realista; risco pequeno de punição."
+        },
+        {
+          "texto": "Não testar e registrar R-07 como não verificado",
+          "motivo": "Zero risco; fica sem evidência sobre anti-cheat."
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Testar jogo com anti-cheat em modo offline/conta secundária (no teste final)."
+    },
+    {
+      "id": "D-31",
+      "pergunta": "Como fazemos o teste com uma conta padrão do Windows e a senha de outra conta administradora?",
+      "contexto": "O SP-07 e o QA-10 precisam confirmar que um usuário sem administrador consegue criar a tarefa de logon (decide tarefa ou Run, P-03) e que o instalador, aprovado com credencial de outra conta, abre o Sofá e grava o autostart no usuário certo (E-19, SEC-21).",
+      "origem": "arquiteto (SP-07, ADR-0006)",
+      "bloqueia": [
+        "BE-04",
+        "SG-03",
+        "ARQ-03",
+        "QA-10"
+      ],
+      "sugestoes": [
+        {
+          "texto": "Criar uma conta local padrão temporária no PC da sala e apagá-la depois",
+          "motivo": "Testa no hardware real; exige alguns minutos seus.",
+          "recomendada": true
+        },
+        {
+          "texto": "Usar uma máquina virtual Windows 11 com as duas contas",
+          "motivo": "Não mexe no PC da sala; não mede o tempo de boot real."
+        },
+        {
+          "texto": "Pular o cenário E-19 e usar HKCU Run direto",
+          "motivo": "Menos trabalho; arrisca estourar os 5 s de M-02 e deixa E-19 sem teste."
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Testar instalação com conta padrão + credencial de outro admin (conta local temporária), no teste final."
+    },
+    {
+      "id": "D-32",
+      "pergunta": "Em qual Windows roda o PC da sala, e precisamos testar o instalador no Windows 10?",
+      "contexto": "CA-50 cobre o caso de WebView2 ausente, comum só no Windows 10, com a mensagem de erro sem internet. A spec pede Windows 10 nas versões com suporte da Microsoft na data do lançamento; pelo calendário que conheço, o suporte ao consumidor do Windows 10 já terminou (inclusive o ESU de um ano) — confirme. Testar no Windows 10 exige uma VM limpa.",
+      "origem": "po (spec seção 11, CA-50)",
+      "bloqueia": [
+        "BE-37",
+        "QA-10"
+      ],
+      "sugestoes": [
+        {
+          "texto": "Testar no Windows do PC da sala e numa VM Windows 10 22H2 limpa, sem WebView2",
+          "motivo": "Cobre CA-50 como está na spec; custa montar a VM.",
+          "recomendada": true
+        },
+        {
+          "texto": "Testar só no Windows 11 e tratar o Windows 10 como melhor esforço",
+          "motivo": "Menos trabalho; muda o escopo da spec e precisa passar pelo produto."
+        },
+        {
+          "texto": "O PC da sala é Windows 10: testar direto nele",
+          "motivo": "Sem VM; o WebView2 provavelmente já está instalado, então CA-50 fica sem o caso de runtime ausente."
+        }
+      ],
+      "status": "decidida",
+      "decisao": "PC da sala roda Windows 10 — Win10 é o alvo principal de teste."
+    },
+    {
+      "id": "D-33",
+      "pergunta": "Que hardware você tem para os testes manuais?",
+      "contexto": "A matriz do QA pede controle com fio, adaptador sem fio e Bluetooth (CA-06), dois controles ao mesmo tempo (CA-11), monitor + TV (CA-66, CA-67), TV 4K (CA-54) e escala do Windows até 300%. O que faltar define o que fica como não verificado.",
+      "origem": "qa (QA-01)",
+      "bloqueia": [
+        "QA-01",
+        "QA-03",
+        "QA-09"
+      ],
+      "sugestoes": [
+        {
+          "texto": "Você informa o que tem; o que faltar entra no relatório como não verificado",
+          "motivo": "Sem custo; transparente sobre as lacunas.",
+          "recomendada": true
+        },
+        {
+          "texto": "Comprar ou emprestar o que faltar (ex.: segundo controle, adaptador)",
+          "motivo": "Cobertura completa; custo e tempo."
+        },
+        {
+          "texto": "Reduzir a matriz ao hardware atual e ajustar a spec",
+          "motivo": "Spec reflete o uso real; precisa passar pelo produto."
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Recomendado (orquestrador): o hardware que faltar fica como \"não verificado\"."
+    },
+    {
+      "id": "D-34",
+      "pergunta": "Onde rodam o CI e a publicação do instalador com o SHA-256?",
+      "contexto": "O repo não tem remote configurado. Os guards de invariantes (INV-01 a INV-09), cargo deny, testes win-integration e a E2E precisam rodar em algum lugar, e CA-76/SEC-26 pedem o SHA256SUMS.txt publicado junto do instalador.",
+      "origem": "po (arquitetura seção 11, SEC-24, SEC-26)",
+      "bloqueia": [
+        "BE-12",
+        "BE-39"
+      ],
+      "sugestoes": [
+        {
+          "texto": "Script local (ex.: scripts/ci.ps1) rodado antes de cada merge; instalador e SHA256SUMS.txt numa pasta de releases sua",
+          "motivo": "Funciona sem remote; depende de disciplina para rodar.",
+          "recomendada": true
+        },
+        {
+          "texto": "Subir o repo para o GitHub e usar Actions windows-latest + GitHub Release",
+          "motivo": "Automático e com histórico; exige criar o remote."
+        },
+        {
+          "texto": "Os dois: script local agora, Actions quando houver remote",
+          "motivo": "Começa simples e migra depois; dois lugares para manter."
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Recomendado (orquestrador): CI por script local scripts/ci.ps1 e pasta local de releases com SHA-256."
+    },
+    {
+      "id": "D-35",
+      "pergunta": "Como você prefere participar dos spikes e testes que exigem o controle e o PC da sala?",
+      "contexto": "SP-01, SP-02, SP-07, SP-08, a medição de boot (BE-40) e vários testes do QA precisam de alguém segurando o controle, abrindo jogos e às vezes aprovando UAC. Os agentes preparam executáveis e roteiros, mas não apertam botões.",
+      "origem": "po",
+      "bloqueia": [
+        "BE-01",
+        "BE-02",
+        "BE-03",
+        "BE-04",
+        "BE-40",
+        "QA-03",
+        "QA-06"
+      ],
+      "sugestoes": [
+        {
+          "texto": "O dev prepara exe + roteiro curto; você roda no PC da sala e devolve o log gerado",
+          "motivo": "Você decide quando testar; o log já traz os tempos medidos.",
+          "recomendada": true
+        },
+        {
+          "texto": "Sessões combinadas, com acesso remoto ao PC e você no controle",
+          "motivo": "Ajustes na hora; exige agenda e ferramenta de acesso remoto."
+        },
+        {
+          "texto": "Você roda só o SP-01; o restante fica para o QA no fim",
+          "motivo": "Menos sessões agora; ADRs 0005 e 0006 fecham mais tarde e atrasam BE-15 a BE-17 e BE-35 a BE-38."
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Usuário testa só no fim: sem spikes com o usuário; validação com jogos/controle concentrada no QA final."
+    }
+  ]
+}
+</script>
+
+<script>
+(function () {
+  var d = JSON.parse(document.getElementById('dados').textContent);
+  var chave = 'painel:' + d.feature;
+  var resp = {};
+  try { resp = JSON.parse(localStorage.getItem(chave) || '{}'); } catch (e) {}
+  function salvar() { try { localStorage.setItem(chave, JSON.stringify(resp)); } catch (e) {} }
+  function el(tag, cls, txt) { var n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; }
+  function stClasse(s) { s = (s || '').toLowerCase(); return s === 'feito' ? 'st-feito' : s === 'em andamento' ? 'st-andamento' : s.indexOf('bloqueado') === 0 ? 'st-bloqueado' : ''; }
+
+  document.title = 'Painel — ' + d.feature;
+  document.getElementById('titulo').textContent = 'Painel — ' + d.feature;
+  document.getElementById('meta').textContent = 'Atualizado em ' + d.atualizado + (d.docs ? ' · docs: ' + d.docs : '');
+
+  // Tarefas
+  var todas = [], agentes = {};
+  d.modulos.forEach(function (m) { m.tarefas.forEach(function (t) { todas.push(t); agentes[t.agente] = 1; }); });
+  var feitas = todas.filter(function (t) { return t.status === 'feito'; }).length;
+  var pct = todas.length ? Math.round(feitas * 100 / todas.length) : 0;
+  document.getElementById('pct').textContent = pct + '%';
+  document.getElementById('barra').style.width = pct + '%';
+  document.getElementById('totais').textContent = feitas + ' de ' + todas.length + ' tarefas concluídas';
+
+  var fAg = document.getElementById('f-agente'), fOc = document.getElementById('f-ocultar');
+  Object.keys(agentes).sort().forEach(function (a) { var o = el('option', null, a); o.value = a; fAg.appendChild(o); });
+
+  function renderModulos() {
+    var box = document.getElementById('modulos'); box.innerHTML = '';
+    d.modulos.forEach(function (m) {
+      var lista = m.tarefas.filter(function (t) { return (!fAg.value || t.agente === fAg.value) && !(fOc.checked && t.status === 'feito'); });
+      if (!lista.length && (fAg.value || fOc.checked)) return;
+      var ok = m.tarefas.filter(function (t) { return t.status === 'feito'; }).length;
+      var det = el('details', 'modulo'); det.open = ok < m.tarefas.length;
+      var sum = el('summary');
+      sum.appendChild(el('span', 'modulo-nome', m.nome));
+      var bar = el('div', 'bar'), sp = el('span'); sp.style.width = (m.tarefas.length ? ok * 100 / m.tarefas.length : 0) + '%'; bar.appendChild(sp);
+      sum.appendChild(bar);
+      sum.appendChild(el('span', 'contagem', ok + '/' + m.tarefas.length));
+      det.appendChild(sum);
+      if (m.descricao) det.appendChild(el('div', 'modulo-desc', m.descricao));
+      var ul = el('ul', 'tarefas');
+      lista.forEach(function (t) {
+        var li = el('li', t.status === 'feito' ? 'feito' : '');
+        li.appendChild(el('span', 'check', t.status === 'feito' ? '✓' : ''));
+        li.appendChild(el('span', 'id', t.id));
+        var corpo = el('div');
+        corpo.appendChild(el('div', 'titulo', t.titulo));
+        var info = [t.agente];
+        if (t.depende && t.depende.length) info.push('depende de ' + t.depende.join(', '));
+        if (t.refs && t.refs.length) info.push(t.refs.join(', '));
+        if (t.pronto) info.push('pronto quando: ' + t.pronto);
+        corpo.appendChild(el('div', 'detalhe', info.join(' · ')));
+        li.appendChild(corpo);
+        li.appendChild(el('span', 'tag ' + stClasse(t.status), t.status));
+        ul.appendChild(li);
+      });
+      det.appendChild(ul);
+      box.appendChild(det);
+    });
+  }
+  fAg.onchange = renderModulos; fOc.onchange = renderModulos;
+  renderModulos();
+
+  // Dúvidas
+  var pend = d.duvidas.filter(function (q) { return q.status !== 'decidida'; });
+  document.getElementById('h-duvidas').textContent = 'Dúvidas para sua decisão (' + pend.length + ' pendente' + (pend.length === 1 ? '' : 's') + ')';
+  var dbox = document.getElementById('duvidas');
+  if (!d.duvidas.length) dbox.appendChild(el('p', 'vazio', 'Nenhuma dúvida no momento.'));
+  pend.concat(d.duvidas.filter(function (q) { return q.status === 'decidida'; })).forEach(function (q) {
+    var r = resp[q.id] || (resp[q.id] = { escolha: '', texto: '' });
+    var c = el('div', 'duvida' + (q.status === 'decidida' ? ' decidida' : ''));
+    c.appendChild(el('h3', null, q.id + ' — ' + q.pergunta));
+    var ctx = [q.contexto, q.origem ? 'origem: ' + q.origem : '', q.bloqueia && q.bloqueia.length ? 'bloqueia: ' + q.bloqueia.join(', ') : ''].filter(Boolean).join(' · ');
+    if (ctx) c.appendChild(el('p', 'ctx', ctx));
+    if (q.status === 'decidida') {
+      c.appendChild(el('p', null, 'Decidido: ' + q.decisao));
+      dbox.appendChild(c); return;
+    }
+    (q.sugestoes || []).forEach(function (s, i) {
+      var lab = el('label', 'opcao');
+      var inp = el('input'); inp.type = 'radio'; inp.name = q.id; inp.value = s.texto; inp.checked = r.escolha === s.texto;
+      inp.onchange = function () { r.escolha = s.texto; salvar(); };
+      lab.appendChild(inp);
+      var t = el('span'); t.appendChild(document.createTextNode(String.fromCharCode(65 + i) + ') ' + s.texto));
+      if (s.recomendada) t.appendChild(el('span', 'rec', 'recomendada'));
+      if (s.motivo) t.appendChild(el('small', null, s.motivo));
+      lab.appendChild(t);
+      c.appendChild(lab);
+    });
+    var ta = el('textarea'); ta.placeholder = 'Sua resposta, ajuste ou outra opção (campo livre)'; ta.value = r.texto;
+    ta.oninput = function () { r.texto = ta.value; salvar(); };
+    c.appendChild(ta);
+    dbox.appendChild(c);
+  });
+
+  function aviso(m) { var a = document.getElementById('aviso'); a.textContent = m; setTimeout(function () { a.textContent = ''; }, 3000); }
+  document.getElementById('copiar').onclick = function () {
+    var linhas = ['Respostas do painel — ' + d.feature, ''];
+    pend.forEach(function (q) {
+      var r = resp[q.id] || {};
+      if (!r.escolha && !r.texto) return;
+      linhas.push(q.id + ' — ' + q.pergunta);
+      if (r.escolha) linhas.push('  Escolha: ' + r.escolha);
+      if (r.texto) linhas.push('  Comentário: ' + r.texto.replace(/\n/g, '\n  '));
+      linhas.push('');
+    });
+    if (linhas.length === 2) { aviso('Nenhuma resposta preenchida.'); return; }
+    var txt = linhas.join('\n');
+    function fallback() { var t = el('textarea'); t.value = txt; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); aviso('Copiado. Cole no chat.'); }
+    if (navigator.clipboard) navigator.clipboard.writeText(txt).then(function () { aviso('Copiado. Cole no chat.'); }, fallback); else fallback();
+  };
+  document.getElementById('limpar').onclick = function () {
+    if (!confirm('Apagar todas as respostas deste painel?')) return;
+    resp = {}; salvar(); location.reload();
+  };
+})();
+</script>
+</body>
+</html>

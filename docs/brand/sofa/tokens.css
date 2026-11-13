@@ -1,0 +1,82 @@
+/* Sofá, tokens de marca. Gerado de tokens.json. Escala 10 pés: --u = 100vh / 1080. */
+@font-face{font-family:"Sora";font-weight:600;font-display:swap;src:url("./assets/fonts/Sora-600.woff2") format("woff2")}
+@font-face{font-family:"Sora";font-weight:700;font-display:swap;src:url("./assets/fonts/Sora-700.woff2") format("woff2")}
+@font-face{font-family:"Sora";font-weight:800;font-display:swap;src:url("./assets/fonts/Sora-800.woff2") format("woff2")}
+@font-face{font-family:"Figtree";font-weight:400;font-display:swap;src:url("./assets/fonts/Figtree-400.woff2") format("woff2")}
+@font-face{font-family:"Figtree";font-weight:600;font-display:swap;src:url("./assets/fonts/Figtree-600.woff2") format("woff2")}
+@font-face{font-family:"Figtree";font-weight:700;font-display:swap;src:url("./assets/fonts/Figtree-700.woff2") format("woff2")}
+
+:root{
+  /* escala */
+  --u: calc(100vh / 1080);
+  --safe-x: 5vw;
+  --safe-y: 5vh;
+
+  /* cor (por papel) */
+  --brand-ink: #14102B;
+  --brand-surface: #221B47;
+  --brand-surface-raised: #2C2459;
+  --brand-text: #F5F1FF;
+  --brand-text-muted: #BDB4E0;
+  --brand-primary: #FFB547;
+  --brand-on-primary: #14102B;
+  --brand-secondary: #8F7DFF;
+  --brand-danger: #FF7A85;
+  --brand-success: #5FE3A1;
+  --brand-scrim: #0B081C;
+
+  /* tipografia */
+  --font-display: "Sora", "Segoe UI", system-ui, sans-serif;
+  --font-text: "Figtree", "Segoe UI", system-ui, sans-serif;
+  --text-caption: calc(24 * var(--u));
+  --text-body: calc(28 * var(--u));
+  --text-label: calc(32 * var(--u));
+  --text-card-title: calc(40 * var(--u));
+  --text-heading: calc(48 * var(--u));
+  --text-display: calc(72 * var(--u));
+  --text-hero: calc(96 * var(--u));
+  --leading-tight: 1.2;
+  --leading-body: 1.35;
+
+  /* espaçamento */
+  --space-1: calc(8 * var(--u));
+  --space-2: calc(16 * var(--u));
+  --space-3: calc(24 * var(--u));
+  --space-4: calc(32 * var(--u));
+  --space-6: calc(48 * var(--u));
+  --space-8: calc(64 * var(--u));
+  --space-12: calc(96 * var(--u));
+
+  /* raios */
+  --radius-card: calc(20 * var(--u));
+  --radius-card-focus: calc(24 * var(--u));
+  --radius-button: calc(16 * var(--u));
+  --radius-dialog: calc(28 * var(--u));
+  --radius-pill: 999px;
+
+  /* sombras e holofote */
+  --shadow-card: 0 calc(12 * var(--u)) calc(32 * var(--u)) rgba(11,8,28,.55);
+  --shadow-dialog: 0 calc(24 * var(--u)) calc(64 * var(--u)) rgba(11,8,28,.7);
+  --glow-spotlight: 0 0 calc(120 * var(--u)) calc(10 * var(--u)) rgba(255,181,71,.40);
+  --gradient-spotlight: radial-gradient(ellipse 60% 55% at 50% 30%, rgba(255,181,71,.16), rgba(255,181,71,0) 70%);
+  --gradient-cover-scrim: linear-gradient(180deg, rgba(11,8,28,0) 45%, rgba(11,8,28,.82) 100%);
+
+  /* foco */
+  --focus-ring: 0 0 0 calc(6 * var(--u)) var(--brand-ink), 0 0 0 calc(14 * var(--u)) var(--brand-primary);
+  --focus-scale: 1.06;
+  --focus-dim-others: .72;
+
+  /* motion */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(.22,1,.36,1);
+  --ease-in-out: cubic-bezier(.65,0,.35,1);
+}
+
+/* Uso básico do foco (referência para o dev-frontend) */
+.focusable{transition:transform 160ms var(--ease-out),box-shadow 160ms var(--ease-out),opacity 160ms var(--ease-out)}
+.focusable[data-focused="true"]{transform:scale(var(--focus-scale));box-shadow:var(--focus-ring),var(--glow-spotlight)}
+@media (prefers-reduced-motion:reduce){.focusable{transition:none}.focusable[data-focused="true"]{transform:none;box-shadow:var(--focus-ring)}}
+
+html,body{background:var(--brand-ink);color:var(--brand-text);font:400 var(--text-body)/var(--leading-body) var(--font-text)}

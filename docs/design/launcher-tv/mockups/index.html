@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Sofá, mockups da interface de TV</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../../../brand/sofa/tokens.css">
+<link rel="stylesheet" href="_pg.css">
+</head>
+<body>
+<div class="idx">
+  <header>
+    <img src="../../../brand/sofa/assets/logo-horizontal.svg" alt="Sofá" height="48">
+  </header>
+  <h1>Mockups da interface de TV</h1>
+  <p class="lead">Feature launcher-tv, MVP. Cada tela abre como playground: controles à esquerda, prévia ao vivo em 1080p ou 4K, e um prompt pronto para copiar com o seu feedback. Tudo navega com setas, Enter e Esc, ou com o controle Xbox ligado ao PC.</p>
+
+  <div class="cards">
+    <a class="c hero" href="prototipo.html">
+      <h2>Protótipo completo: do boot ao jogo</h2>
+      <p>Abertura, biblioteca, jogar, jogo simulado, combinação de retorno, painel do jogo, menu rápido, configurações e avisos, ligados como no produto. Comece aqui para sentir o fluxo.</p>
+      <span class="tag">DES-08</span><span class="tag">CA-09</span><span class="tag">CA-10</span><span class="tag">CA-55</span>
+    </a>
+    <a class="c" href="componentes.html"><h2>Componentes e escala</h2><p>Foco, cartões, capas, avisos, diálogo de confirmação e escala de texto.</p><span class="tag">DES-01</span><span class="tag">CA-54</span><span class="tag">CA-55</span></a>
+    <a class="c" href="boot.html"><h2>Abertura (splash)</h2><p>Primeira tela enquanto a biblioteca carrega do cache.</p><span class="tag">CA-01</span><span class="tag">M-02</span></a>
+    <a class="c" href="home.html"><h2>Início e Todos os jogos</h2><p>Herói, recentes, grade, origem no card, jogo em andamento, biblioteca vazia ou carregando, controle desconectado, volume.</p><span class="tag">DES-02</span><span class="tag">CA-06</span><span class="tag">CA-22</span><span class="tag">CA-64</span></a>
+    <a class="c" href="opcoes-jogo.html"><h2>Opções do jogo</h2><p>Jogar, renomear, restaurar nome original e ocultar com confirmação.</p><span class="tag">DES-03</span><span class="tag">CA-21</span><span class="tag">CA-61</span></a>
+    <a class="c" href="sessao.html"><h2>Fluxo de jogo e sessão</h2><p>Abrindo, erros de abertura, administrador, troca de jogo, painel da combinação de retorno, fechar e forçar fechamento.</p><span class="tag">DES-04</span><span class="tag">CA-26</span><span class="tag">CA-32</span><span class="tag">CA-35</span></a>
+    <a class="c" href="menu-rapido.html"><h2>Menu rápido</h2><p>Volume, mudo, indicador LT e RT, energia com confirmação, configurações e sair.</p><span class="tag">DES-05</span><span class="tag">CA-38</span><span class="tag">CA-43</span><span class="tag">CA-47</span></a>
+    <a class="c" href="configuracoes.html"><h2>Configurações</h2><p>Monitor, atualizar biblioteca, adicionar jogo, iniciar com o Windows e itens ocultos.</p><span class="tag">DES-06</span><span class="tag">CA-04</span><span class="tag">CA-66</span><span class="tag">CA-70</span></a>
+    <a class="c" href="navegador-pastas.html"><h2>Navegador de pastas</h2><p>Unidades, pastas e .exe, pasta vazia, sem permissão, lista longa, duplicado e executável inválido.</p><span class="tag">DES-06</span><span class="tag">CA-19</span><span class="tag">CA-71</span><span class="tag">CA-72</span></a>
+    <a class="c" href="avisos.html"><h2>Avisos do sistema</h2><p>Sem controle, controle desconectado, jogo exige administrador, pasta de rede, executável inválido, sem áudio.</p><span class="tag">CA-13</span><span class="tag">CA-14</span><span class="tag">CA-73</span></a>
+  </div>
+
+  <div class="box">
+    <h2>Como testar com o controle Xbox</h2>
+    <ul>
+      <li>Ligue o controle ao PC, abra um playground e aperte qualquer botão. O navegador só passa a ler o controle depois disso. O painel mostra "Controle: ..." quando ele reconhece.</li>
+      <li>A: confirmar. B: voltar. Menu (≡): menu rápido. View (⧉): opções do jogo. LB e RB: pular linhas. LT e RT: volume na biblioteca.</li>
+      <li>Combinação de retorno: abra um jogo, espere o jogo simulado e segure View + Menu por 1,5 s.</li>
+      <li>Para ver em tela cheia real, use "Abrir em tela cheia" no playground e aperte F. A prévia usa 1080p ou 4K de verdade, só reduzida na janela.</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h2>Teclado de emergência no mockup</h2>
+    <ul>
+      <li>Setas: D-pad. Enter: A. Esc: B. M ou F1: Menu. V ou F2: View. PgUp e PgDn: LB e RB. [ e ]: LT e RT. Segurar V + M: combinação de retorno.</li>
+      <li>V, M, PgUp, PgDn, [ e ] são só do mockup. No produto, o teclado de emergência segue a spec: setas, Enter, Esc, tecla de aplicativo ou F1.</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h2>Sobre os arquivos</h2>
+    <ul>
+      <li>Abrem com duplo clique, sem servidor. Os tokens e as fontes vêm de <code>docs/brand/sofa/tokens.css</code>, sem cópia.</li>
+      <li><code>_tv.css</code>, <code>_tv.js</code>, <code>_pad.js</code>, <code>_pg.css</code> e <code>_pg.js</code> ficam compartilhados na pasta. <code>tv.html</code> é a tela de TV que as prévias carregam.</li>
+      <li>Referência visual. O dev front não copia este HTML.</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>
