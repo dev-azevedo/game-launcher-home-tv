@@ -1,0 +1,24 @@
+[workspace]
+resolver = "2"
+members = ["crates/launcher-core", "crates/launcher-win", "src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77.2" # SEC-24: piso de seguranca (CVE-2024-24576, BatBadBut)
+license = "UNLICENSED"
+publish = false
+
+[workspace.dependencies]
+launcher-core = { path = "crates/launcher-core" }
+launcher-win = { path = "crates/launcher-win" }
+thiserror = "2"
+# windows-rs 0.58: ultima linha que usa import libs prebuilt no alvo -gnu (sem dlltool/as).
+# O alvo de release e MSVC; subir a versao quando houver Build Tools na maquina de dev.
+windows = "0.58"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "unwind" # catch_unwind por comando e por scanner (SEC-13, arquitetura 2.6)
+strip = true

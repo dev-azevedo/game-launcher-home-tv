@@ -1,0 +1,36 @@
+# SEC-24, SEC-30, INV-07: nada sai do PC. Sem cliente HTTP no grafo de dependencias.
+[graph]
+targets = [{ triple = "x86_64-pc-windows-msvc" }, { triple = "x86_64-pc-windows-gnu" }]
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+confidence-threshold = 0.8
+# Crates do workspace (publish = false) nao entram na checagem de licenca.
+private = { ignore = true }
+allow = [
+  "MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause",
+  "ISC", "Unicode-3.0", "Unicode-DFS-2016", "Zlib", "MPL-2.0", "CC0-1.0", "0BSD", "BSL-1.0",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true # dependencias por path dentro do workspace
+deny = [
+  { crate = "reqwest" },
+  { crate = "hyper" },
+  { crate = "ureq" },
+  { crate = "isahc" },
+  { crate = "surf" },
+  { crate = "attohttpc" },
+  { crate = "curl" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

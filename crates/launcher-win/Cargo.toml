@@ -1,0 +1,17 @@
+[package]
+name = "launcher-win"
+description = "Infraestrutura Windows do Sofa: adapters que implementam os ports do launcher-core."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+# Testes de integracao que tocam o sistema (runner Windows).
+win-integration = []
+
+[dependencies]
+launcher-core.workspace = true
+thiserror.workspace = true
+windows = { workspace = true, features = ["Win32_Foundation"] }
