@@ -1,0 +1,11 @@
+/* Base da UI de TV. Tokens vem de @brand/tokens.css (importado em main.tsx), sem copia. */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;-webkit-user-select:none;user-select:none}
+html.nocursor,html.nocursor *{cursor:none!important}
+button{font:inherit;color:inherit;background:none;border:0}
+#root{position:fixed;inset:0;overflow:hidden;background:var(--brand-ink)}
+.layer-root{display:contents}
+/* Area segura de 5% (CA-54). */
+.safe{position:absolute;inset:var(--safe-y) var(--safe-x);display:flex;flex-direction:column;min-height:0}
+/* RN-32: unica excecao, card de capa cortado na borda da fileira. */
+.safe-bleed{margin-inline:calc(-1*var(--safe-x))}
