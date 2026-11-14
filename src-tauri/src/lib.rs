@@ -79,6 +79,7 @@ pub fn run() {
         .setup(|app| {
             bootstrap::init_user_data(app)?;
             bootstrap::init_volume(app.handle());
+            bootstrap::init_power(app.handle());
             if let Err(error) = bootstrap::init_library(app.handle()) {
                 // Sem biblioteca o launcher ainda abre: leituras neutras, acoes `Internal`.
                 tracing::error!(%error, "biblioteca nao iniciou");

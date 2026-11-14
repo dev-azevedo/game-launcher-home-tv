@@ -10,11 +10,13 @@ use crate::domain::input::{InputMode, IntentEvent, PadSample};
 use crate::domain::library::{
     BrowseTarget, DetectedGame, DirListing, GameId, LaunchTarget, Origin, StoredLibrary,
 };
+use crate::domain::power::PowerAction;
 use crate::domain::session::FrontOutcome;
 use crate::domain::settings::{Settings, Step2Key};
 use crate::domain::time::Millis;
 use crate::domain::volume::VolumeState;
 
+use super::power_service::PowerCapabilities;
 use super::volume_service::VolumeView;
 
 /// Relogios. O dominio recebe `Millis`; quem chama o caso de uso le daqui.
@@ -363,6 +365,22 @@ pub trait AudioEndpoint: Send + Sync {
 /// Saida do volume para a UI (`volume://changed`).
 pub trait VolumeEvents: Send + Sync {
     fn changed(&self, view: &VolumeView);
+}
+
+// ------------------------------------------------------------------------- energia (BE-33)
+
+/// Win32 de energia (SEC-27). `execute` nunca forca o encerramento de outros apps (RN-15).
+pub trait PowerControl: Send + Sync {
+    /// O que o PC permite agora (CA-47: suspensao desligada pelo Windows ou pelo hardware).
+    fn capabilities(&self) -> PowerCapabilities;
+    /// Desligar, reiniciar ou suspender pelo caminho normal do Windows. `Rejected` se o sistema
+    /// recusar o pedido.
+    fn execute(&self, action: PowerAction) -> Result<(), AppError>;
+}
+
+/// Numeros aleatorios criptograficos do sistema (CSPRNG) para o `PowerTicket` (CT-07).
+pub trait RandomSource: Send + Sync {
+    fn fill(&self, buf: &mut [u8]) -> Result<(), AppError>;
 }
 
 // ------------------------------------------------------------------------ casos de uso

@@ -7,7 +7,7 @@ use launcher_core::application::ports::{
     Clock, CoverCache, FolderBrowser, LibraryEvents, LibraryRepository, ManualExeInspector,
     ScanCache, SettingsRepository, StoreScanner, VolumeEvents,
 };
-use launcher_core::application::{LibraryDeps, LibraryService, VolumeService};
+use launcher_core::application::{LibraryDeps, LibraryService, PowerService, VolumeService};
 use launcher_core::domain::settings::{LogLevel, Step2Key};
 use launcher_win::cover_cache::WinCoverCache;
 use launcher_win::folder_browser::WinFolderBrowser;
@@ -128,4 +128,17 @@ pub fn init_volume<R: Runtime>(app: &AppHandle<R>) {
         }
         Err(error) => tracing::error!(%error, "Core Audio nao iniciou; volume indisponivel"),
     }
+}
+
+/// Liga a energia (BE-33): ticket por CSPRNG do sistema e Win32 de desligar, reiniciar e suspender.
+/// So constroi objetos; nada e executado ate o usuario confirmar (`power_execute`).
+pub fn init_power<R: Runtime>(app: &AppHandle<R>) {
+    let state = app.state::<AppState>();
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock::new());
+    let service = PowerService::new(
+        Arc::new(launcher_win::power::WinPowerControl),
+        Arc::new(launcher_win::power::SystemRandom),
+        clock,
+    );
+    let _ = state.power.set(Arc::new(service));
 }

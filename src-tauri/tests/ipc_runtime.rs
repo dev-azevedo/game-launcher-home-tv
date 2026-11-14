@@ -182,7 +182,7 @@ fn comando_nao_ligado_devolve_internal_sem_detalhe() {
 }
 
 #[test]
-fn power_prepare_nao_emite_ticket_antes_do_be33() {
+fn sem_servico_de_energia_nada_e_emitido_nem_executado() {
     let h = harness();
     assert_eq!(
         h.code("power_prepare", json!({ "action": "Shutdown" })),
@@ -229,4 +229,125 @@ fn acoes_serializadas_respondem_busy_enquanto_outra_roda() {
     // Leitura nunca da Busy.
     assert!(h.call("library_get", json!({})).is_ok());
     drop(permit);
+}
+
+mod power_fake {
+    use std::sync::{Arc, Mutex};
+
+    use launcher_core::application::ports::{Clock, ManualClock, PowerControl, RandomSource};
+    use launcher_core::application::{AppError, PowerCapabilities, PowerService};
+    use launcher_core::domain::power::PowerAction;
+
+    #[derive(Default)]
+    pub struct FakeControl {
+        pub suspend: bool,
+        pub executed: Mutex<Vec<PowerAction>>,
+    }
+
+    impl PowerControl for FakeControl {
+        fn capabilities(&self) -> PowerCapabilities {
+            PowerCapabilities {
+                shutdown: true,
+                restart: true,
+                suspend: self.suspend,
+            }
+        }
+        fn execute(&self, action: PowerAction) -> Result<(), AppError> {
+            self.executed.lock().unwrap().push(action);
+            Ok(())
+        }
+    }
+
+    pub struct Counter(pub Mutex<u8>);
+    impl RandomSource for Counter {
+        fn fill(&self, buf: &mut [u8]) -> Result<(), AppError> {
+            let mut n = self.0.lock().unwrap();
+            *n += 1;
+            buf.iter_mut().for_each(|b| *b = *n);
+            Ok(())
+        }
+    }
+
+    pub fn service(suspend: bool) -> (Arc<FakeControl>, Arc<ManualClock>, PowerService) {
+        let control = Arc::new(FakeControl {
+            suspend,
+            ..Default::default()
+        });
+        let clock = Arc::new(ManualClock::new());
+        let dyn_clock: Arc<dyn Clock> = clock.clone();
+        let svc = PowerService::new(control.clone(), Arc::new(Counter(Mutex::new(0))), dyn_clock);
+        (control, clock, svc)
+    }
+}
+
+/// CT-07 e SEC-27 pelo caminho real da IPC, com o Windows trocado por um fake: nada aqui
+/// desliga, reinicia ou suspende o PC.
+#[test]
+fn energia_ticket_de_ponta_a_ponta_pela_ipc() {
+    use launcher_core::domain::power::PowerAction;
+
+    let h = harness();
+    let (control, clock, svc) = power_fake::service(false);
+    h._app
+        .state::<sofa_lib::state::AppState>()
+        .power
+        .set(std::sync::Arc::new(svc))
+        .ok()
+        .unwrap();
+
+    assert_eq!(
+        h.call("power_capabilities", json!({})).unwrap(),
+        json!({ "shutdown": "Available", "restart": "Available", "suspend": "Unavailable" })
+    );
+    // CA-47: suspensao indisponivel nao emite ticket.
+    assert_eq!(
+        h.code("power_prepare", json!({ "action": "Suspend" })),
+        "Unavailable"
+    );
+
+    let ticket = h
+        .call("power_prepare", json!({ "action": "Restart" }))
+        .unwrap();
+    let ticket = ticket.as_str().expect("ticket em texto").to_owned();
+    assert!((22..=64).contains(&ticket.len()), "{ticket}");
+    // Um prepare novo invalida o anterior (CT-07).
+    let novo = h
+        .call("power_prepare", json!({ "action": "Shutdown" }))
+        .unwrap();
+    let novo = novo.as_str().unwrap().to_owned();
+    assert_eq!(
+        h.code("power_execute", json!({ "ticket": ticket })),
+        "TicketInvalid"
+    );
+    assert!(control.executed.lock().unwrap().is_empty());
+
+    assert_eq!(
+        h.call("power_execute", json!({ "ticket": novo.clone() }))
+            .unwrap(),
+        json!(null)
+    );
+    assert_eq!(
+        *control.executed.lock().unwrap(),
+        vec![PowerAction::Shutdown]
+    );
+    // Uso unico.
+    assert_eq!(
+        h.code("power_execute", json!({ "ticket": novo })),
+        "TicketInvalid"
+    );
+    // Expirado.
+    let t = h
+        .call("power_prepare", json!({ "action": "Restart" }))
+        .unwrap();
+    clock.advance_ms(30_001);
+    assert_eq!(
+        h.code("power_execute", json!({ "ticket": t.as_str().unwrap() })),
+        "TicketInvalid"
+    );
+    assert_eq!(control.executed.lock().unwrap().len(), 1);
+    // Acao fora do enum nunca chega ao servico (SEC-27).
+    assert_eq!(
+        h.code("power_prepare", json!({ "action": "Hibernate" })),
+        "InvalidRequest"
+    );
 }

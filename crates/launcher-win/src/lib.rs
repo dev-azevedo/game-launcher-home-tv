@@ -16,6 +16,7 @@ pub mod logging;
 pub mod manual_exe;
 pub mod path_canon;
 pub mod persistence;
+pub mod power;
 pub mod process_probe;
 pub mod stores;
 pub mod system_clock;
