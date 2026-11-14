@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 use crate::application::AppError;
 use crate::domain::input::{InputMode, IntentEvent, PadSample};
-use crate::domain::library::{GameId, LaunchTarget, StoredLibrary};
+use crate::domain::library::{
+    BrowseTarget, DetectedGame, DirListing, GameId, LaunchTarget, Origin, StoredLibrary,
+};
 use crate::domain::session::FrontOutcome;
 use crate::domain::settings::{Settings, Step2Key};
 use crate::domain::time::Millis;
@@ -259,6 +261,61 @@ pub trait LauncherWindow: Send + Sync {
     fn hide_and_suspend(&self);
     /// `Resume` + `IsVisible(true)` + `show`.
     fn show_and_resume(&self);
+}
+
+// ----------------------------------------------------------------------- biblioteca (BE-24..BE-30)
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScanError {
+    /// A loja nao esta instalada: nao e erro e nao chega a UI (CA-18, CA-59).
+    NotInstalled,
+    /// Falha ao ler a loja (so log; a loja some desta varredura, as outras carregam).
+    Failed,
+}
+
+/// Seam de extensao das lojas (arquitetura 2.1). O adapter le arquivo e registro; as regras de
+/// validacao sao do dominio (`domain::library::detect`).
+pub trait StoreScanner: Send + Sync {
+    fn origin(&self) -> Origin;
+    fn scan(&self) -> Result<Vec<DetectedGame>, ScanError>;
+}
+
+/// Confere o `.exe` de um cadastro manual no disco (SEC-09): canonicaliza, exige unidade fixa ou
+/// removivel, arquivo regular e cabecalho `MZ` + `PE`. Devolve o caminho **canonico**.
+/// Erros: `PathNotAllowed` (fora dos discos), `NotFound`, `NotAnExecutable`, `AccessDenied`.
+pub trait ManualExeInspector: Send + Sync {
+    fn inspect(&self, path: &str) -> Result<String, AppError>;
+}
+
+/// Navegador de pastas (CA-19, SEC-09, AF-02): so unidades locais, pastas e `.exe`; nunca le
+/// conteudo.
+pub trait FolderBrowser: Send + Sync {
+    fn list(&self, target: &BrowseTarget) -> Result<DirListing, AppError>;
+}
+
+/// De onde sai a imagem de um jogo: capa da loja e, na falta dela, o icone do `.exe`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CoverSource {
+    pub cover: Option<String>,
+    pub icon: Option<String>,
+}
+
+/// Imagem reencodada pelo nucleo (SEC-08): o WebView so recebe bytes do nosso encoder.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CoverImage {
+    pub mime: &'static str,
+    pub bytes: Vec<u8>,
+}
+
+/// Capas e icones reencodados em cache proprio. `None` = sem imagem (404, placeholder).
+pub trait CoverCache: Send + Sync {
+    fn image(&self, source: &CoverSource) -> Option<CoverImage>;
+}
+
+/// A biblioteca mudou; quem implementa le o estado do `LibraryService` e emite
+/// `library://changed`.
+pub trait LibraryEvents: Send + Sync {
+    fn changed(&self);
 }
 
 // ------------------------------------------------------------------------ casos de uso
