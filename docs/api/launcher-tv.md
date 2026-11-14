@@ -6,7 +6,7 @@
 | Tarefa | BE-07 |
 | Base | `docs/arch/launcher-tv.md` seção 4 (lista fechada), `docs/security/launcher-tv.md` (SEC-03, SEC-05, SEC-06), spec (CA-26 a CA-49, CA-71 a CA-78), `docs/design/launcher-tv.md` e `microcopy.md` |
 | Resumo | **30 comandos**, **8 eventos**, **26 códigos de erro** |
-| Revisão de segurança | pendente (SG-01) |
+| Revisão de segurança | SG-01 aprovado com ressalvas; achados CT-01 a CT-07 aplicados nesta revisão (rev. 2), CT-08 em BE-08 |
 
 "API" aqui é a IPC do Tauri: **comandos** (UI → núcleo, `invoke`) e **eventos** (núcleo → UI, `listen`). Não há HTTP. A lista é **fechada**: comando novo exige alterar a arquitetura 4.1 e passar pela segurança.
 
@@ -32,7 +32,11 @@ String `"<origem>:<chave>"`, validada pelo núcleo em toda entrada. Qualquer out
 | Steam | `^[0-9]{1,10}$`, cabe em `u32` | `steam:620` |
 | Epic | `^[A-Za-z0-9_.-]{1,128}$` (`AppName`) | `epic:SampleGameA` |
 | GOG | `^[0-9]{1,20}$` | `gog:1000000001` |
-| Manual | `^[0-9a-f]{16}$` (hash do caminho canônico; o caminho nunca vai no ID) | `manual:9f3a1c2b7d4e5a60` |
+| Manual | `^[0-9a-f]{16}$` (hash do caminho canônico, ver abaixo; o caminho nunca vai no ID) | `manual:9f3a1c2b7d4e5a60` |
+
+**Hash do `manual:` (CT-05).** `SHA-256` dos bytes UTF-16LE do caminho canônico (resolvido, sem prefixo `\\?\`, separador `\`) **normalizado para caixa** (maiúsculas ordinais, igual à comparação de caminhos do Windows); a chave são os **8 primeiros bytes** do digest em hexadecimal minúsculo (16 caracteres, 64 bits). Dois caminhos que diferem só em caixa dão o mesmo ID (RN-03: um jogo só). Colisão com outro caminho já cadastrado é tratada como `Duplicate` (improvável: no máximo 5.000 jogos manuais). O caminho em si fica só em `library.json`.
+
+**`GameId` nunca compõe caminho em disco (CT-06).** Nem `epic:..` (bem formado pela regex) nem qualquer outro ID entra em `Path::join`, nome de arquivo, URL de arquivo ou argumento de processo. Cache de capas e ícones usa o hash da origem + chave (arquitetura 4.5), e o handler `cover://` só faz busca do `GameId` na biblioteca em memória; ID ausente → 404.
 
 ### Enums
 
@@ -55,7 +59,7 @@ String `"<origem>:<chave>"`, validada pelo núcleo em toda entrada. Qualquer out
 GameDto {
   id: GameId,
   name: string,              // nome exibido, ja normalizado (SEC-07), 1..256; a UI renderiza so como texto
-  originalName: string|null, // nome da loja/arquivo; nao nulo quando o usuario renomeou (habilita "Restaurar nome", CA-62)
+  originalName: string|null, // nome da loja/arquivo, normalizado como name (SEC-07, CT-03); nao nulo quando o usuario renomeou (habilita "Restaurar nome", CA-62)
   origin: Origin,
   cover: string,             // "cover://<gameId>" (SEC-08); 404 -> a UI mostra o placeholder (CA-24)
   lastPlayedAt: number|null, // inicio da ultima sessao (P-06)
@@ -72,12 +76,14 @@ SessionDto {
   launchFailure: LaunchFailure|null
 }
 VolumeState { level: 0..100, muted: boolean, available: boolean }
-MonitorDto { id: MonitorId, name: string, primary: boolean, current: boolean }   // MonitorId: string 1..256, opaco
+MonitorDto { id: MonitorId, name: string, primary: boolean, current: boolean }   // MonitorId: string 1..256, opaco; name vem do driver e e normalizado como GameDto.name (SEC-07, CT-03)
 SettingsDto { autostart: boolean, autostartMechanism: AutostartMechanism, monitorId: MonitorId|null, logDir: string }
-DirListing { path: string|null, parent: string|null, entries: [{ name: string, kind: DirEntryKind }] }
-PowerTicket: string opaca ^[A-Za-z0-9_-]{22,64}$, 30 s, uso unico
+DirListing { path: string|null, parent: string|null, entries: [{ name: string, kind: DirEntryKind }], truncated: boolean }   // max 2000 entradas, pastas antes de .exe (CT-04); name cru (CT-03)
+PowerTicket: string opaca ^[A-Za-z0-9_-]{22,64}$, 30 s, uso unico; gerada por CSPRNG do sistema (getrandom/BCryptGenRandom, >= 128 bits), presa a PowerAction do power_prepare; um power_prepare novo invalida o anterior (CT-07)
 ErrorDto { code: string, params?: { gameId?: GameId, origin?: Origin } }
 ```
+
+**Normalização de nomes (CT-03).** `GameDto.name`, `GameDto.originalName` e `MonitorDto.name` saem normalizados pelo núcleo (remove C0/C1 e bidi, corta em 256). `DirListing.entries[].name` é o nome de arquivo **cru**, porque a navegação precisa dele de volta em `fs_list_dir`; a UI o exibe neutralizando controle e bidi (substitui por símbolo visível) e nunca o interpreta como HTML.
 
 `GameDto` não leva caminho de instalação nem do executável. `logDir` é o único caminho que o núcleo devolve (pasta de logs do próprio Sofá, para o usuário copiar).
 
@@ -100,7 +106,7 @@ Legenda: "Auth" é sempre a capability `main` (`allow-<comando>`).
 | 9 | `fs_list_dir` | `{ path: string\|null }`, ≤ 1024; nulo ou vazio = unidades locais | `DirListing` | `PathNotAllowed`, `AccessDenied`, `NotFound`, `InvalidRequest` |
 
 - `library_add_manual`: o núcleo canonicaliza, exige unidade local fixa ou removível (sem UNC, `\\?\`, `\\.\`, ADS, nome reservado), confere `MZ` + `PE`, rejeita duplicata e **nunca** aceita argumentos. Local de rede ou fora dos discos → `PathNotAllowed` (CA-71, 1º momento); `.exe` inválido → `NotAnExecutable` (CA-72).
-- `fs_list_dir`: só `DRIVE_FIXED`/`DRIVE_REMOVABLE`; só pastas e `.exe`; nunca lê conteúdo. Unidade de rede ou mapeada não aparece e, se pedida por caminho, devolve `PathNotAllowed`.
+- `fs_list_dir`: só `DRIVE_FIXED`/`DRIVE_REMOVABLE`; só pastas e `.exe`; nunca lê conteúdo. Devolve no máximo **2.000 entradas**, pastas antes de `.exe` (ordem alfabética sem acento dentro de cada grupo); se houver mais, `truncated = true` e a UI avisa que a lista está cortada (CT-04). Unidade de rede ou mapeada não aparece e, se pedida por caminho, devolve `PathNotAllowed`.
 - `game_rename`: o núcleo normaliza (remove C0/C1 e bidi, corta em 256). Nome vazio depois de normalizar → `EmptyName`. Renomear não altera o ID.
 
 Exemplo (#5):
@@ -116,17 +122,19 @@ Exemplo (#5):
 |---|---|---|---|---|
 | 10 | `session_get` | — | `SessionDto` | — |
 | 11 | `session_launch` | `{ gameId }` | `()`; o andamento vem em `session://state` | `SessionAlreadyActive`, `GameFileMissing`, `StoreNotInstalled`, `NeedsElevation`, `NetworkPathBlocked`, `UnknownGame`, `Busy` |
-| 12 | `session_launch_with_uac` | `{ gameId }` | `()` | `InvalidState`, `UnknownGame`, `Busy` |
-| 13 | `session_replace` | `{ gameId }` (fecha o atual e abre o novo, CA-31) | `()` | os de #11, `InvalidState` |
+| 12 | `session_launch_with_uac` | `{ gameId }` | `()` | `InvalidState`, `UnknownGame`, `GameFileMissing`, `StoreNotInstalled`, `NetworkPathBlocked`, `ElevationDenied`, `Busy` |
+| 13 | `session_replace` | `{ gameId }` (pede o fechamento normal do atual e abre o novo quando a sessão chegar a `Idle`, CA-31) | `()` | os de #11 exceto `SessionAlreadyActive`, mais `InvalidState` |
 | 14 | `session_return_to_game` | — | `()` | `NoActiveSession`, `ForegroundDenied` |
 | 15 | `session_close` | — | `()`; o prazo de 10 s leva a `CloseOverdue` | `NoActiveSession`, `InvalidState` |
 | 16 | `session_force_close` | — | `()` | `NotOverdue`, `AccessDenied`, `NoActiveSession` |
-| 17 | `session_retry` | — | `()`; refaz o início do mesmo jogo | `InvalidState`, `Busy` |
+| 17 | `session_retry` | — | `()`; refaz o início do mesmo jogo | `InvalidState`, `UnknownGame`, `GameFileMissing`, `StoreNotInstalled`, `NeedsElevation`, `NetworkPathBlocked`, `Busy` |
 | 18 | `session_dismiss` | — | `()`; ver abaixo | — |
 
 Regras:
 - `session_launch` resolve o `LaunchSpec` **no núcleo**, revalida o jogo (existência, política de caminho, SEC-09/12/14) e só então inicia. **Caminho de rede** (ex.: biblioteca editada à mão) → `NetworkPathBlocked` (CA-71, 2º momento, **não** `PathNotAllowed`); arquivo ausente → `GameFileMissing{gameId}` (CA-28); loja ausente → `StoreNotInstalled{origin}`; exige administrador → `NeedsElevation` e a sessão vai a `NeedsElevation` (CA-73, 1ª etapa). Com sessão ativa → `SessionAlreadyActive{gameId}` (o jogo **atual**).
 - `session_launch_with_uac`: só aceito em `NeedsElevation` e para o **mesmo** `gameId` (AF-01); caso contrário `InvalidState`. Revalida o caminho imediatamente antes e usa o verbo padrão (nunca `runas`). O UAC é do Windows; a sessão fica em `Launching` com `elevated = true` (2ª etapa). UAC recusado → estado volta a `NeedsElevation` com `launchFailure = "ElevationDenied"` (texto "O Windows não deu permissão para abrir <nome>").
+- `session_replace` (CT-01): só aceito em `Running`. Faz o **mesmo pedido normal de `session_close`** (`WM_CLOSE`, nunca encerramento forçado, nunca `TerminateProcess`/`TerminateJobObject`) e guarda o novo `gameId` como pendente; quando a sessão chega a `Idle` o núcleo abre o novo jogo pelo fluxo de #11 (revalidação completa; falha de início vira o erro/estado normal de #11 na sessão nova). Se o jogo não fechar em 10 s a sessão vai a `CloseOverdue`, o pendente é **descartado** e o usuário decide: `session_dismiss` (volta a `Running`) ou `session_force_close` confirmado (RN-12, INV-05). Em `CloseOverdue`, `Closing` e em qualquer outro estado, `session_replace` → `InvalidState`. O comando valida o novo jogo (`UnknownGame`, `NetworkPathBlocked`, `StoreNotInstalled`, `GameFileMissing`) **antes** de pedir o fechamento, para não fechar o atual por um destino inválido. Teste obrigatório: jogo de teste que ignora `WM_CLOSE` + `session_replace` não é encerrado sem `session_force_close`.
+- `session_retry` e `session_launch_with_uac` revalidam o jogo como #11 (CT-02); por isso repetem `UnknownGame`, `GameFileMissing`, `StoreNotInstalled` e `NetworkPathBlocked`. `ElevationDenied` também é devolvido por #12 (e aparece em `launchFailure`).
 - `session_force_close`: só em `CloseOverdue`; fora dele `NotOverdue`. Jogo elevado (UIPI) → `AccessDenied` (texto próprio do forçar).
 - **`session_dismiss`** ("Voltar" e B nas telas de espera; CA-77, CA-78, RN-31). Nunca cancela o início nem o fechamento:
   - `Launching`: a UI sai da espera; o núcleo **continua** acompanhando o início (o jogo ainda pode abrir depois e vale o fluxo normal de sessão, CA-27, CA-30). `dismissed = true` até a próxima transição de estado relevante.
@@ -211,7 +219,7 @@ Exemplo (#4, jogo aberto e a tela de espera dispensada):
 | `Closing` | `SessionAlreadyActive` | `InvalidState` | sai da espera, continua | `InvalidState` | `InvalidState` | `NotOverdue` |
 | `CloseOverdue` | `SessionAlreadyActive` | `InvalidState` | → `Running` | `InvalidState` | `InvalidState` | força |
 
-`session_launch_with_uac` só em `NeedsElevation`; `session_replace` só quando há sessão (`Running`, `CloseOverdue`) e fecha o jogo atual antes de abrir o novo.
+`session_launch_with_uac` só em `NeedsElevation`; `session_replace` só em `Running` (em `CloseOverdue` e nos demais → `InvalidState`) e só pede o fechamento normal; o novo jogo abre depois de `Idle` (CT-01).
 
 ## 5. Códigos de erro (26)
 
@@ -223,23 +231,23 @@ Exemplo (#4, jogo aberto e a tela de espera dispensada):
 | `Duplicate` | — | #3 | Jogo já cadastrado (CA-20) |
 | `NotAnExecutable` | — | #3 | `.exe` sem `MZ`/`PE` válidos (CA-72) |
 | `PathNotAllowed` | — | #3, #9 | **No cadastro e no navegador de pastas**: local fora dos discos do PC (rede, UNC, mapeada, prefixos especiais, ADS). CA-71, 1º momento |
-| `NetworkPathBlocked` | — | #11, #13 | **Ao iniciar jogo** cujo caminho é de rede (ex.: biblioteca editada à mão). CA-71, 2º momento. Distinto de `PathNotAllowed` |
+| `NetworkPathBlocked` | — | #11, #12, #13, #17 | **Ao iniciar jogo** cujo caminho é de rede (ex.: biblioteca editada à mão). CA-71, 2º momento. Distinto de `PathNotAllowed` |
 | `NotFound` | — | #3, #9 | Pasta ou arquivo inexistente |
 | `AccessDenied` | — | #9, #16 | #9: sem permissão para ler a pasta. #16: jogo elevado, o Windows não deixa encerrar (texto próprio do forçar) |
 | `EmptyName` | — | #5 | Nome vazio depois de normalizar |
-| `UnknownGame` | — | #5 a #8, #11, #12, #13 | ID bem formado fora da biblioteca |
+| `UnknownGame` | — | #5 a #8, #11, #12, #13, #17 | ID bem formado fora da biblioteca |
 | `SessionAlreadyActive` | `gameId` (o jogo aberto) | #11, #12, #13 | Já há sessão (CA-31) |
-| `GameFileMissing` | `gameId` | #11, #13, #17 | Arquivo do jogo ausente (CA-28). O caminho não vai no `params` |
-| `StoreNotInstalled` | `origin` | #11, #13 | Steam/Epic ausente |
-| `NeedsElevation` | `gameId` | #11, #13 | Jogo exige administrador; aviso da 1ª etapa (CA-73) |
+| `GameFileMissing` | `gameId` | #11, #12, #13, #17 | Arquivo do jogo ausente (CA-28). O caminho não vai no `params` |
+| `StoreNotInstalled` | `origin` | #11, #12, #13, #17 | Steam/Epic ausente |
+| `NeedsElevation` | `gameId` | #11, #13, #17 | Jogo exige administrador; aviso da 1ª etapa (CA-73) |
 | `ElevationDenied` | `gameId` | #12 | UAC recusado. Também aparece como `launchFailure` em `SessionDto` |
-| `InvalidState` | — | #12, #13, #15, #17 | Comando fora do estado permitido (seção 4) |
+| `InvalidState` | — | #12, #13 (também em `CloseOverdue`), #15, #17 | Comando fora do estado permitido (seção 4) |
 | `NoActiveSession` | — | #14, #15, #16 | Não há jogo aberto |
 | `ForegroundDenied` | — | #14 | A escada não trouxe o jogo à frente |
 | `NotOverdue` | — | #16 | Forçar fora de `CloseOverdue` |
 | `NoAudioDevice` | — | #20, #21 | Sem dispositivo de áudio |
 | `Unavailable` | — | #23 | Ação de energia indisponível (CA-47) |
-| `TicketInvalid` | — | #24 | Ticket expirado, reutilizado ou desconhecido |
+| `TicketInvalid` | — | #24 | Ticket expirado, reutilizado, desconhecido ou invalidado por um `power_prepare` mais novo (CT-07) |
 | `Rejected` | — | #24 | O Windows recusou o pedido |
 | `AutostartFailed` | — | #26 | Não conseguiu ligar/desligar (inclui exe fora de `%ProgramFiles%`) |
 | `UnknownMonitor` | — | #27 | `monitorId` fora de `display_monitors` |
@@ -273,6 +281,7 @@ Nenhum código de `errors.ts` ficou sem correspondente no contrato.
 
 ## 7. Verificação (BE-08 e BE-10)
 
+- Teste do CT-01: jogo de teste que ignora `WM_CLOSE` + `session_replace` não é encerrado; vai a `CloseOverdue` e só `session_force_close` confirmado o encerra; `session_replace` em `CloseOverdue` → `InvalidState`.
 - Teste compara `generate_handler!` e `capabilities/main.json` com a tabela da seção 2 (30 nomes) e confirma que `purge` não aparece.
 - Cada comando é chamado com campo extra, tipo errado e `GameId` malformado e deve devolver `InvalidRequest`.
-- Bindings TypeScript são gerados por `tauri-specta` (fallback `ts-rs`) em `ui/src/shared/ipc`, sem edição manual.
+- Bindings TypeScript são gerados por `tauri-specta` (fallback `ts-rs`) em `ui/src/shared/ipc/generated/` (combinado com o dev-frontend), sem edição manual.
