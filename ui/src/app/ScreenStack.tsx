@@ -2,6 +2,9 @@ import { lazy, Suspense } from 'react';
 import { AllGamesScreen } from '@/features/library/AllGamesScreen';
 import { GameOptions } from '@/features/library/GameOptions';
 import { HideConfirmDialog } from '@/features/library/HideConfirmDialog';
+import { ExitDialog } from '@/features/quickmenu/ExitDialog';
+import { PowerDialog } from '@/features/quickmenu/PowerDialog';
+import { QuickMenu } from '@/features/quickmenu/QuickMenu';
 import { HomeScreen } from '@/features/library/HomeScreen';
 import { useLibrary } from '@/features/library/store';
 import { CloseConfirmDialog } from '@/features/session/CloseConfirmDialog';
@@ -39,9 +42,15 @@ export function ScreenStack({ headerExtras }: { headerExtras?: React.ReactNode }
                 return <HideConfirmDialog key={entry.key} active={active} entry={entry} parentKey={parentKey} />;
               case 'close':
                 return <CloseConfirmDialog key={entry.key} active={active} entry={entry} />;
+              case 'power':
+                return <PowerDialog key={entry.key} active={active} entry={entry} />;
+              case 'exit':
+                return <ExitDialog key={entry.key} active={active} entry={entry} />;
               default:
                 return null;
             }
+          case 'quickMenu':
+            return <QuickMenu key={entry.key} active={active} entry={entry} />;
           case 'sessionPanel':
             return <SessionPanel key={entry.key} active={active} entry={entry} />;
           case 'renameDialog':

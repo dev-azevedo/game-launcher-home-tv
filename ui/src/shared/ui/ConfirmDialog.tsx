@@ -11,6 +11,8 @@ interface ConfirmDialogProps {
   children?: ReactNode;
   /** Aviso extra em destaque (ex.: jogo aberto, CA-48). */
   warning?: string;
+  /** `warn` (ambar) para aviso que nao e perda de dados, ex.: o jogo continua aberto ao sair. */
+  warningTone?: 'danger' | 'warn';
   icon?: IconName;
   tone?: DialogTone;
   /** Ausente = dialogo de aviso com um botao so (o de cancelar, Voltar). */
@@ -30,6 +32,7 @@ export function ConfirmDialog({
   title,
   children,
   warning,
+  warningTone = 'danger',
   icon = 'alert',
   tone = 'warn',
   confirmLabel,
@@ -59,7 +62,7 @@ export function ConfirmDialog({
           <div className="dc">
             <h2 id={titleId}>{title}</h2>
             {children ? <div className="body">{children}</div> : null}
-            {warning ? <div className="warnline">{warning}</div> : null}
+            {warning ? <div className={`warnline${warningTone === 'warn' ? ' amber' : ''}`}>{warning}</div> : null}
             <div className="btnrow">
               <Focusable as="button" focusKey="dlg-cancel" className="btn" onActivate={onCancel}>
                 {cancelLabel}

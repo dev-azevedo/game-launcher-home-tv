@@ -18,6 +18,9 @@ interface FocusableProps {
   role?: string;
   ariaLabel?: string;
   ariaChecked?: boolean;
+  ariaSelected?: boolean;
+  /** Controles de valor (volume): `role="slider"` com o nivel atual. */
+  ariaValue?: { now: number; min: number; max: number };
   children?: ReactNode;
 }
 
@@ -32,6 +35,8 @@ export function Focusable({
   role,
   ariaLabel,
   ariaChecked,
+  ariaSelected,
+  ariaValue,
   children,
 }: FocusableProps) {
   const layerActive = useContext(LayerActiveContext);
@@ -53,6 +58,10 @@ export function Focusable({
     role,
     'aria-label': ariaLabel,
     'aria-checked': ariaChecked,
+    'aria-selected': ariaSelected,
+    'aria-valuenow': ariaValue?.now,
+    'aria-valuemin': ariaValue?.min,
+    'aria-valuemax': ariaValue?.max,
     'aria-disabled': disabled || undefined,
   };
 

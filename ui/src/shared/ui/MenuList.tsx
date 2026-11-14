@@ -13,7 +13,13 @@ export interface MenuItemSpec {
   danger?: boolean;
   /** Desabilitado: sai da ordem de foco e mostra o motivo em `hint`. */
   disabled?: boolean;
+  /** Padrao `menuitem`; `slider` (volume) e `switch` (mudo, ligar com o Windows) quando o item e um controle. */
+  role?: 'menuitem' | 'slider' | 'switch' | 'button';
+  checked?: boolean;
+  value?: { now: number; min: number; max: number };
   onSelect?: () => void;
+  /** O foco chegou na linha (ex.: configuracoes sabem em que zona estao). */
+  onFocus?: () => void;
 }
 
 interface MenuListProps {
@@ -30,9 +36,13 @@ export function MenuList({ items, label }: MenuListProps) {
           key={item.id}
           focusKey={`menu-${item.id}`}
           className={`mi${item.danger ? ' danger' : ''}`}
-          role="menuitem"
+          role={item.role ?? 'menuitem'}
+          ariaChecked={item.role === 'switch' ? (item.checked ?? false) : undefined}
+          ariaValue={item.value}
+          ariaLabel={item.role === 'slider' ? item.label : undefined}
           disabled={item.disabled}
           onActivate={item.onSelect}
+          onFocus={item.onFocus}
         >
           {item.icon ? <Icon name={item.icon} /> : null}
           <span className="grow">

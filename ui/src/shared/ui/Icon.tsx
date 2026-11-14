@@ -80,6 +80,40 @@ const PATHS = {
       <path d="M19.5 4.5v4.5H15" />
     </>
   ),
+  sliders: (
+    <>
+      <path d="M5 7h8M19 7h0M5 17h0M11 17h8" />
+      <circle cx="16" cy="7" r="2" />
+      <circle cx="8" cy="17" r="2" />
+    </>
+  ),
+  moon: <path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z" />,
+  exit: (
+    <>
+      <path d="M10 4H6a2 2 0 00-2 2v12a2 2 0 002 2h4" />
+      <path d="M15 8l4 4-4 4M19 12H9" />
+    </>
+  ),
+  monitor: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="11" rx="1.5" />
+      <path d="M9 20h6M12 15.5V20" />
+    </>
+  ),
+  shield: (
+    <>
+      <path d="M12 3.5l7 2.5v5.5c0 4.2-2.8 7.4-7 9-4.2-1.6-7-4.8-7-9V6l7-2.5z" />
+      <path d="M9.5 12l2 2 3.5-4" />
+    </>
+  ),
+  folder: <path d="M3.5 7.5a2 2 0 012-2h4l2 2h7a2 2 0 012 2v7a2 2 0 01-2 2h-13a2 2 0 01-2-2v-9z" />,
+  drive: (
+    <>
+      <path d="M5 9l2-4h10l2 4" />
+      <rect x="3.5" y="9" width="17" height="8" rx="2" />
+      <path d="M7 13h.01M16 13h2" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;

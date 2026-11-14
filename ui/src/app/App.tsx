@@ -8,6 +8,8 @@ import { startLibrary, useLibrary } from '@/features/library/store';
 import { ControllerBanner, ControllerChip } from '@/features/input/ControllerStatus';
 import { startControllers } from '@/features/input/store';
 import { startSession } from '@/features/session/store';
+import { startVolume } from '@/features/volume/store';
+import { VolumeHud } from '@/features/volume/VolumeHud';
 import { createKeyboardSource } from '@/shared/input/keyboard';
 import { mergeSources } from '@/shared/input/intents';
 import { createCoreIntentSource } from '@/shared/ipc';
@@ -32,7 +34,7 @@ export function App() {
       if (import.meta.env.DEV && needsDevCore()) await (await import('../dev/devCore')).installDevCore();
       if (cancelled) return;
       setCoreReady(true);
-      stops = [startLibrary(), startSession(), startControllers()];
+      stops = [startLibrary(), startSession(), startControllers(), startVolume()];
     })();
     return () => {
       cancelled = true;
@@ -53,6 +55,7 @@ export function App() {
         <>
           <ScreenStack headerExtras={<ControllerChip />} />
           <ControllerBanner />
+          <VolumeHud />
           {libraryStatus === 'loading' ? <BootSplash /> : null}
         </>
       )}

@@ -3,6 +3,8 @@ import { activateFocused, runBackHandler } from '@/shared/input/activation';
 import { resolveIntent, type ResolvedAction } from './intentMap';
 import type { ScreenEntry, ScreenKind, ScreenParams } from './screens';
 import { useFocusedGame } from './focusedGame';
+import { useVolume } from '@/features/volume/store';
+import { runDirectionHandler } from './directionHandler';
 import { runPageHandler } from './pageHandler';
 import { moveFocus } from './spatial';
 import { useNavigation, selectTop } from './store';
@@ -16,6 +18,8 @@ export interface DispatchDeps {
   moveFocus: (direction: Direction) => void;
   activate: () => boolean;
   runBackHandler: () => boolean;
+  /** A camada do topo trata a direcao antes do foco (ex.: ←/→ no Volume). `true` = consumiu. */
+  runDirectionHandler?: (direction: Direction) => boolean;
   /** Acoes que dependem da tela (pular linhas, volume): ligadas nas telas das proximas tarefas. */
   onScreenAction?: (action: ResolvedAction, screen: ScreenKind) => void;
 }
@@ -28,6 +32,11 @@ export const defaultDeps = (): DispatchDeps => ({
   moveFocus,
   activate: activateFocused,
   runBackHandler,
+  runDirectionHandler,
+  // LT/RT: so chegam aqui na Home e em Todos os jogos (a tabela de intencoes filtra, CA-65).
+  onScreenAction: (action) => {
+    if (action.type === 'volume') void useVolume.getState().step(action.direction, { hud: true });
+  },
 });
 
 /** Intencao -> acao da camada do topo. Retorna a acao executada (ou null se ignorada). */
@@ -41,7 +50,7 @@ export function dispatchIntent(event: IntentEvent, deps: DispatchDeps): Resolved
 
   switch (action.type) {
     case 'navigate':
-      deps.moveFocus(action.direction);
+      if (!deps.runDirectionHandler?.(action.direction)) deps.moveFocus(action.direction);
       break;
     case 'activate':
       deps.activate();

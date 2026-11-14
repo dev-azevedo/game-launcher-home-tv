@@ -1,0 +1,8 @@
+/* Menu rapido: painel a direita. Referencia: mockups/_tv.css (.menu.right). Medidas em --u. */
+.menu.options.right{position:absolute;right:var(--safe-x);top:var(--safe-y);max-height:calc(100% - 2*var(--safe-y));animation:slide 200ms var(--ease-out)}
+.menu.options.right .mh{display:flex;align-items:center;gap:var(--space-2)}
+.menu.options.right .mh .push{margin-left:auto}
+.menu.options.right .hints{padding-top:var(--space-1)}
+@keyframes slide{from{opacity:0;transform:translateX(calc(48*var(--u)))}}
+@media (prefers-reduced-motion:reduce){.menu.options.right{animation:none}}
+html.reduced .menu.options.right{animation:none}
