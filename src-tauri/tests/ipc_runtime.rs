@@ -161,6 +161,11 @@ fn leituras_sem_backend_respondem_estado_neutro() {
         "Unavailable"
     );
     assert_eq!(h.call("session_dismiss", json!({})).unwrap(), json!(null));
+    // Sem pasta de dados carregada (so o `setup` real a define), `logDir` vem vazio.
+    assert_eq!(
+        h.call("settings_get", json!({})).unwrap(),
+        json!({ "autostart": false, "autostartMechanism": "None", "monitorId": null, "logDir": "" })
+    );
 }
 
 #[test]

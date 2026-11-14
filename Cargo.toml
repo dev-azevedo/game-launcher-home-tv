@@ -14,6 +14,10 @@ launcher-core = { path = "crates/launcher-core" }
 launcher-win = { path = "crates/launcher-win" }
 thiserror = "2"
 sha2 = { version = "0.10", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std"] }
 # windows-rs 0.58: ultima linha que usa import libs prebuilt no alvo -gnu (sem dlltool/as).
 # O alvo de release e MSVC; subir a versao quando houver Build Tools na maquina de dev.
 windows = "0.58"

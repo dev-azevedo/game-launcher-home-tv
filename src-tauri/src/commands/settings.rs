@@ -3,15 +3,32 @@
 use tauri::ipc::Request;
 use tauri::State;
 
+use launcher_core::application::AppError;
+
 use crate::dto::*;
 use crate::ipc::{args, guard, no_args, not_wired};
 use crate::state::AppState;
 
 #[tauri::command]
-pub async fn settings_get(request: Request<'_>) -> Result<SettingsDto, ErrorDto> {
+pub async fn settings_get(
+    request: Request<'_>,
+    state: State<'_, AppState>,
+) -> Result<SettingsDto, ErrorDto> {
     guard("settings_get", || {
         no_args(&request)?;
-        Err(not_wired("settings_get"))
+        let settings = state.settings.lock().map_err(|_| AppError::Internal)?;
+        let log_dir = state
+            .user_data
+            .get()
+            .map(|u| u.data_dir.join("logs").display().to_string())
+            .unwrap_or_default();
+        Ok(SettingsDto {
+            // O estado real do autostart vem do Windows (ADR-0006) e entra com o BE-36.
+            autostart: false,
+            autostart_mechanism: AutostartMechanism::None,
+            monitor_id: settings.monitor_id.clone(),
+            log_dir,
+        })
     })
 }
 

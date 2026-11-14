@@ -14,9 +14,15 @@ win-integration = []
 [dependencies]
 launcher-core.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 windows = { workspace = true, features = [
   "Win32_Foundation",
   "Win32_Security",
+  "Win32_Storage_FileSystem",
   "Win32_System_LibraryLoader",
   "Win32_System_Threading",
 ] }
+
+[dev-dependencies]
+serde_json.workspace = true

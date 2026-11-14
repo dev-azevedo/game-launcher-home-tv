@@ -1,6 +1,7 @@
 //! Composition root do Sofa: liga comandos, estado e janela. Sem regra de negocio (arquitetura
 //! 2.3); casos de uso e adapters entram com as tarefas BE-xx seguintes.
 
+pub mod bootstrap;
 pub mod commands;
 pub mod dto;
 pub mod errors;
@@ -57,6 +58,7 @@ pub fn configure<R: Runtime>(builder: Builder<R>) -> Builder<R> {
 pub fn run() {
     configure(tauri::Builder::default())
         .setup(|app| {
+            bootstrap::init_user_data(app)?;
             let handle = app.handle().clone();
             // Saida do app sem tocar em jogo algum (CA-05); o hook evita comando generico.
             let _ = app
