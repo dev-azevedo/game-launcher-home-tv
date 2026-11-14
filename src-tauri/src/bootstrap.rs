@@ -3,13 +3,23 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use launcher_core::application::ports::{Clock, SettingsRepository};
+use launcher_core::application::ports::{
+    Clock, CoverCache, FolderBrowser, LibraryEvents, LibraryRepository, ManualExeInspector,
+    SettingsRepository, StoreScanner,
+};
+use launcher_core::application::{LibraryDeps, LibraryService};
 use launcher_core::domain::settings::{LogLevel, Step2Key};
+use launcher_win::cover_cache::WinCoverCache;
+use launcher_win::folder_browser::WinFolderBrowser;
 use launcher_win::logging::{self, Level};
-use launcher_win::persistence::JsonSettingsRepository;
+use launcher_win::manual_exe::WinManualExeInspector;
+use launcher_win::path_canon::known;
+use launcher_win::persistence::{JsonLibraryRepository, JsonSettingsRepository};
+use launcher_win::stores::{EpicScanner, GogScanner, SteamScanner, StoreEnv, WinRegistry};
 use launcher_win::system_clock::SystemClock;
-use tauri::{Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 
+use crate::events::TauriLibraryEvents;
 use crate::state::{AppState, UserData};
 
 /// Resolve `%LOCALAPPDATA%\app.sofa.launcher`, liga o log em `logs\`, carrega `settings.json`
@@ -57,5 +67,48 @@ pub fn init_user_data<R: Runtime>(app: &impl Manager<R>) -> tauri::Result<()> {
         data_dir,
         settings_repo: repo,
     });
+    Ok(())
+}
+
+/// Liga a biblioteca (BE-29): repositorio JSON, as tres lojas, cadastro manual, navegador de
+/// pastas e o cache de capas. Precisa so da pasta de dados (nao da janela), por isso roda antes
+/// dela e antes do runtime de sessao. A primeira varredura so comeca na primeira leitura da UI
+/// (BE-40); ate la a biblioteca responde com o que e do usuario.
+pub fn init_library<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let user_data = state
+        .user_data
+        .get()
+        .ok_or("pasta de dados nao inicializada")?;
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock::new());
+    let repo: Arc<dyn LibraryRepository> = Arc::new(JsonLibraryRepository::new(
+        &user_data.data_dir,
+        Arc::clone(&clock),
+    ));
+    let env = Arc::new(StoreEnv::system());
+    let registry = Arc::new(WinRegistry);
+    let scanners: Vec<Arc<dyn StoreScanner>> = vec![
+        Arc::new(SteamScanner::new(registry.clone(), Arc::clone(&env))),
+        Arc::new(EpicScanner::new(
+            known::epic_manifests_dir(),
+            Arc::clone(&env),
+        )),
+        Arc::new(GogScanner::new(registry, env)),
+    ];
+    let inspector: Arc<dyn ManualExeInspector> = Arc::new(WinManualExeInspector);
+    let browser: Arc<dyn FolderBrowser> = Arc::new(WinFolderBrowser);
+    let events: Arc<dyn LibraryEvents> = Arc::new(TauriLibraryEvents::new(app.clone()));
+    let covers: Arc<dyn CoverCache> = Arc::new(WinCoverCache::new(&user_data.data_dir));
+
+    let library = Arc::new(LibraryService::new(LibraryDeps {
+        repo,
+        scanners,
+        inspector,
+        browser,
+        events,
+    }));
+    let _ = state.covers.set(covers);
+    let _ = state.library.set(library);
+    tracing::info!("biblioteca ligada");
     Ok(())
 }

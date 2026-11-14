@@ -6,12 +6,10 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use launcher_core::application::ports::SettingsRepository;
-use launcher_core::application::{SerialGate, SessionService};
+use launcher_core::application::ports::{CoverCache, SettingsRepository};
+use launcher_core::application::{LibraryService, SerialGate, SessionService};
 use launcher_core::domain::settings::Settings;
 use launcher_win::input_thread::InputControl;
-
-use crate::dto::LibrarySnapshot;
 
 /// Dados do usuario carregados no `setup` (pasta de dados, repositorio e configuracoes).
 pub struct UserData {
@@ -40,6 +38,12 @@ pub struct AppState {
     pub input: OnceLock<Arc<InputControl>>,
     /// Threads vivas (entrada, eventos do sistema, temporizador); soltar encerra e junta.
     pub threads: OnceLock<Mutex<Vec<Box<dyn Any + Send>>>>,
-    /// Ultima biblioteca conhecida: `library_get` e o foco de fim de sessao (BE-29 preenche).
-    pub library_snapshot: Mutex<LibrarySnapshot>,
+    /// Biblioteca (BE-29): varredura, camada do usuario, cadastro manual e resolver de lancamento.
+    /// Definida no `setup`, depois da pasta de dados.
+    pub library: OnceLock<Arc<LibraryService>>,
+    /// Capas e icones reencodados (BE-28), servidos por `cover://`.
+    pub covers: OnceLock<Arc<dyn CoverCache>>,
+    /// A primeira leitura da biblioteca (primeiro paint da UI) dispara a varredura em segundo
+    /// plano, uma vez so (BE-40).
+    pub initial_refresh: AtomicBool,
 }

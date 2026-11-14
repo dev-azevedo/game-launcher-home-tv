@@ -2,7 +2,6 @@
 
 pub mod error;
 pub mod foreground;
-pub mod library_access;
 pub mod library_service;
 pub mod ports;
 pub mod serial;

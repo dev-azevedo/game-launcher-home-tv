@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use launcher_core::application::ports::{InputSink, SessionEvents};
+use launcher_core::application::ports::{InputSink, LibraryEvents, SessionEvents};
 use launcher_core::application::{SessionService, SessionView};
 use launcher_core::domain::input::IntentEvent;
 use launcher_core::domain::library::GameId;
@@ -11,7 +11,10 @@ use launcher_core::domain::session::FrontOutcome;
 use launcher_win::system_events::{SystemEvent, SystemEventSink};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
-use crate::dto::{ControllersEvent, InputIntentEvent, SessionDto, SessionPanelEvent};
+use crate::dto::{
+    ControllersEvent, InputIntentEvent, LibrarySnapshot, SessionDto, SessionPanelEvent,
+};
+use crate::library_view::snapshot_dto;
 use crate::state::AppState;
 
 pub const INPUT_INTENT: &str = "input://intent";
@@ -59,15 +62,46 @@ impl<R: Runtime> SessionEvents for TauriSessionEvents<R> {
     }
 
     fn game_ended(&self, focus: &GameId) {
-        let mut snapshot = self
-            .app
-            .state::<AppState>()
-            .library_snapshot
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clone();
-        snapshot.focus_game_id = Some(focus.to_string());
-        emit_logged(&self.app, LIBRARY_CHANGED, snapshot);
+        emit_logged(
+            &self.app,
+            LIBRARY_CHANGED,
+            current_snapshot(&self.app, Some(focus)),
+        );
+    }
+}
+
+/// O `LibrarySnapshot` de agora (sem ocultos, ordem da RN-05). Sem biblioteca ligada (falha no
+/// `setup`), a lista vai vazia.
+pub fn current_snapshot<R: Runtime>(app: &AppHandle<R>, focus: Option<&GameId>) -> LibrarySnapshot {
+    let state = app.state::<AppState>();
+    match state.library.get() {
+        Some(library) => snapshot_dto(&state, &library.snapshot(), focus),
+        None => LibrarySnapshot {
+            games: Vec::new(),
+            focus_game_id: focus.map(ToString::to_string),
+        },
+    }
+}
+
+/// `library://changed` depois de varredura, renomear, ocultar e mostrar (contrato secao 3). O
+/// foco fica por conta da UI (so o fim de sessao traz `focusGameId`, CA-30).
+pub struct TauriLibraryEvents<R: Runtime> {
+    app: AppHandle<R>,
+}
+
+impl<R: Runtime> TauriLibraryEvents<R> {
+    pub fn new(app: AppHandle<R>) -> Self {
+        Self { app }
+    }
+}
+
+impl<R: Runtime> LibraryEvents for TauriLibraryEvents<R> {
+    fn changed(&self) {
+        emit_logged(
+            &self.app,
+            LIBRARY_CHANGED,
+            current_snapshot(&self.app, None),
+        );
     }
 }
 

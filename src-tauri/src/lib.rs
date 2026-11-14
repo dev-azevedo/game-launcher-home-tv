@@ -4,11 +4,13 @@
 pub mod bootstrap;
 pub mod commands;
 pub mod convert;
+pub mod cover_protocol;
 pub mod dto;
 pub mod errors;
 pub mod events;
 pub mod ipc;
 pub mod launcher_window;
+pub mod library_view;
 pub mod runtime;
 pub mod state;
 pub mod webview_hardening;
@@ -25,6 +27,17 @@ pub fn configure<R: Runtime>(builder: Builder<R>) -> Builder<R> {
     use commands::{library::*, power::*, session::*, settings::*, volume::*};
     builder
         .manage(state::AppState::default())
+        // `cover://<gameId>` (SEC-08): fora da thread da janela, so GameId existente.
+        .register_asynchronous_uri_scheme_protocol(
+            cover_protocol::SCHEME,
+            |ctx, request, responder| {
+                let app = ctx.app_handle().clone();
+                tauri::async_runtime::spawn_blocking(move || {
+                    let state = app.state::<state::AppState>();
+                    responder.respond(cover_protocol::respond(&state, &request));
+                });
+            },
+        )
         .invoke_handler(tauri::generate_handler![
             library_get,
             library_refresh,
@@ -63,6 +76,10 @@ pub fn run() {
     configure(tauri::Builder::default())
         .setup(|app| {
             bootstrap::init_user_data(app)?;
+            if let Err(error) = bootstrap::init_library(app.handle()) {
+                // Sem biblioteca o launcher ainda abre: leituras neutras, acoes `Internal`.
+                tracing::error!(%error, "biblioteca nao iniciou");
+            }
             let handle = app.handle().clone();
             // Saida do app sem tocar em jogo algum (CA-05); o hook evita comando generico.
             let _ = app

@@ -8,10 +8,9 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use launcher_core::application::library_access::StoredLibraryAccess;
 use launcher_core::application::ports::{
-    Clock, GameResolver, InputGate, LauncherWindow, LibraryRepository, PlayedRecorder, ProbeConfig,
-    SessionEvents, TaskRunner,
+    Clock, GameResolver, InputGate, LauncherWindow, PlayedRecorder, ProbeConfig, SessionEvents,
+    TaskRunner,
 };
 use launcher_core::application::{ForegroundBroker, SessionDeps, SessionService};
 use launcher_core::domain::input::InputConfig;
@@ -19,7 +18,6 @@ use launcher_core::domain::session::SessionConfig;
 use launcher_win::foreground::Win32WindowSystem;
 use launcher_win::game_starter::WinGameStarter;
 use launcher_win::input_thread::{InputControl, InputRunner, InputThread};
-use launcher_win::persistence::JsonLibraryRepository;
 use launcher_win::process_probe::WinSessionProbe;
 use launcher_win::system_clock::SystemClock;
 use launcher_win::system_events::SystemEvents;
@@ -83,9 +81,9 @@ impl Drop for TickThread {
 /// correspondente responde `Internal` (estado neutro) e o motivo vai para o log.
 pub fn start<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let state = app.state::<AppState>();
-    let Some(user_data) = state.user_data.get() else {
+    if state.user_data.get().is_none() {
         return Err("pasta de dados nao inicializada".into());
-    };
+    }
     let advanced = state
         .settings
         .lock()
@@ -101,11 +99,13 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let hwnd = hwnd.0 as isize;
 
     let clock: Arc<dyn Clock> = Arc::new(SystemClock::new());
-    let library_repo: Arc<dyn LibraryRepository> = Arc::new(JsonLibraryRepository::new(
-        &user_data.data_dir,
-        Arc::clone(&clock),
-    ));
-    let library = Arc::new(StoredLibraryAccess::new(library_repo));
+    // A biblioteca e a mesma dos comandos (BE-29): resolve jogos manuais e de loja pela deteccao
+    // atual e grava `lastPlayedAt`.
+    let library = state
+        .library
+        .get()
+        .cloned()
+        .ok_or("biblioteca nao inicializada")?;
     let resolver: Arc<dyn GameResolver> = library.clone();
     let recorder: Arc<dyn PlayedRecorder> = library;
 
