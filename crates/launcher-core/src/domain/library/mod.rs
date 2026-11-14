@@ -2,9 +2,14 @@
 //! politicas de seguranca entram com BE-22 e BE-23.
 
 mod id;
+pub mod launch;
 pub mod stored;
 
 pub use id::{GameId, GameIdError, Origin};
+pub use launch::{
+    check_launch_exe_path, epic_uri, percent_encode, steam_uri, LaunchPathError, LaunchSpec,
+    LaunchTarget,
+};
 pub use stored::{
     parse_library, serialize_library, LibraryFileError, ManualGameRecord, OverlayEntry,
     StoredLibrary,

@@ -25,7 +25,9 @@ pub struct ProcessInfo {
 pub struct SessionContext {
     pub own_pid: u32,
     pub own_session_id: u32,
-    /// PIDs de `msedgewebview2.exe` e demais filhos do Sofa (a arvore a partir de `own_pid`).
+    /// PIDs dos `msedgewebview2.exe` do proprio Sofa (a arvore de WebView2 a partir de
+    /// `own_pid`). **Nao** e "todo descendente": a Steam iniciada pelo Sofa e os jogos dela sao
+    /// descendentes e precisam entrar no conjunto pela pasta de instalacao.
     pub own_child_pids: Vec<u32>,
     /// Pasta de instalacao do jogo (canonica, ja validada por SEC-16).
     pub install_dir: String,
@@ -96,7 +98,7 @@ pub fn classify(p: &ProcessInfo, ctx: &SessionContext) -> Result<(), Exclusion> 
     if p.pid == ctx.own_pid {
         return Err(Exclusion::Sofa);
     }
-    if ctx.own_child_pids.contains(&p.pid) || p.parent_pid == Some(ctx.own_pid) {
+    if ctx.own_child_pids.contains(&p.pid) {
         return Err(Exclusion::SofaChild);
     }
     if p.session_id != ctx.own_session_id {
@@ -157,6 +159,16 @@ mod tests {
     }
 
     #[test]
+    fn filho_direto_do_sofa_na_pasta_do_jogo_entra() {
+        // Steam iniciada pelo Sofa: o jogo e descendente do Sofa, mas nao e WebView2.
+        let p = ProcessInfo {
+            parent_pid: Some(100),
+            ..game_proc()
+        };
+        assert_eq!(classify(&p, &ctx()), Ok(()));
+    }
+
+    #[test]
     fn cada_exclusao_de_sec_17_tem_o_seu_motivo() {
         let casos: Vec<(ProcessInfo, Exclusion)> = vec![
             (
@@ -169,13 +181,6 @@ mod tests {
             (
                 ProcessInfo {
                     pid: 101,
-                    ..game_proc()
-                },
-                Exclusion::SofaChild,
-            ),
-            (
-                ProcessInfo {
-                    parent_pid: Some(100),
                     ..game_proc()
                 },
                 Exclusion::SofaChild,

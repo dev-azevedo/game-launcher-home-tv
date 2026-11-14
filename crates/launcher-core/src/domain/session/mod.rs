@@ -4,6 +4,7 @@ mod machine;
 pub mod process_policy;
 
 pub use machine::{
-    LaunchFailure, Session, SessionConfig, SessionEffect, SessionSnapshot, SessionState,
+    FrontOutcome, LaunchFailure, Session, SessionConfig, SessionEffect, SessionSnapshot,
+    SessionState,
 };
 pub use process_policy::{classify, path_is_within, Exclusion, ProcessInfo, SessionContext};

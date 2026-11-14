@@ -22,6 +22,14 @@ pub enum SessionState {
     CloseOverdue,
 }
 
+/// Resultado de trazer o Sofa para a frente (ADR-0003): o mesmo enum do contrato (`FrontOutcome`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FrontOutcome {
+    Front,
+    FrontAfterMinimize,
+    Failed,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LaunchFailure {
     ElevationDenied,
@@ -261,6 +269,15 @@ impl Session {
     }
 
     // ------------------------------------------------------------- eventos (infraestrutura)
+
+    /// O inicio falhou antes de haver processo (arquivo ausente, loja ausente, caminho de rede):
+    /// nada rodando, a sessao volta a `Idle` e o comando devolve o erro (CA-28, CA-71).
+    pub fn launch_failed(&mut self, now: Millis) -> Effects {
+        if self.state == SessionState::Launching {
+            self.reset_to_idle(now);
+        }
+        Vec::new()
+    }
 
     /// `CreateProcess` devolveu o erro 740: o jogo exige administrador (AF-01, CA-73).
     pub fn elevation_required(&mut self, now: Millis) -> Effects {
