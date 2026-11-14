@@ -6,6 +6,8 @@ use std::fmt;
 
 use sha2::{Digest, Sha256};
 
+use super::id_formats;
+
 /// Comprimento maximo do ID inteiro (`epic:` + 128 e o maior caso valido).
 const MAX_ID_LEN: usize = 5 + 1 + 128;
 
@@ -61,21 +63,10 @@ impl GameId {
             _ => return Err(GameIdError::UnknownOrigin),
         };
         let ok = match origin {
-            Origin::Steam => {
-                (1..=10).contains(&key.len())
-                    && key.bytes().all(|b| b.is_ascii_digit())
-                    && key.parse::<u32>().is_ok()
-            }
-            Origin::Epic => {
-                (1..=128).contains(&key.len())
-                    && key
-                        .bytes()
-                        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'-'))
-            }
-            Origin::Gog => (1..=20).contains(&key.len()) && key.bytes().all(|b| b.is_ascii_digit()),
-            Origin::Manual => {
-                key.len() == 16 && key.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
-            }
+            Origin::Steam => id_formats::parse_steam_app_id(key).is_some(),
+            Origin::Epic => id_formats::is_epic_component(key),
+            Origin::Gog => id_formats::is_gog_id(key),
+            Origin::Manual => id_formats::is_manual_key(key),
         };
         if ok {
             Ok(Self {
