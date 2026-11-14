@@ -20,6 +20,7 @@ pub mod path_canon;
 pub mod persistence;
 pub mod power;
 pub mod process_probe;
+pub mod purge;
 pub mod stores;
 pub mod system_clock;
 pub mod system_events;

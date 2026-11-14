@@ -5,6 +5,7 @@
 //! (BE-33).
 
 pub mod autostart;
+pub mod data_dir_policy;
 pub mod display;
 pub mod input;
 pub mod library;

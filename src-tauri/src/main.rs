@@ -11,8 +11,10 @@ fn main() {
         .map(|a| a.to_string_lossy().into_owned())
         .collect();
     match parse_start_mode(&args) {
-        // BE-41 liga o modo de remocao de dados aqui. Ate la, e recusado: nada e apagado.
-        StartMode::Purge | StartMode::PurgeRefused => std::process::exit(2),
+        // Modo de remocao dos dados (SEC-31): sem janela, sem WebView2, sem instancia unica e fora
+        // da IPC. So o desinstalador o chama. `PurgeRefused` = argumento extra: nada e apagado.
+        StartMode::Purge => std::process::exit(launcher_win::purge::run_main(false)),
+        StartMode::PurgeRefused => std::process::exit(launcher_win::purge::run_main(true)),
         mode => sofa_lib::run(mode),
     }
 }
