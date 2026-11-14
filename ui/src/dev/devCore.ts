@@ -37,7 +37,15 @@ function makeGames(kind: string): GameDto[] {
   });
 }
 
-export async function installDevCore(): Promise<void> {
+let installed: Promise<void> | null = null;
+
+/** Idempotente: o StrictMode do dev roda o efeito duas vezes e um segundo `mockIPC` zeraria os ouvintes. */
+export function installDevCore(): Promise<void> {
+  installed ??= install();
+  return installed;
+}
+
+async function install(): Promise<void> {
   const params = new URLSearchParams(window.location.hash.replace(/^#/, '').replace(/^gallery&?/, ''));
   const lib = params.get('lib') ?? 'cheia';
   let games = makeGames(lib);

@@ -16,6 +16,7 @@ interface LibraryState {
   load: () => Promise<void>;
   refresh: () => Promise<void>;
   clearNotice: () => void;
+  setNotice: (notice: string) => void;
 }
 
 export const useLibrary = create<LibraryState>((set, get) => ({
@@ -52,6 +53,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
     }
   },
   clearNotice: () => set({ notice: null }),
+  setNotice: (notice) => set({ notice }),
 }));
 
 export const selectGameById = (id: GameId | null | undefined) => (s: LibraryState) =>

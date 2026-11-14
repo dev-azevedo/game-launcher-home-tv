@@ -7,7 +7,7 @@ import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
 import type { CommandName, ErrorDto, EventName } from './types';
 
 type Handler = (args: Record<string, unknown>) => unknown | Promise<unknown>;
-type StaticValue = null | string | number | boolean | unknown[] | { [key: string]: unknown };
+type StaticValue = null | string | number | boolean | object;
 export type CoreHandlers = Partial<Record<CommandName, Handler | StaticValue>>;
 
 export interface CoreMock {

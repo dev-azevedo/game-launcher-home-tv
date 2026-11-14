@@ -9,7 +9,6 @@ import type { GameDto } from '@/shared/ipc';
 import { scrollBehavior } from '@/shared/theme/motion';
 import { ButtonHints } from '@/shared/ui/ButtonHints';
 import { FocusLayer } from '@/shared/ui/Focusable';
-import { Toast } from '@/shared/ui/Toast';
 import { AppHeader } from './components/AppHeader';
 import { EmptyLibrary, LoadingLibrary } from './components/EmptyLibrary';
 import { AllGamesCard, GameCard } from './components/GameCard';
@@ -42,8 +41,6 @@ export function HomeScreen({ active, headerExtras }: { active: boolean; headerEx
   const games = useLibrary((s) => s.games);
   const refreshing = useLibrary((s) => s.refreshing);
   const refresh = useLibrary((s) => s.refresh);
-  const notice = useLibrary((s) => s.notice);
-  const clearNotice = useLibrary((s) => s.clearNotice);
   const push = useNavigation((s) => s.push);
   const openAdd = useCallback(() => push('folderBrowser'), [push]);
 
@@ -68,7 +65,6 @@ export function HomeScreen({ active, headerExtras }: { active: boolean; headerEx
         {body}
         <ButtonHints hints={hints} />
       </SafeArea>
-      <Toast message={notice} onDone={clearNotice} />
     </div>
   );
 }

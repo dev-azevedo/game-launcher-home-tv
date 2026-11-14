@@ -1,6 +1,13 @@
+import { lazy, Suspense } from 'react';
 import { AllGamesScreen } from '@/features/library/AllGamesScreen';
+import { GameOptions } from '@/features/library/GameOptions';
+import { HideConfirmDialog } from '@/features/library/HideConfirmDialog';
 import { HomeScreen } from '@/features/library/HomeScreen';
+import { useLibrary } from '@/features/library/store';
+import { Toast } from '@/shared/ui/Toast';
 import { useNavigation } from './navigation/store';
+
+const RenameDialog = lazy(() => import('@/features/library/RenameDialog'));
 
 /**
  * Pilha de telas (arch 3.1): so a camada do topo recebe foco e anel; as de baixo ficam montadas
@@ -8,19 +15,35 @@ import { useNavigation } from './navigation/store';
  */
 export function ScreenStack({ headerExtras }: { headerExtras?: React.ReactNode }) {
   const stack = useNavigation((s) => s.stack);
+  const notice = useLibrary((s) => s.notice);
+  const clearNotice = useLibrary((s) => s.clearNotice);
   return (
     <>
       {stack.map((entry, index) => {
         const active = index === stack.length - 1;
+        const parentKey = stack[index - 1]?.key;
         switch (entry.kind) {
           case 'home':
             return <HomeScreen key={entry.key} active={active} headerExtras={headerExtras} />;
           case 'allGames':
             return <AllGamesScreen key={entry.key} active={active} headerExtras={headerExtras} />;
+          case 'gameOptions':
+            return <GameOptions key={entry.key} active={active} entry={entry} />;
+          case 'confirmDialog':
+            return entry.params?.confirm === 'hide' ? (
+              <HideConfirmDialog key={entry.key} active={active} entry={entry} parentKey={parentKey} />
+            ) : null;
+          case 'renameDialog':
+            return (
+              <Suspense key={entry.key} fallback={null}>
+                <RenameDialog active={active} entry={entry} parentKey={parentKey} />
+              </Suspense>
+            );
           default:
             return null;
         }
       })}
+      <Toast message={notice} onDone={clearNotice} />
     </>
   );
 }
