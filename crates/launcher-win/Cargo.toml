@@ -18,11 +18,33 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 windows = { workspace = true, features = [
   "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Media",
   "Win32_Security",
   "Win32_Storage_FileSystem",
+  "Win32_System_Com",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_JobObjects",
   "Win32_System_LibraryLoader",
+  "Win32_System_Power",
+  "Win32_System_Registry",
+  "Win32_System_RemoteDesktop",
+  "Win32_System_StationsAndDesktops",
   "Win32_System_Threading",
+  "Win32_System_IO",
+  "Win32_UI_Accessibility",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Input_XboxController",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
 ] }
+
+[[bin]]
+# Jogo sintetico dos testes de integracao (janela, filho, WM_CLOSE ignorado, dump de argumentos).
+# Nunca entra no instalador: o bundler do Tauri empacota so o `sofa.exe`.
+name = "sofa-test-game"
+path = "src/bin/sofa_test_game.rs"
+test = false
 
 [dev-dependencies]
 serde_json.workspace = true
