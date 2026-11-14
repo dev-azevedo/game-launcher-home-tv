@@ -177,6 +177,366 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Enables the app_exit command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-app-exit",
+          "markdownDescription": "Enables the app_exit command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the display_monitors command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-display-monitors",
+          "markdownDescription": "Enables the display_monitors command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the fs_list_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-fs-list-dir",
+          "markdownDescription": "Enables the fs_list_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the game_hide command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-game-hide",
+          "markdownDescription": "Enables the game_hide command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the game_rename command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-game-rename",
+          "markdownDescription": "Enables the game_rename command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the game_restore_name command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-game-restore-name",
+          "markdownDescription": "Enables the game_restore_name command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the game_unhide command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-game-unhide",
+          "markdownDescription": "Enables the game_unhide command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the input_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-input-status",
+          "markdownDescription": "Enables the input_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the library_add_manual command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-library-add-manual",
+          "markdownDescription": "Enables the library_add_manual command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the library_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-library-get",
+          "markdownDescription": "Enables the library_get command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the library_hidden command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-library-hidden",
+          "markdownDescription": "Enables the library_hidden command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the library_refresh command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-library-refresh",
+          "markdownDescription": "Enables the library_refresh command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the power_capabilities command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-power-capabilities",
+          "markdownDescription": "Enables the power_capabilities command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the power_execute command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-power-execute",
+          "markdownDescription": "Enables the power_execute command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the power_prepare command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-power-prepare",
+          "markdownDescription": "Enables the power_prepare command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_close command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-close",
+          "markdownDescription": "Enables the session_close command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_dismiss command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-dismiss",
+          "markdownDescription": "Enables the session_dismiss command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_force_close command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-force-close",
+          "markdownDescription": "Enables the session_force_close command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-get",
+          "markdownDescription": "Enables the session_get command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_launch command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-launch",
+          "markdownDescription": "Enables the session_launch command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_launch_with_uac command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-launch-with-uac",
+          "markdownDescription": "Enables the session_launch_with_uac command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_replace command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-replace",
+          "markdownDescription": "Enables the session_replace command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_retry command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-retry",
+          "markdownDescription": "Enables the session_retry command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_return_to_game command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-return-to-game",
+          "markdownDescription": "Enables the session_return_to_game command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the settings_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-settings-get",
+          "markdownDescription": "Enables the settings_get command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the settings_set_autostart command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-settings-set-autostart",
+          "markdownDescription": "Enables the settings_set_autostart command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the settings_set_monitor command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-settings-set-monitor",
+          "markdownDescription": "Enables the settings_set_monitor command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the volume_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-volume-get",
+          "markdownDescription": "Enables the volume_get command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the volume_step command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-volume-step",
+          "markdownDescription": "Enables the volume_step command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the volume_toggle_mute command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-volume-toggle-mute",
+          "markdownDescription": "Enables the volume_toggle_mute command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the app_exit command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-app-exit",
+          "markdownDescription": "Denies the app_exit command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the display_monitors command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-display-monitors",
+          "markdownDescription": "Denies the display_monitors command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fs_list_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-fs-list-dir",
+          "markdownDescription": "Denies the fs_list_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the game_hide command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-game-hide",
+          "markdownDescription": "Denies the game_hide command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the game_rename command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-game-rename",
+          "markdownDescription": "Denies the game_rename command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the game_restore_name command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-game-restore-name",
+          "markdownDescription": "Denies the game_restore_name command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the game_unhide command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-game-unhide",
+          "markdownDescription": "Denies the game_unhide command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the input_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-input-status",
+          "markdownDescription": "Denies the input_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the library_add_manual command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-library-add-manual",
+          "markdownDescription": "Denies the library_add_manual command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the library_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-library-get",
+          "markdownDescription": "Denies the library_get command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the library_hidden command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-library-hidden",
+          "markdownDescription": "Denies the library_hidden command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the library_refresh command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-library-refresh",
+          "markdownDescription": "Denies the library_refresh command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the power_capabilities command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-power-capabilities",
+          "markdownDescription": "Denies the power_capabilities command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the power_execute command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-power-execute",
+          "markdownDescription": "Denies the power_execute command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the power_prepare command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-power-prepare",
+          "markdownDescription": "Denies the power_prepare command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_close command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-close",
+          "markdownDescription": "Denies the session_close command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_dismiss command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-dismiss",
+          "markdownDescription": "Denies the session_dismiss command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_force_close command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-force-close",
+          "markdownDescription": "Denies the session_force_close command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-get",
+          "markdownDescription": "Denies the session_get command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_launch command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-launch",
+          "markdownDescription": "Denies the session_launch command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_launch_with_uac command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-launch-with-uac",
+          "markdownDescription": "Denies the session_launch_with_uac command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_replace command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-replace",
+          "markdownDescription": "Denies the session_replace command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_retry command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-retry",
+          "markdownDescription": "Denies the session_retry command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_return_to_game command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-return-to-game",
+          "markdownDescription": "Denies the session_return_to_game command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the settings_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-settings-get",
+          "markdownDescription": "Denies the settings_get command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the settings_set_autostart command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-settings-set-autostart",
+          "markdownDescription": "Denies the settings_set_autostart command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the settings_set_monitor command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-settings-set-monitor",
+          "markdownDescription": "Denies the settings_set_monitor command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the volume_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-volume-get",
+          "markdownDescription": "Denies the volume_get command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the volume_step command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-volume-step",
+          "markdownDescription": "Denies the volume_step command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the volume_toggle_mute command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-volume-toggle-mute",
+          "markdownDescription": "Denies the volume_toggle_mute command without any pre-configured scope."
+        },
+        {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",
           "type": "string",
           "const": "core:default",

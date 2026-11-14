@@ -1,0 +1,41 @@
+// Gerado por `cargo test -p sofa --test bindings`. Nao edite a mao.
+
+export type GameId = string;
+export type MonitorId = string;
+export type PowerTicket = string;
+
+export type { AddManualArgs } from './AddManualArgs';
+export type { AutostartMechanism } from './AutostartMechanism';
+export type { Availability } from './Availability';
+export type { ControllersEvent } from './ControllersEvent';
+export type { DirEntry } from './DirEntry';
+export type { DirEntryKind } from './DirEntryKind';
+export type { DirListing } from './DirListing';
+export type { ErrorCode } from './ErrorCode';
+export type { ErrorDto } from './ErrorDto';
+export type { ErrorParams } from './ErrorParams';
+export type { FrontOutcome } from './FrontOutcome';
+export type { GameDto } from './GameDto';
+export type { GameIdArgs } from './GameIdArgs';
+export type { InputIntent } from './InputIntent';
+export type { InputIntentEvent } from './InputIntentEvent';
+export type { InputStatus } from './InputStatus';
+export type { LaunchFailure } from './LaunchFailure';
+export type { LibrarySnapshot } from './LibrarySnapshot';
+export type { ListDirArgs } from './ListDirArgs';
+export type { MonitorDto } from './MonitorDto';
+export type { Origin } from './Origin';
+export type { PowerAction } from './PowerAction';
+export type { PowerCapabilities } from './PowerCapabilities';
+export type { PowerExecuteArgs } from './PowerExecuteArgs';
+export type { PowerPrepareArgs } from './PowerPrepareArgs';
+export type { RenameArgs } from './RenameArgs';
+export type { SessionDto } from './SessionDto';
+export type { SessionPanelEvent } from './SessionPanelEvent';
+export type { SessionState } from './SessionState';
+export type { SetAutostartArgs } from './SetAutostartArgs';
+export type { SetMonitorArgs } from './SetMonitorArgs';
+export type { SettingsDto } from './SettingsDto';
+export type { VolumeDirection } from './VolumeDirection';
+export type { VolumeState } from './VolumeState';
+export type { VolumeStepArgs } from './VolumeStepArgs';
