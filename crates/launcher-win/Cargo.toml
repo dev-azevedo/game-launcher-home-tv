@@ -14,4 +14,9 @@ win-integration = []
 [dependencies]
 launcher-core.workspace = true
 thiserror.workspace = true
-windows = { workspace = true, features = ["Win32_Foundation"] }
+windows = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Threading",
+] }

@@ -6,6 +6,7 @@ pub mod dto;
 pub mod errors;
 pub mod ipc;
 pub mod state;
+pub mod webview_hardening;
 pub mod window;
 
 use tauri::{Builder, Manager, Runtime};
@@ -62,6 +63,15 @@ pub fn run() {
                 .state::<state::AppState>()
                 .exit_hook
                 .set(Box::new(move || handle.exit(0)));
+            let elevated = launcher_win::hardening::is_process_elevated();
+            app.state::<state::AppState>()
+                .process_elevated
+                .store(elevated, std::sync::atomic::Ordering::Relaxed);
+            if elevated {
+                // SEC-20, RN-27: o Sofa nunca deve estar elevado. Registra e sinaliza; a UI
+                // mostra o aviso discreto em Configuracoes quando o BE-34 expuser o campo.
+                tracing::error!("Sofa em execucao elevada (TokenElevation); nao e esperado");
+            }
             window::create_main_window(app)?;
             Ok(())
         })

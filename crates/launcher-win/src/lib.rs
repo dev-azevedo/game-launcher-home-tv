@@ -3,3 +3,5 @@
 //! Cada um entra com a sua tarefa BE-xx. Nenhuma RN-xx aqui (arquitetura 2.3).
 
 pub use launcher_core as core;
+
+pub mod hardening;

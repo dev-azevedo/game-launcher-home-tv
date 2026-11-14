@@ -4,7 +4,12 @@ include!("command_list.rs");
 fn main() {
     // CT-08: sem o AppManifest com os comandos, o Tauri 2 libera comandos da app sem permissao
     // explicita e a capability `main` perde efeito (SEC-05). Cada nome gera `allow-<nome>`.
+    // SEC-20, INV-06: manifesto proprio com `asInvoker` e `uiAccess=false` (mais Common Controls v6).
+    let windows =
+        tauri_build::WindowsAttributes::new().app_manifest(include_str!("sofa.exe.manifest"));
+    println!("cargo:rerun-if-changed=sofa.exe.manifest");
     let attributes = tauri_build::Attributes::new()
+        .windows_attributes(windows)
         .app_manifest(tauri_build::AppManifest::new().commands(COMMAND_NAMES));
     tauri_build::try_build(attributes).expect("falha ao gerar o manifesto de permissoes do Sofa");
 
