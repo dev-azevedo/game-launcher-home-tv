@@ -67,3 +67,18 @@ pub fn not_wired(command: &'static str) -> AppError {
     tracing::warn!(command, "comando ainda nao ligado a um caso de uso");
     AppError::Internal
 }
+
+/// Roda o corpo numa thread de bloqueio do runtime (inicio de jogo, UAC e fechar podem demorar)
+/// sob `guard` (pânico vira `Internal`). Os argumentos ja foram lidos pelo chamador.
+pub async fn blocking<T: Send + 'static>(
+    command: &'static str,
+    body: impl FnOnce() -> Result<T, AppError> + Send + 'static,
+) -> Result<T, ErrorDto> {
+    match tauri::async_runtime::spawn_blocking(move || guard(command, body)).await {
+        Ok(result) => result,
+        Err(error) => {
+            tracing::error!(command, %error, "tarefa de comando nao concluiu");
+            Err(ErrorDto::from(AppError::Internal))
+        }
+    }
+}

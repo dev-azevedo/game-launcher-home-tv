@@ -57,10 +57,15 @@ pub async fn display_monitors(request: Request<'_>) -> Result<Vec<MonitorDto>, E
 }
 
 #[tauri::command]
-pub async fn input_status(request: Request<'_>) -> Result<InputStatus, ErrorDto> {
+pub async fn input_status(
+    request: Request<'_>,
+    state: State<'_, AppState>,
+) -> Result<InputStatus, ErrorDto> {
     guard("input_status", || {
         no_args(&request)?;
-        Ok(InputStatus { connected: 0 }) // XInput entra com BE-14
+        Ok(InputStatus {
+            connected: state.input.get().map_or(0, |c| c.connected()),
+        })
     })
 }
 

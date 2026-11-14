@@ -1,13 +1,17 @@
 //! Estado compartilhado do app (composition root). Cada ponta (caso de uso, adapter) entra aqui
 //! com a sua tarefa BE-xx.
 
+use std::any::Any;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use launcher_core::application::ports::SettingsRepository;
-use launcher_core::application::SerialGate;
+use launcher_core::application::{SerialGate, SessionService};
 use launcher_core::domain::settings::Settings;
+use launcher_win::input_thread::InputControl;
+
+use crate::dto::LibrarySnapshot;
 
 /// Dados do usuario carregados no `setup` (pasta de dados, repositorio e configuracoes).
 pub struct UserData {
@@ -30,4 +34,12 @@ pub struct AppState {
     pub user_data: OnceLock<UserData>,
     /// Configuracoes em memoria; `settings_set_*` gravam por `user_data.settings_repo`.
     pub settings: Mutex<Settings>,
+    /// Casos de uso de sessao (BE-20, BE-21); definidos por `runtime::start` no `setup`.
+    pub session: OnceLock<Arc<SessionService>>,
+    /// Estado da entrada (modo e controles conectados, BE-14).
+    pub input: OnceLock<Arc<InputControl>>,
+    /// Threads vivas (entrada, eventos do sistema, temporizador); soltar encerra e junta.
+    pub threads: OnceLock<Mutex<Vec<Box<dyn Any + Send>>>>,
+    /// Ultima biblioteca conhecida: `library_get` e o foco de fim de sessao (BE-29 preenche).
+    pub library_snapshot: Mutex<LibrarySnapshot>,
 }

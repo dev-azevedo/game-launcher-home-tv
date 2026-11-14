@@ -3,9 +3,13 @@
 
 pub mod bootstrap;
 pub mod commands;
+pub mod convert;
 pub mod dto;
 pub mod errors;
+pub mod events;
 pub mod ipc;
+pub mod launcher_window;
+pub mod runtime;
 pub mod state;
 pub mod webview_hardening;
 pub mod window;
@@ -75,6 +79,11 @@ pub fn run() {
                 tracing::error!("Sofa em execucao elevada (TokenElevation); nao e esperado");
             }
             window::create_main_window(app)?;
+            if let Err(error) = runtime::start(app.handle()) {
+                // Sem sessao/entrada o launcher ainda abre (biblioteca e menu); os comandos
+                // dependentes respondem `Internal`.
+                tracing::error!(%error, "runtime de sessao e entrada nao iniciou");
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

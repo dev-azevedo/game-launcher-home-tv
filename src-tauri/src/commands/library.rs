@@ -8,10 +8,18 @@ use crate::ipc::{args, guard, no_args, not_wired};
 use crate::state::AppState;
 
 #[tauri::command]
-pub async fn library_get(request: Request<'_>) -> Result<LibrarySnapshot, ErrorDto> {
+pub async fn library_get(
+    request: Request<'_>,
+    state: State<'_, AppState>,
+) -> Result<LibrarySnapshot, ErrorDto> {
     guard("library_get", || {
         no_args(&request)?;
-        Ok(LibrarySnapshot::default()) // o cache real entra com BE-29
+        // O cache real entra com BE-29; ate la, o que o estado guarda (vazio).
+        Ok(state
+            .library_snapshot
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone())
     })
 }
 
