@@ -56,6 +56,7 @@ beforeEach(() => {
     reopen: null,
     swapTo: null,
     panelOutcome: null,
+    playing: null,
   });
   useLibrary.setState({ status: 'ready', games: [MINERIO, OUTRO], notice: null, focusGameId: null });
 });
@@ -339,5 +340,21 @@ describe('trocar de jogo conforme CT-01', () => {
     expect(await screen.findByText('Minério não fechou')).toBeInTheDocument();
     expect(useSession.getState().swapTo).toBeNull();
     expect(core.count('session_force_close')).toBe(0);
+  });
+});
+
+describe('contador "Jogando ha..."', () => {
+  it('guarda o primeiro since de Running; cancelar o forcar nao reinicia; Idle descarta', () => {
+    const set = useSession.getState().setSession;
+    useSession.setState({ playing: null });
+    set(session({ state: 'Running', gameId: 'steam:1', since: 1000 }));
+    set(session({ state: 'Closing', gameId: 'steam:1', since: 2000 }));
+    set(session({ state: 'CloseOverdue', gameId: 'steam:1', since: 3000 }));
+    set(session({ state: 'Running', gameId: 'steam:1', since: 4000 }));
+    expect(useSession.getState().playing).toEqual({ gameId: 'steam:1', since: 1000 });
+    set(session({ state: 'Idle' }));
+    expect(useSession.getState().playing).toBeNull();
+    set(session({ state: 'Running', gameId: 'steam:2', since: 9000 }));
+    expect(useSession.getState().playing).toEqual({ gameId: 'steam:2', since: 9000 });
   });
 });

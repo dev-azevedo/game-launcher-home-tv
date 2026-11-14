@@ -19,7 +19,7 @@ export function chosenMonitorMissing(settings: SettingsDto | null, monitors: rea
 
 const MECHANISM: Record<AutostartMechanism, string> = {
   Task: 'Tarefa agendada do Windows',
-  Run: 'Chave Run do seu usuário',
+  Run: 'Entrada de inicialização do seu usuário',
   None: 'Desligada',
 };
 

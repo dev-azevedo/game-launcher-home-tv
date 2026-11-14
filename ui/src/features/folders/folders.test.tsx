@@ -21,6 +21,8 @@ const focusedText = () =>
     .join('|');
 /** Move o foco e espera ele assentar (o foco inicial da lista pode chegar depois). */
 async function focus(key: string) {
+  // O foco inicial da lista (efeito) pode chegar depois do primeiro render: espera ele antes de mover.
+  if (key.startsWith('fb-')) await waitFor(() => expect(getCurrentFocusKey()).toMatch(/^fb-/));
   act(() => void setFocus(key));
   await waitFor(() => expect(getCurrentFocusKey()).toBe(key));
 }

@@ -27,6 +27,7 @@ const ELEVATED_NOTE = 'Este jogo roda como administrador. A combinação de reto
 export function SessionPanel({ active, entry }: { active: boolean; entry: ScreenEntry }) {
   const session = useSession((s) => s.session);
   const outcome = useSession((s) => s.panelOutcome);
+  const playing = useSession((s) => s.playing);
   const returnToGame = useSession((s) => s.returnToGame);
   const game = useLibrary((s) => s.games.find((g) => g.id === session.gameId));
   const { push, remove, reset } = useNavigation.getState();
@@ -82,7 +83,7 @@ export function SessionPanel({ active, entry }: { active: boolean; entry: Screen
               <div className="lab">Em andamento</div>
               <h2 className="clamp2">{name}</h2>
               <div className="sub" aria-live="polite">
-                {playingFor(session.since, now)}
+                {playingFor(playing?.gameId === session.gameId ? playing.since : session.since, now)}
               </div>
             </div>
           </div>

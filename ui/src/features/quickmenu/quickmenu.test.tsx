@@ -1,5 +1,5 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
-import { setFocus } from '@noriginmedia/norigin-spatial-navigation';
+import { getCurrentFocusKey, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenStack } from '@/app/ScreenStack';
 import { VolumeHud } from '@/features/volume/VolumeHud';
@@ -18,8 +18,10 @@ import { powerCopy } from './power';
 
 const press = (fn: () => unknown) => act(() => void fn());
 const intent = (i: InputIntent) => act(() => void dispatchIntent({ intent: i, repeat: false }, defaultDeps()));
+// Texto do item com o foco do norigin (no jsdom o `data-focused` do item anterior pode demorar a apagar).
 const focusedText = () =>
-  Array.from(document.querySelectorAll<HTMLElement>('[data-focused="true"]'))
+  Array.from(document.querySelectorAll<HTMLElement>('[data-focus-key]'))
+    .filter((e) => e.dataset.focusKey === getCurrentFocusKey())
     .map((e) => e.textContent)
     .join('|');
 const kinds = () => useNavigation.getState().stack.map((e) => e.kind);

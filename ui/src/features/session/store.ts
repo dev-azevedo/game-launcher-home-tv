@@ -27,6 +27,8 @@ interface SessionStore {
   swapTo: GameId | null;
   /** Como a combinacao de retorno trouxe o Sofa (`FrontAfterMinimize` mostra o aviso no painel). */
   panelOutcome: FrontOutcome | null;
+  /** Primeiro `since` de Running do jogo atual: cancelar o forcar (volta a Running) nao reinicia "Jogando ha...". */
+  playing: { gameId: GameId; since: number } | null;
   setSession: (session: SessionDto) => void;
   load: () => Promise<void>;
   /** A num card (ou "Jogar" nas opcoes, CA-79): abre o jogo ou volta a ele se ja esta aberto (CA-36). */
@@ -61,6 +63,7 @@ export const useSession = create<SessionStore>((set, get) => {
     reopen: null,
     swapTo: null,
     panelOutcome: null,
+    playing: null,
 
     setSession: (session) => {
       const before = get().session;
@@ -71,8 +74,14 @@ export const useSession = create<SessionStore>((set, get) => {
       set((s) => {
         // Troca de jogo (CT-01): ao chegar a Idle o nucleo abre o novo; a espera ja aparece, sem piscar a biblioteca.
         const swap = session.state === 'Idle' ? s.swapTo : null;
+        let playing = s.playing;
+        if (session.state === 'Idle') playing = null;
+        else if (session.state === 'Running' && session.gameId && session.since !== null && playing?.gameId !== session.gameId) {
+          playing = { gameId: session.gameId, since: session.since };
+        }
         return {
           session,
+          playing,
           // O nucleo ja respondeu: o "pedido sem resposta" acabou.
           pendingGameId: session.state === 'Idle' ? (swap ?? s.pendingGameId) : null,
           reopen: s.session.state === session.state ? s.reopen : null,
