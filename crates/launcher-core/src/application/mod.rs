@@ -1,5 +1,6 @@
 //! Aplicacao: casos de uso (um por acao) e ports implementados pela infraestrutura.
 
+pub mod autostart_service;
 pub mod display_service;
 pub mod error;
 pub mod foreground;
@@ -10,6 +11,7 @@ pub mod serial;
 pub mod session_service;
 pub mod volume_service;
 
+pub use autostart_service::{AutostartService, AutostartStatus};
 pub use display_service::{DisplayService, MonitorView};
 pub use error::AppError;
 pub use foreground::ForegroundBroker;

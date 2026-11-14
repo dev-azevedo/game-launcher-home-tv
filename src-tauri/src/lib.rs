@@ -14,10 +14,12 @@ pub mod library_view;
 pub mod marks;
 pub mod runtime;
 pub mod settings_store;
+pub mod single_instance;
 pub mod state;
 pub mod webview_hardening;
 pub mod window;
 
+use launcher_core::domain::startup::StartMode;
 use tauri::{Builder, Manager, Runtime};
 
 /// Registra estado e a lista fechada de comandos (`commands::list::COMMAND_NAMES`). Separado de
@@ -74,14 +76,19 @@ pub fn configure<R: Runtime>(builder: Builder<R>) -> Builder<R> {
         ])
 }
 
-pub fn run() {
-    marks::start();
-    configure(tauri::Builder::default())
+/// `start` vem da linha de comando deste processo (`StartMode`); modos de remocao nunca chegam
+/// aqui (`main` os trata antes de criar o Tauri).
+pub fn run(start: StartMode) {
+    marks::start(start);
+    // O plugin de instancia unica vai primeiro (SEC-19, BE-35).
+    configure(tauri::Builder::default().plugin(single_instance::plugin()))
         .setup(|app| {
             bootstrap::init_user_data(app)?;
+            tracing::info!(origem = marks::origin(), "partida");
             bootstrap::init_volume(app.handle());
             bootstrap::init_power(app.handle());
             bootstrap::init_display(app.handle());
+            bootstrap::init_autostart(app.handle());
             if let Err(error) = bootstrap::init_library(app.handle()) {
                 // Sem biblioteca o launcher ainda abre: leituras neutras, acoes `Internal`.
                 tracing::error!(%error, "biblioteca nao iniciou");
@@ -106,6 +113,7 @@ pub fn run() {
             if let Some(display) = app.state::<state::AppState>().display.get() {
                 display.start();
             }
+            bootstrap::spawn_autostart_housekeeping(app.handle());
             if let Err(error) = runtime::start(app.handle()) {
                 // Sem sessao/entrada o launcher ainda abre (biblioteca e menu); os comandos
                 // dependentes respondem `Internal`.

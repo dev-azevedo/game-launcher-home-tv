@@ -1,6 +1,7 @@
 //! Conversoes do dominio para os DTOs da IPC (contrato secoes 1 e 3). Sem regra de negocio.
 
 use launcher_core::application::{MonitorView, SessionView, VolumeView};
+use launcher_core::domain::autostart::Mechanism;
 use launcher_core::domain::input::InputIntent as CoreIntent;
 use launcher_core::domain::library::normalize_display_name;
 use launcher_core::domain::session::{
@@ -8,8 +9,8 @@ use launcher_core::domain::session::{
 };
 
 use crate::dto::{
-    FrontOutcome, InputIntent, LaunchFailure, MonitorDto, SessionDto, SessionPanelEvent,
-    SessionState, VolumeState,
+    AutostartMechanism, FrontOutcome, InputIntent, LaunchFailure, MonitorDto, SessionDto,
+    SessionPanelEvent, SessionState, VolumeState,
 };
 
 impl From<CoreState> for SessionState {
@@ -69,6 +70,16 @@ impl From<&SessionView> for SessionDto {
             launch_failure: s.launch_failure.map(|f| match f {
                 CoreFailure::ElevationDenied => LaunchFailure::ElevationDenied,
             }),
+        }
+    }
+}
+
+impl From<Mechanism> for AutostartMechanism {
+    fn from(m: Mechanism) -> Self {
+        match m {
+            Mechanism::Task => Self::Task,
+            Mechanism::Run => Self::Run,
+            Mechanism::None => Self::None,
         }
     }
 }

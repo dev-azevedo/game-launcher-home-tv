@@ -413,6 +413,67 @@ pub trait DisplayEvents: Send + Sync {
     fn changed(&self, monitors: &[MonitorView]);
 }
 
+// ------------------------------------------------------------------ iniciar com o Windows (BE-36)
+
+/// Falha do Agendador de Tarefas com o HRESULT (so log).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SchedulerError(pub i32);
+
+/// O que existe no Agendador com o nome `Sofa Autostart (<SID>)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskState {
+    Absent,
+    /// `UserId` (por SID), `RunLevel`, `LogonType`, acao e `Path` batem com o esperado (SEC-22).
+    /// `last_result` e o `LastTaskResult`.
+    Mine {
+        last_result: i32,
+    },
+    /// Existe com esse nome mas o conteudo nao bate: nunca e tratada como valida.
+    Foreign,
+}
+
+/// Tarefa de logon do proprio usuario, montada campo a campo por `ITaskService` (SEC-22). Nada de
+/// `schtasks.exe` nem XML concatenado. `expected_exe = None` (rodando fora de `Program Files`):
+/// o `Path` so precisa terminar em `sofa.exe`.
+pub trait TaskScheduler: Send + Sync {
+    fn state(&self, expected_exe: Option<&str>) -> Result<TaskState, SchedulerError>;
+    /// Cria ou substitui a tarefa. `LeastPrivilege`, `InteractiveToken`, `LogonTrigger` do mesmo
+    /// SID, acao `"<exe>" --autostart`, `PT0S`, `IgnoreNew`.
+    fn register(&self, exe: &str) -> Result<(), SchedulerError>;
+    /// Remove a tarefa pelo nome; ausente nao e erro.
+    fn delete(&self) -> Result<(), SchedulerError>;
+}
+
+/// O valor em `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunState {
+    Absent,
+    /// O valor e `"<exe>" --autostart` e o `StartupApproved` nao o desligou.
+    Enabled,
+    /// O usuario o desligou no Gerenciador de Tarefas (`StartupApproved`).
+    DisabledByUser,
+    /// O valor existe mas aponta para outra coisa.
+    Foreign,
+}
+
+pub trait RunEntry: Send + Sync {
+    fn state(&self, expected_exe: Option<&str>) -> Result<RunState, SchedulerError>;
+    /// Grava `"<exe>" --autostart` e tira o "desligado" do `StartupApproved` (o usuario esta
+    /// ligando a opcao de proposito).
+    fn set(&self, exe: &str) -> Result<(), SchedulerError>;
+    fn remove(&self) -> Result<(), SchedulerError>;
+}
+
+/// Fatos do Windows sobre a instalacao.
+pub trait InstallEnv: Send + Sync {
+    /// Caminho canonico do `sofa.exe` em execucao.
+    fn current_exe(&self) -> Option<String>;
+    /// Pastas `Program Files` do Windows (`SHGetKnownFolderPath`, nao variavel de ambiente).
+    fn program_files(&self) -> Vec<String>;
+    /// `HKLM\Software\app.sofa.launcher\InstallDefaults` quando for DWORD; outro tipo = `None`.
+    fn install_default(&self) -> Option<u32>;
+}
+
 // ------------------------------------------------------------------------ casos de uso
 
 /// Resolve um `GameId` no `LaunchTarget` revalidado (SEC-09, SEC-12, SEC-14). Quem implementa e

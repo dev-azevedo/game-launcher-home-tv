@@ -3,16 +3,16 @@
 use tauri::ipc::Request;
 use tauri::State;
 
-use launcher_core::application::AppError;
+use launcher_core::application::{AppError, AutostartStatus};
 
 use crate::convert::monitor_dtos;
 use crate::dto::*;
 use crate::ipc::{args, blocking, guard, no_args, not_wired};
 use crate::state::AppState;
 
-/// `SettingsDto` de agora: monitor e pasta de logs vem das configuracoes; o autostart vem do
-/// Windows (ADR-0006, BE-36).
-fn settings_dto(state: &AppState) -> Result<SettingsDto, AppError> {
+/// `SettingsDto` de agora: monitor e pasta de logs vem das configuracoes; o autostart (estado
+/// real do Windows, ADR-0006) vem de `status`, lido antes em thread de bloqueio.
+fn dto_with(state: &AppState, status: AutostartStatus) -> Result<SettingsDto, AppError> {
     let settings = state.settings.lock().map_err(|_| AppError::Internal)?;
     let log_dir = state
         .user_data
@@ -20,12 +20,20 @@ fn settings_dto(state: &AppState) -> Result<SettingsDto, AppError> {
         .map(|u| u.data_dir.join("logs").display().to_string())
         .unwrap_or_default();
     Ok(SettingsDto {
-        // O estado real do autostart vem do Windows (ADR-0006) e entra com o BE-36.
-        autostart: false,
-        autostart_mechanism: AutostartMechanism::None,
+        autostart: status.enabled,
+        autostart_mechanism: status.mechanism.into(),
         monitor_id: settings.monitor_id.clone(),
         log_dir,
     })
+}
+
+/// Estado do autostart; sem o servico (usuario nao identificado), desligado.
+async fn autostart_status(state: &AppState) -> Result<AutostartStatus, ErrorDto> {
+    let svc = state.autostart.get().cloned();
+    blocking("settings_get", move || {
+        Ok(svc.map_or(AutostartStatus::OFF, |s| s.status()))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -33,18 +41,31 @@ pub async fn settings_get(
     request: Request<'_>,
     state: State<'_, AppState>,
 ) -> Result<SettingsDto, ErrorDto> {
-    guard("settings_get", || {
-        no_args(&request)?;
-        settings_dto(&state)
-    })
+    guard("settings_get", || no_args(&request))?;
+    let status = autostart_status(&state).await?;
+    guard("settings_get", || dto_with(&state, status))
 }
 
+/// `settings_set_autostart` (#26): liga (tarefa de logon, com fallback automatico para o Run) ou
+/// desliga (remove os dois). Recusa ligar fora de `Program Files` (DR-04): `AutostartFailed`.
+/// Nunca pede administrador (CA-74).
 #[tauri::command]
-pub async fn settings_set_autostart(request: Request<'_>) -> Result<SettingsDto, ErrorDto> {
-    guard("settings_set_autostart", || {
-        let _a: SetAutostartArgs = args(&request)?;
-        Err(not_wired("settings_set_autostart"))
+pub async fn settings_set_autostart(
+    request: Request<'_>,
+    state: State<'_, AppState>,
+) -> Result<SettingsDto, ErrorDto> {
+    let a: SetAutostartArgs = guard("settings_set_autostart", || args(&request))?;
+    let svc = state.autostart.get().cloned();
+    let status = blocking("settings_set_autostart", move || {
+        let svc = svc.ok_or(AppError::AutostartFailed)?;
+        if a.enabled {
+            svc.enable()
+        } else {
+            svc.disable()
+        }
     })
+    .await?;
+    guard("settings_set_autostart", || dto_with(&state, status))
 }
 
 /// `settings_set_monitor` (#27): o id deve estar em `display_monitors` (`UnknownMonitor`); nulo
@@ -62,7 +83,8 @@ pub async fn settings_set_monitor(
             .set_monitor(a.monitor_id.0)
     })
     .await?;
-    guard("settings_set_monitor", || settings_dto(&state))
+    let status = autostart_status(&state).await?;
+    guard("settings_set_monitor", || dto_with(&state, status))
 }
 
 #[tauri::command]

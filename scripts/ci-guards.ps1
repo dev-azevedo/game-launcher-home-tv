@@ -34,7 +34,19 @@ $script:GuardRules = @(
     @{ Id = 'INV-09'; Pattern = '\bremove_dir(_all)?\b';            Allow = @('crates/launcher-win/src/cover_cache.rs', 'crates/launcher-win/src/purge.rs') },
     @{ Id = 'INV-09'; Pattern = '\bDeleteFileW\b';                  Allow = @('crates/launcher-win/src/purge.rs') },
     @{ Id = 'INV-09'; Pattern = '\bfs::rename\b';                   Allow = @('crates/launcher-win/src/persistence/json.rs', 'crates/launcher-win/src/logging.rs', 'crates/launcher-win/src/cover_cache.rs') },
-    @{ Id = 'INV-09'; Pattern = '\bMoveFileExW\b';                  Allow = @('crates/launcher-win/src/persistence/json.rs') }
+    @{ Id = 'INV-09'; Pattern = '\bMoveFileExW\b';                  Allow = @('crates/launcher-win/src/persistence/json.rs') },
+    # INV-03 / SEC-22: so o AutostartRegistry registra tarefa e toca Run e StartupApproved; nunca elevada,
+    # com senha, em nome de outra conta nem por schtasks.exe
+    @{ Id = 'INV-03'; Pattern = '\bRegisterTaskDefinition\b';       Allow = @('crates/launcher-win/src/autostart/task_scheduler.rs') },
+    @{ Id = 'INV-03'; Pattern = 'CurrentVersion\\{1,2}Run\b';       Allow = @('crates/launcher-win/src/autostart/run_key.rs') },
+    @{ Id = 'INV-03'; Pattern = '\bStartupApproved\b';              Allow = @('crates/launcher-win/src/autostart/run_key.rs') },
+    @{ Id = 'SEC-22'; Pattern = '\bTASK_RUNLEVEL_HIGHEST\b';        Allow = @() },
+    @{ Id = 'SEC-22'; Pattern = '\bTASK_LOGON_(S4U|PASSWORD|SERVICE_ACCOUNT|GROUP)\b'; Allow = @() },
+    @{ Id = 'SEC-22'; Pattern = 'schtasks';                         Allow = @() },
+    # SEC-27 / AF-04: energia e privilegio de desligar so no adapter de energia
+    @{ Id = 'SEC-27'; Pattern = '\bExitWindowsEx\b';                Allow = @('crates/launcher-win/src/power.rs') },
+    @{ Id = 'SEC-27'; Pattern = '\bSetSuspendState\b';              Allow = @('crates/launcher-win/src/power.rs') },
+    @{ Id = 'SEC-27'; Pattern = '\bAdjustTokenPrivileges\b';        Allow = @('crates/launcher-win/src/power.rs') }
 )
 
 # uiAccess="true" nunca, em manifesto nenhum (SEC-20, SEC-28)
@@ -52,8 +64,11 @@ function ConvertTo-Rel([string]$Root, [string]$Path) {
 function Get-SourceFiles([string]$Root, [string[]]$Include) {
     $dirs = @('crates', 'src-tauri') | ForEach-Object { Join-Path $Root $_ } | Where-Object { Test-Path -LiteralPath $_ }
     foreach ($d in $dirs) {
+        # `-Include` com `-LiteralPath` e ignorado no Windows PowerShell 5.1 (devolvia todos os arquivos
+        # para todas as regras); o filtro por nome abaixo garante que `*.rs` so olhe `.rs`, etc.
         Get-ChildItem -LiteralPath $d -Recurse -File -Include $Include -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -notmatch '[\\/](target|node_modules|gen|tests|fixtures)[\\/]' }
+            Where-Object { $_.FullName -notmatch '[\\/](target|node_modules|gen|tests|fixtures)[\\/]' } |
+            Where-Object { $name = $_.Name; @($Include | Where-Object { $name -like $_ }).Count -gt 0 }
     }
 }
 
@@ -128,7 +143,9 @@ function Invoke-GuardSelfTest {
             'WINEVENT_INCONTEXT', 'SPI_SETFOREGROUNDLOCKTIMEOUT', 'EWX_FORCEIFHUNG', 'SeDebugPrivilege',
             'PROCESS_ALL_ACCESS', 'shutdown.exe', 'SetWindowsHookExW', 'CreateRemoteThread',
             'ReadProcessMemory', 'WriteProcessMemory', 'LoadLibraryW', 'remove_file', 'remove_dir_all',
-            'DeleteFileW', 'fs::rename', 'MoveFileExW'
+            'DeleteFileW', 'fs::rename', 'MoveFileExW',
+            'RegisterTaskDefinition', 'CurrentVersion\Run', 'StartupApproved', 'TASK_RUNLEVEL_HIGHEST',
+            'TASK_LOGON_S4U', 'schtasks', 'ExitWindowsEx', 'SetSuspendState', 'AdjustTokenPrivileges'
         )
         Set-Content -LiteralPath (Join-Path $win 'rogue.rs') -Value ($planted | ForEach-Object { "fn x() { $_(); }" })
         Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/bad.manifest') -Value '<requestedExecutionLevel level="asInvoker" uiAccess="true"/>'

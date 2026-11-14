@@ -494,3 +494,154 @@ fn monitor_pela_ipc_com_topologia_falsa() {
     assert_eq!(dto["monitorId"], json!(null));
     assert_eq!(placement.0.lock().unwrap().last().unwrap(), "PC");
 }
+
+/// BE-36 pela IPC com o Agendador e o registro trocados por fakes: ligar (tarefa), cair no Run
+/// quando a tarefa falha, desligar os dois e recusar fora de `Program Files` (`AutostartFailed`).
+#[test]
+fn autostart_pela_ipc_com_agendador_falso() {
+    use std::sync::{Arc, Mutex};
+
+    use launcher_core::application::ports::{
+        InstallEnv, RunEntry, RunState, SchedulerError, SettingsStore, TaskScheduler, TaskState,
+    };
+    use launcher_core::application::{AppError, AutostartService};
+    use sofa_lib::state::AppState;
+
+    #[derive(Default)]
+    struct Sched {
+        state: Mutex<Option<TaskState>>,
+        deny: Mutex<bool>,
+    }
+    impl TaskScheduler for Sched {
+        fn state(&self, _: Option<&str>) -> Result<TaskState, SchedulerError> {
+            Ok(self.state.lock().unwrap().unwrap_or(TaskState::Absent))
+        }
+        fn register(&self, _: &str) -> Result<(), SchedulerError> {
+            if *self.deny.lock().unwrap() {
+                return Err(SchedulerError(0x8007_0005_u32 as i32));
+            }
+            *self.state.lock().unwrap() = Some(TaskState::Mine {
+                last_result: 0x41303,
+            });
+            Ok(())
+        }
+        fn delete(&self) -> Result<(), SchedulerError> {
+            *self.state.lock().unwrap() = Some(TaskState::Absent);
+            Ok(())
+        }
+    }
+    #[derive(Default)]
+    struct Run(Mutex<bool>);
+    impl RunEntry for Run {
+        fn state(&self, _: Option<&str>) -> Result<RunState, SchedulerError> {
+            Ok(if *self.0.lock().unwrap() {
+                RunState::Enabled
+            } else {
+                RunState::Absent
+            })
+        }
+        fn set(&self, _: &str) -> Result<(), SchedulerError> {
+            *self.0.lock().unwrap() = true;
+            Ok(())
+        }
+        fn remove(&self) -> Result<(), SchedulerError> {
+            *self.0.lock().unwrap() = false;
+            Ok(())
+        }
+    }
+    struct Env(String);
+    impl InstallEnv for Env {
+        fn current_exe(&self) -> Option<String> {
+            Some(self.0.clone())
+        }
+        fn program_files(&self) -> Vec<String> {
+            vec![r"C:\Program Files".into()]
+        }
+        fn install_default(&self) -> Option<u32> {
+            None
+        }
+    }
+    struct Store;
+    impl SettingsStore for Store {
+        fn monitor_id(&self) -> Option<String> {
+            None
+        }
+        fn set_monitor_id(&self, _: Option<String>) -> Result<(), AppError> {
+            Ok(())
+        }
+        fn install_defaults_applied(&self) -> bool {
+            true
+        }
+        fn mark_install_defaults_applied(&self) -> Result<(), AppError> {
+            Ok(())
+        }
+    }
+    let make = |exe: &str, sched: Arc<Sched>, run: Arc<Run>| {
+        Arc::new(AutostartService::new(
+            sched,
+            run,
+            Arc::new(Env(exe.into())),
+            Arc::new(Store),
+        ))
+    };
+
+    // Instalado: tarefa, depois fallback, depois desligar.
+    let h = harness();
+    let sched = Arc::new(Sched::default());
+    let run = Arc::new(Run::default());
+    h._app
+        .state::<AppState>()
+        .autostart
+        .set(make(
+            r"C:\Program Files\Sofa\sofa.exe",
+            sched.clone(),
+            run.clone(),
+        ))
+        .ok()
+        .unwrap();
+    let on = h
+        .call("settings_set_autostart", json!({ "enabled": true }))
+        .unwrap();
+    assert_eq!(on["autostart"], true);
+    assert_eq!(on["autostartMechanism"], "Task");
+    assert_eq!(
+        h.call("settings_get", json!({})).unwrap()["autostartMechanism"],
+        "Task"
+    );
+    // Religar com a tarefa negada: cai no Run sozinho.
+    *sched.deny.lock().unwrap() = true;
+    let on = h
+        .call("settings_set_autostart", json!({ "enabled": true }))
+        .unwrap();
+    assert_eq!(on["autostartMechanism"], "Run");
+    assert!(*run.0.lock().unwrap());
+    let off = h
+        .call("settings_set_autostart", json!({ "enabled": false }))
+        .unwrap();
+    assert_eq!(off["autostart"], false);
+    assert_eq!(off["autostartMechanism"], "None");
+    assert!(!*run.0.lock().unwrap());
+
+    // Copia fora de Program Files: recusa e nada e criado (DR-04).
+    let h = harness();
+    let sched = Arc::new(Sched::default());
+    let run = Arc::new(Run::default());
+    h._app
+        .state::<AppState>()
+        .autostart
+        .set(make(r"D:\build\sofa.exe", sched.clone(), run.clone()))
+        .ok()
+        .unwrap();
+    assert_eq!(
+        h.code("settings_set_autostart", json!({ "enabled": true })),
+        "AutostartFailed"
+    );
+    assert!(sched.state.lock().unwrap().is_none());
+    assert!(!*run.0.lock().unwrap());
+    // Sem servico (usuario nao identificado): `AutostartFailed` tambem, nunca `Internal`.
+    let h = harness();
+    assert_eq!(
+        h.code("settings_set_autostart", json!({ "enabled": true })),
+        "AutostartFailed"
+    );
+}

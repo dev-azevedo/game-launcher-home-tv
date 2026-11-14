@@ -4,11 +4,13 @@
 //! (BE-11), `session` (BE-15), `input` (BE-13), `volume` (BE-31), `display` (BE-34), `power`
 //! (BE-33).
 
+pub mod autostart;
 pub mod display;
 pub mod input;
 pub mod library;
 pub mod power;
 pub mod session;
 pub mod settings;
+pub mod startup;
 pub mod time;
 pub mod volume;

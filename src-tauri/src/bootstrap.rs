@@ -8,7 +8,7 @@ use launcher_core::application::ports::{
     ScanCache, SettingsRepository, StoreScanner, VolumeEvents,
 };
 use launcher_core::application::{
-    DisplayService, LibraryDeps, LibraryService, PowerService, VolumeService,
+    AutostartService, DisplayService, LibraryDeps, LibraryService, PowerService, VolumeService,
 };
 use launcher_core::domain::settings::{LogLevel, Step2Key};
 use launcher_win::cover_cache::WinCoverCache;
@@ -158,4 +158,45 @@ pub fn init_display<R: Runtime>(app: &AppHandle<R>) {
         Arc::new(TauriDisplayEvents::new(app.clone())),
     );
     let _ = state.display.set(Arc::new(service));
+}
+
+/// Liga o "Iniciar com o Windows" (BE-36): tarefa de logon do proprio usuario, fallback para o Run
+/// e os fatos da instalacao. So constroi os adapters; reconciliar e aplicar o padrao do instalador
+/// roda em `spawn_autostart_housekeeping`, fora do caminho do primeiro paint.
+pub fn init_autostart<R: Runtime>(app: &AppHandle<R>) {
+    let state = app.state::<AppState>();
+    let tasks = match launcher_win::autostart::WinTaskScheduler::for_current_user() {
+        Ok(t) => t,
+        Err(error) => {
+            tracing::error!(
+                hresult = format_args!("{:#x}", error.0),
+                "autostart: nao identificou o usuario; opcao indisponivel"
+            );
+            return;
+        }
+    };
+    let service = AutostartService::new(
+        Arc::new(tasks),
+        Arc::new(launcher_win::autostart::WinRunEntry::new()),
+        Arc::new(launcher_win::autostart::WinInstallEnv),
+        Arc::new(AppSettingsStore::new(app.clone())),
+    );
+    let _ = state.autostart.set(Arc::new(service));
+}
+
+/// Na abertura, em thread propria (o Agendador pode levar dezenas de ms): tarefa estranha sai,
+/// falha real vira Run, e o padrao do instalador (`InstallDefaults`) vale uma vez por perfil.
+pub fn spawn_autostart_housekeeping<R: Runtime>(app: &AppHandle<R>) {
+    let Some(service) = app.state::<AppState>().autostart.get().cloned() else {
+        return;
+    };
+    let spawned = std::thread::Builder::new()
+        .name("autostart-init".into())
+        .spawn(move || {
+            service.reconcile_on_open();
+            service.apply_install_default_once();
+        });
+    if let Err(error) = spawned {
+        tracing::warn!(%error, "autostart: nao iniciou a conferencia da abertura");
+    }
 }

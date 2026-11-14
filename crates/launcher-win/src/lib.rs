@@ -5,6 +5,7 @@
 pub use launcher_core as core;
 
 pub mod audio;
+pub mod autostart;
 pub mod cover_cache;
 pub mod display;
 pub mod folder_browser;

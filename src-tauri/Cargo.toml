@@ -28,6 +28,8 @@ launcher-win.workspace = true
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 tauri = { version = "2", default-features = false, features = ["wry", "compression"] }
+# BE-35 (SEC-19): so traz a janela; o callback descarta argv e cwd.
+tauri-plugin-single-instance = "2.5"
 tracing = "0.1.44"
 ts-rs = "10.1.0"
 webview2-com = "0.39"

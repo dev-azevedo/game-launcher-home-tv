@@ -8,7 +8,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use launcher_core::application::ports::{CoverCache, SettingsRepository};
 use launcher_core::application::{
-    DisplayService, LibraryService, PowerService, SerialGate, SessionService, VolumeService,
+    AutostartService, DisplayService, LibraryService, PowerService, SerialGate, SessionService,
+    VolumeService,
 };
 use launcher_core::domain::settings::Settings;
 use launcher_win::input_thread::InputControl;
@@ -49,6 +50,8 @@ pub struct AppState {
     pub volume: OnceLock<Arc<VolumeService>>,
     /// Energia (BE-33): tickets e Win32 de desligar, reiniciar e suspender.
     pub power: OnceLock<Arc<PowerService>>,
+    /// Iniciar com o Windows (BE-36): tarefa de logon com fallback para o Run.
+    pub autostart: OnceLock<Arc<AutostartService>>,
     /// Monitor do launcher (BE-34): escolha, tela cheia e reacao a `DisplayChanged`.
     pub display: OnceLock<Arc<DisplayService>>,
     /// A primeira leitura da biblioteca (primeiro paint da UI) dispara a varredura em segundo
