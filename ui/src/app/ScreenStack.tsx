@@ -14,6 +14,10 @@ import { Toast } from '@/shared/ui/Toast';
 import { useNavigation } from './navigation/store';
 
 const RenameDialog = lazy(() => import('@/features/library/RenameDialog'));
+// Configuracoes e navegador de pastas: chunks proprios, so baixam quando a tela abre (arch 3.4).
+const SettingsScreen = lazy(() => import('@/features/settings/SettingsScreen'));
+const RestoreDialog = lazy(() => import('@/features/settings/RestoreDialog'));
+const FolderBrowser = lazy(() => import('@/features/folders/FolderBrowser'));
 
 /**
  * Pilha de telas (arch 3.1): so a camada do topo recebe foco e anel; as de baixo ficam montadas
@@ -42,6 +46,12 @@ export function ScreenStack({ headerExtras }: { headerExtras?: React.ReactNode }
                 return <HideConfirmDialog key={entry.key} active={active} entry={entry} parentKey={parentKey} />;
               case 'close':
                 return <CloseConfirmDialog key={entry.key} active={active} entry={entry} />;
+              case 'restore':
+                return (
+                  <Suspense key={entry.key} fallback={null}>
+                    <RestoreDialog active={active} entry={entry} />
+                  </Suspense>
+                );
               case 'power':
                 return <PowerDialog key={entry.key} active={active} entry={entry} />;
               case 'exit':
@@ -49,6 +59,18 @@ export function ScreenStack({ headerExtras }: { headerExtras?: React.ReactNode }
               default:
                 return null;
             }
+          case 'settings':
+            return (
+              <Suspense key={entry.key} fallback={null}>
+                <SettingsScreen active={active} entry={entry} headerExtras={headerExtras} />
+              </Suspense>
+            );
+          case 'folderBrowser':
+            return (
+              <Suspense key={entry.key} fallback={null}>
+                <FolderBrowser active={active} entry={entry} headerExtras={headerExtras} />
+              </Suspense>
+            );
           case 'quickMenu':
             return <QuickMenu key={entry.key} active={active} entry={entry} />;
           case 'sessionPanel':
