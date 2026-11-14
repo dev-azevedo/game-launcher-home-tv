@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use crate::application::ports::{
     CoverSource, FolderBrowser, GameResolver, LibraryEvents, LibraryRepository, ManualExeInspector,
-    PlayedRecorder, ScanError, StoreScanner,
+    PlayedRecorder, ScanCache, ScanError, StoreScanner,
 };
 use crate::application::AppError;
 use crate::domain::library::stored::MAX_MANUAL_GAMES;
@@ -28,6 +28,9 @@ pub struct LibraryState {
     detected: Vec<DetectedGame>,
     /// Todos os jogos, inclusive ocultos.
     entries: Vec<LibraryEntry>,
+    /// `true` se `detected` veio de uma varredura desta execucao; `false` se veio do cache
+    /// (`scan.json`): so serve para mostrar a lista, nunca para iniciar jogo de loja (SEC-18).
+    fresh: bool,
 }
 
 impl LibraryState {
@@ -39,6 +42,10 @@ impl LibraryState {
     /// Itens ocultos (CA-70).
     pub fn hidden(&self) -> impl Iterator<Item = &LibraryEntry> {
         self.entries.iter().filter(|e| e.hidden)
+    }
+
+    pub fn is_fresh(&self) -> bool {
+        self.fresh
     }
 
     pub fn get(&self, id: &GameId) -> Option<&LibraryEntry> {
@@ -60,6 +67,7 @@ pub struct LibraryDeps {
     pub inspector: Arc<dyn ManualExeInspector>,
     pub browser: Arc<dyn FolderBrowser>,
     pub events: Arc<dyn LibraryEvents>,
+    pub scan_cache: Arc<dyn ScanCache>,
 }
 
 pub struct LibraryService {
@@ -70,8 +78,8 @@ pub struct LibraryService {
 }
 
 impl LibraryService {
-    /// Carrega so o que e do usuario (jogos manuais e overlay): a biblioteca ja responde antes da
-    /// primeira varredura.
+    /// Carrega o que e do usuario (jogos manuais e overlay) e a lista do cache da ultima
+    /// varredura: a biblioteca ja responde antes da primeira varredura (BE-40).
     pub fn new(deps: LibraryDeps) -> Self {
         let service = Self {
             deps,
@@ -80,7 +88,9 @@ impl LibraryService {
         };
         {
             let _guard = service.write.lock().unwrap_or_else(PoisonError::into_inner);
-            service.rebuild(Vec::new());
+            let cached = service.deps.scan_cache.load();
+            let stored = service.load_stored();
+            service.install(cached, &stored, false);
         }
         service
     }
@@ -98,15 +108,18 @@ impl LibraryService {
     }
 
     /// Refaz o estado com `detected` e a camada do usuario atual. Chamar com `write` tomado.
-    fn rebuild(&self, detected: Vec<DetectedGame>) {
+    fn rebuild(&self, detected: Vec<DetectedGame>, fresh: bool) {
         let stored = self.load_stored();
-        self.install(detected, &stored);
+        self.install(detected, &stored, fresh);
     }
 
-    fn install(&self, detected: Vec<DetectedGame>, stored: &StoredLibrary) {
+    fn install(&self, detected: Vec<DetectedGame>, stored: &StoredLibrary, fresh: bool) {
         let entries = merge_library(detected.clone(), &stored.manual_games, &stored.overlay);
-        *self.state.write().unwrap_or_else(PoisonError::into_inner) =
-            Arc::new(LibraryState { detected, entries });
+        *self.state.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(LibraryState {
+            detected,
+            entries,
+            fresh,
+        });
     }
 
     /// Grava `stored` e refaz o estado sobre a ultima deteccao. Chamar com `write` tomado.
@@ -115,8 +128,8 @@ impl LibraryService {
             tracing::error!(erro = %e, "nao gravou library.json");
             AppError::Internal
         })?;
-        let detected = self.snapshot().detected.clone();
-        self.install(detected, stored);
+        let current = self.snapshot();
+        self.install(current.detected.clone(), stored, current.fresh);
         Ok(())
     }
 
@@ -190,7 +203,8 @@ impl LibraryService {
         }
         {
             let _guard = self.write.lock().unwrap_or_else(PoisonError::into_inner);
-            self.rebuild(detected);
+            self.deps.scan_cache.save(&detected);
+            self.rebuild(detected, true);
         }
         tracing::info!(
             jogos = self.snapshot().entries.len(),
@@ -340,7 +354,14 @@ fn parent_dir(path: &str) -> Option<String> {
 
 impl GameResolver for LibraryService {
     fn resolve(&self, id: &GameId) -> Result<LaunchTarget, AppError> {
-        let state = self.snapshot();
+        let mut state = self.snapshot();
+        // Jogo de loja so inicia pela deteccao desta execucao (SEC-18): a lista veio do cache
+        // (`scan.json`), entao varre agora (milissegundos) antes de resolver.
+        if id.origin() != Origin::Manual && !state.fresh && state.get(id).is_some() {
+            tracing::debug!(game = %id, "lista do cache: varrendo antes de iniciar");
+            self.refresh();
+            state = self.snapshot();
+        }
         let entry = state.get(id).ok_or(AppError::UnknownGame)?;
         let spec = entry.launch.clone();
         if id.origin() == Origin::Manual {
@@ -386,7 +407,7 @@ impl PlayedRecorder for LibraryService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::application::ports::{Loaded, StoreError};
+    use crate::application::ports::{Loaded, NullScanCache, StoreError};
     use crate::domain::library::{BrowseTarget, OverlayEntry};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -495,6 +516,7 @@ mod tests {
             inspector: inspector.clone(),
             browser: Arc::new(NoBrowser),
             events: events.clone(),
+            scan_cache: Arc::new(NullScanCache),
         });
         Rig {
             svc,
@@ -741,6 +763,7 @@ mod tests {
             inspector: Arc::new(ToUnc),
             browser: Arc::new(NoBrowser),
             events: Arc::new(Count::default()),
+            scan_cache: Arc::new(NullScanCache),
         });
         assert_eq!(
             svc.add_manual(r"C:\Jogos\link.exe").unwrap_err(),
@@ -855,6 +878,75 @@ mod tests {
             .unwrap()
             .overlay
             .contains_key(&id("steam:999")));
+    }
+
+    #[derive(Default)]
+    struct MemCache(Mutex<Vec<DetectedGame>>);
+    impl ScanCache for MemCache {
+        fn load(&self) -> Vec<DetectedGame> {
+            self.0.lock().unwrap().clone()
+        }
+        fn save(&self, games: &[DetectedGame]) {
+            *self.0.lock().unwrap() = games.to_vec();
+        }
+    }
+
+    fn with_cache(cache: Arc<MemCache>, scanners: Vec<FakeScanner>) -> LibraryService {
+        LibraryService::new(LibraryDeps {
+            repo: Arc::new(Mem::default()),
+            scanners: scanners
+                .into_iter()
+                .map(|s| Arc::new(s) as Arc<dyn StoreScanner>)
+                .collect(),
+            inspector: Arc::new(FakeInspector(Mutex::new(None))),
+            browser: Arc::new(NoBrowser),
+            events: Arc::new(Count::default()),
+            scan_cache: cache,
+        })
+    }
+
+    #[test]
+    fn lista_do_cache_aparece_antes_da_varredura_e_a_varredura_a_grava() {
+        let cache = Arc::new(MemCache::default());
+        let svc = with_cache(
+            cache.clone(),
+            vec![FakeScanner(
+                Origin::Steam,
+                Behavior::Games(vec![det("steam:620", "Portal 2")]),
+            )],
+        );
+        svc.refresh();
+        assert!(svc.snapshot().is_fresh());
+        assert_eq!(cache.0.lock().unwrap().len(), 1);
+        // Nova execucao: a lista vem do cache, sem varrer.
+        let nova = with_cache(cache, vec![FakeScanner(Origin::Steam, Behavior::Fail)]);
+        let snap = nova.snapshot();
+        assert!(!snap.is_fresh());
+        let nomes: Vec<&str> = snap.visible().map(LibraryEntry::display_name).collect();
+        assert_eq!(nomes, ["Portal 2"]);
+    }
+
+    #[test]
+    fn jogo_do_cache_so_inicia_depois_de_varrer_de_novo() {
+        let cache = Arc::new(MemCache::default());
+        cache.save(&[det("steam:620", "Portal 2"), det("steam:7", "Sumiu")]);
+        // A deteccao atual so acha o 620 (o 7 foi desinstalado) e com outra pasta.
+        let mut atual = det("steam:620", "Portal 2");
+        atual.install_dir = Some(r"D:\Nova\Pasta".into());
+        let svc = with_cache(
+            cache,
+            vec![FakeScanner(Origin::Steam, Behavior::Games(vec![atual]))],
+        );
+        assert!(!svc.snapshot().is_fresh());
+        let t = svc.resolve(&id("steam:620")).unwrap();
+        // O alvo veio da deteccao atual, nao do cache.
+        assert_eq!(t.install_dir.as_deref(), Some(r"D:\Nova\Pasta"));
+        assert!(svc.snapshot().is_fresh());
+        // O que o cache tinha e a deteccao nao achou nao inicia.
+        assert_eq!(
+            svc.resolve(&id("steam:7")).unwrap_err(),
+            AppError::UnknownGame
+        );
     }
 
     #[test]

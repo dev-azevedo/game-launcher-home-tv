@@ -11,6 +11,7 @@ pub mod events;
 pub mod ipc;
 pub mod launcher_window;
 pub mod library_view;
+pub mod marks;
 pub mod runtime;
 pub mod state;
 pub mod webview_hardening;
@@ -73,6 +74,7 @@ pub fn configure<R: Runtime>(builder: Builder<R>) -> Builder<R> {
 }
 
 pub fn run() {
+    marks::start();
     configure(tauri::Builder::default())
         .setup(|app| {
             bootstrap::init_user_data(app)?;

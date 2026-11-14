@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use launcher_core::application::ports::{
-    GameResolver, LibraryEvents, LibraryRepository, Loaded, StoreError, StoreScanner,
+    GameResolver, LibraryEvents, LibraryRepository, Loaded, NullScanCache, StoreError, StoreScanner,
 };
 use launcher_core::application::{AppError, LibraryDeps, LibraryService};
 use launcher_core::domain::library::{InstallPathPolicy, StoredLibrary};
@@ -73,6 +73,7 @@ fn service(scanners: Vec<Arc<dyn StoreScanner>>) -> (LibraryService, Arc<Mem>) {
         inspector: Arc::new(WinManualExeInspector),
         browser: Arc::new(WinFolderBrowser),
         events: Arc::new(Events::default()),
+        scan_cache: Arc::new(NullScanCache),
     });
     (svc, mem)
 }
@@ -183,6 +184,7 @@ fn manual_editado_a_mao_para_script_ou_rede_nao_inicia() {
             inspector: Arc::new(WinManualExeInspector),
             browser: Arc::new(WinFolderBrowser),
             events: Arc::new(Events::default()),
+            scan_cache: Arc::new(NullScanCache),
         });
         (svc, id)
     };

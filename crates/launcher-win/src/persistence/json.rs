@@ -13,9 +13,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use launcher_core::application::ports::{
-    Clock, LibraryRepository, Loaded, Recovery, RecoveryReason, SettingsRepository, StoreError,
+    Clock, LibraryRepository, Loaded, Recovery, RecoveryReason, ScanCache, SettingsRepository,
+    StoreError,
 };
-use launcher_core::domain::library::{parse_library, serialize_library, StoredLibrary};
+use launcher_core::domain::library::{
+    parse_library, parse_scan, serialize_library, serialize_scan, DetectedGame, StoredLibrary,
+};
 use launcher_core::domain::settings::{parse_settings, serialize_settings, Settings};
 use windows::core::PCWSTR;
 use windows::Win32::Storage::FileSystem::{
@@ -29,6 +32,7 @@ const MAX_BACKUPS: usize = 5;
 
 const LIBRARY_FILE: &str = "library.json";
 const SETTINGS_FILE: &str = "settings.json";
+const SCAN_FILE: &str = "scan.json";
 
 // ---------------------------------------------------------------------------------------------
 // E/S de arquivo
@@ -281,6 +285,50 @@ impl LibraryRepository for JsonLibraryRepository {
     }
 }
 
+/// `cache\scan.json` (BE-40): resultado da ultima varredura, descartavel. Arquivo ausente,
+/// grande demais ou invalido volta vazio (a proxima varredura o reescreve); nunca vira backup.
+#[derive(Clone)]
+pub struct JsonScanCache {
+    dir: PathBuf,
+}
+
+impl JsonScanCache {
+    /// `dir` e a pasta de dados do usuario; o arquivo fica em `dir\cache\scan.json`.
+    pub fn new(dir: impl Into<PathBuf>) -> Self {
+        Self { dir: dir.into() }
+    }
+
+    fn cache_dir(&self) -> PathBuf {
+        self.dir.join("cache")
+    }
+}
+
+impl ScanCache for JsonScanCache {
+    fn load(&self) -> Vec<DetectedGame> {
+        match read_limited(&self.cache_dir().join(SCAN_FILE)) {
+            Ok(Raw::Bytes(bytes)) => parse_scan(&bytes).unwrap_or_else(|error| {
+                tracing::warn!(%error, "scan.json ignorado");
+                Vec::new()
+            }),
+            Ok(Raw::Missing) => Vec::new(),
+            Ok(Raw::TooLarge) => {
+                tracing::warn!("scan.json acima de 4 MB ignorado");
+                Vec::new()
+            }
+            Err(error) => {
+                tracing::warn!(%error, "scan.json ilegivel");
+                Vec::new()
+            }
+        }
+    }
+
+    fn save(&self, games: &[DetectedGame]) {
+        if let Err(error) = atomic_write(&self.cache_dir(), SCAN_FILE, &serialize_scan(games)) {
+            tracing::warn!(%error, "scan.json nao gravado");
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct JsonSettingsRepository {
     dir: PathBuf,
@@ -448,6 +496,37 @@ mod tests {
         repo.save(&novo).unwrap();
         assert_eq!(repo.load().value, novo);
         assert_eq!(d.names(), vec!["library.json".to_owned()]);
+    }
+
+    #[test]
+    fn scan_cache_ida_e_volta_e_arquivo_invalido_e_ignorado() {
+        use launcher_core::domain::library::{GameId, LaunchSpec};
+        let t = TempDir::new();
+        let cache = JsonScanCache::new(t.path());
+        assert!(cache.load().is_empty()); // ausente
+        let games = vec![DetectedGame {
+            id: GameId::parse("steam:620").unwrap(),
+            name: "Portal 2".into(),
+            install_dir: Some(r"C:\Jogos\Portal 2".into()),
+            launch: LaunchSpec::SteamUri { app_id: 620 },
+            cover_source: None,
+            icon_source: None,
+        }];
+        cache.save(&games);
+        assert_eq!(cache.load(), games);
+        // So `cache\scan.json`: nada de temporario nem de backup.
+        let names: Vec<String> = fs::read_dir(t.path().join("cache"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(names, ["scan.json"]);
+        // Adulterado e grande demais: volta vazio, sem apagar nem mover o arquivo.
+        let file = t.path().join(r"cache\scan.json");
+        fs::write(&file, b"{ nao e json").unwrap();
+        assert!(cache.load().is_empty());
+        fs::write(&file, vec![b' '; MAX_FILE_BYTES + 10]).unwrap();
+        assert!(cache.load().is_empty());
+        assert!(file.exists());
     }
 
     #[test]

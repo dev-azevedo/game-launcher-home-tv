@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use launcher_core::application::ports::{
     CoverCache, CoverImage, CoverSource, FolderBrowser, LibraryEvents, LibraryRepository, Loaded,
-    ManualExeInspector, ScanError, StoreError, StoreScanner,
+    ManualExeInspector, NullScanCache, ScanError, StoreError, StoreScanner,
 };
 use launcher_core::application::{AppError, LibraryDeps, LibraryService};
 use launcher_core::domain::library::{
@@ -146,6 +146,7 @@ fn harness(scanners: Vec<Scanner>) -> Harness {
         inspector: inspector.clone(),
         browser: Arc::new(Browser),
         events: events.clone(),
+        scan_cache: Arc::new(NullScanCache),
     }));
     let state = app.state::<AppState>();
     assert!(state.library.set(library).is_ok());

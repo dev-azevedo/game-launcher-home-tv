@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use launcher_core::application::ports::{
     Clock, CoverCache, FolderBrowser, LibraryEvents, LibraryRepository, ManualExeInspector,
-    SettingsRepository, StoreScanner,
+    ScanCache, SettingsRepository, StoreScanner,
 };
 use launcher_core::application::{LibraryDeps, LibraryService};
 use launcher_core::domain::settings::{LogLevel, Step2Key};
@@ -14,7 +14,7 @@ use launcher_win::folder_browser::WinFolderBrowser;
 use launcher_win::logging::{self, Level};
 use launcher_win::manual_exe::WinManualExeInspector;
 use launcher_win::path_canon::known;
-use launcher_win::persistence::{JsonLibraryRepository, JsonSettingsRepository};
+use launcher_win::persistence::{JsonLibraryRepository, JsonScanCache, JsonSettingsRepository};
 use launcher_win::stores::{EpicScanner, GogScanner, SteamScanner, StoreEnv, WinRegistry};
 use launcher_win::system_clock::SystemClock;
 use tauri::{AppHandle, Manager, Runtime};
@@ -99,6 +99,7 @@ pub fn init_library<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let browser: Arc<dyn FolderBrowser> = Arc::new(WinFolderBrowser);
     let events: Arc<dyn LibraryEvents> = Arc::new(TauriLibraryEvents::new(app.clone()));
     let covers: Arc<dyn CoverCache> = Arc::new(WinCoverCache::new(&user_data.data_dir));
+    let scan_cache: Arc<dyn ScanCache> = Arc::new(JsonScanCache::new(&user_data.data_dir));
 
     let library = Arc::new(LibraryService::new(LibraryDeps {
         repo,
@@ -106,6 +107,7 @@ pub fn init_library<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
         inspector,
         browser,
         events,
+        scan_cache,
     }));
     let _ = state.covers.set(covers);
     let _ = state.library.set(library);

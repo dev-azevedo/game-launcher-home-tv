@@ -312,6 +312,25 @@ pub trait CoverCache: Send + Sync {
     fn image(&self, source: &CoverSource) -> Option<CoverImage>;
 }
 
+/// Cache da ultima varredura (`cache\scan.json`, BE-40): a biblioteca aparece antes da proxima
+/// varredura. Descartavel: arquivo ausente ou invalido volta vazio, e nunca e verdade para
+/// iniciar jogo (SEC-18).
+pub trait ScanCache: Send + Sync {
+    fn load(&self) -> Vec<DetectedGame>;
+    fn save(&self, games: &[DetectedGame]);
+}
+
+/// Sem cache (testes e quem nao precisa dele).
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NullScanCache;
+
+impl ScanCache for NullScanCache {
+    fn load(&self) -> Vec<DetectedGame> {
+        Vec::new()
+    }
+    fn save(&self, _games: &[DetectedGame]) {}
+}
+
 /// A biblioteca mudou; quem implementa le o estado do `LibraryService` e emite
 /// `library://changed`.
 pub trait LibraryEvents: Send + Sync {

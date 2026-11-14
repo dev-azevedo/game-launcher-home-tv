@@ -2,4 +2,6 @@
 
 pub mod json;
 
-pub use json::{atomic_write, JsonLibraryRepository, JsonSettingsRepository, MAX_FILE_BYTES};
+pub use json::{
+    atomic_write, JsonLibraryRepository, JsonScanCache, JsonSettingsRepository, MAX_FILE_BYTES,
+};

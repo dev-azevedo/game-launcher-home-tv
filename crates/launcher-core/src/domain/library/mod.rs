@@ -10,6 +10,7 @@ pub mod id_formats;
 pub mod install_path_policy;
 pub mod launch;
 pub mod model;
+pub mod scan_cache;
 pub mod steam_non_games;
 pub mod stored;
 
@@ -35,6 +36,7 @@ pub use launch::{
     LaunchTarget,
 };
 pub use model::{merge_library, sort_entries, sort_key, DetectedGame, LibraryEntry};
+pub use scan_cache::{parse_scan, serialize_scan, ScanCacheError};
 pub use steam_non_games::is_steam_non_game;
 pub use stored::{
     parse_library, serialize_library, LibraryFileError, ManualGameRecord, OverlayEntry,

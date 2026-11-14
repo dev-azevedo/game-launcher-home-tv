@@ -41,6 +41,7 @@ pub fn spawn_refresh(state: &AppState, svc: Arc<LibraryService>) -> Result<(), A
             if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| svc.refresh())).is_err() {
                 tracing::error!("panico na atualizacao da biblioteca");
             }
+            crate::marks::navigable();
         });
     spawned.map(|_| ()).map_err(|error| {
         tracing::error!(%error, "nao conseguiu criar a thread de varredura");
@@ -60,6 +61,7 @@ pub async fn library_get(
         };
         let snapshot = svc.snapshot();
         let dto = snapshot_dto(&state, &snapshot, snapshot.focus());
+        crate::marks::first_paint();
         // Primeiro paint da UI: a lista do cache ja foi entregue; a varredura roda agora, em
         // segundo plano, e chega em `library://changed` (BE-40).
         if !state.initial_refresh.swap(true, Ordering::AcqRel) {
