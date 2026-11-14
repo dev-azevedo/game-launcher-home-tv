@@ -4,7 +4,9 @@ import { GameOptions } from '@/features/library/GameOptions';
 import { HideConfirmDialog } from '@/features/library/HideConfirmDialog';
 import { HomeScreen } from '@/features/library/HomeScreen';
 import { useLibrary } from '@/features/library/store';
+import { CloseConfirmDialog } from '@/features/session/CloseConfirmDialog';
 import { LaunchFlow, useLaunchFlowEntry } from '@/features/session/LaunchFlow';
+import { SessionPanel } from '@/features/session/SessionPanel';
 import { Toast } from '@/shared/ui/Toast';
 import { useNavigation } from './navigation/store';
 
@@ -32,9 +34,16 @@ export function ScreenStack({ headerExtras }: { headerExtras?: React.ReactNode }
           case 'gameOptions':
             return <GameOptions key={entry.key} active={active} entry={entry} />;
           case 'confirmDialog':
-            return entry.params?.confirm === 'hide' ? (
-              <HideConfirmDialog key={entry.key} active={active} entry={entry} parentKey={parentKey} />
-            ) : null;
+            switch (entry.params?.confirm) {
+              case 'hide':
+                return <HideConfirmDialog key={entry.key} active={active} entry={entry} parentKey={parentKey} />;
+              case 'close':
+                return <CloseConfirmDialog key={entry.key} active={active} entry={entry} />;
+              default:
+                return null;
+            }
+          case 'sessionPanel':
+            return <SessionPanel key={entry.key} active={active} entry={entry} />;
           case 'renameDialog':
             return (
               <Suspense key={entry.key} fallback={null}>

@@ -1,4 +1,4 @@
-import type { ErrorDto, GameDto, GameId, SessionDto } from '@/shared/ipc';
+import type { ErrorDto, GameDto, GameId, SessionDto, SessionState } from '@/shared/ipc';
 import { errorCopyFor } from '@/shared/domain/errors';
 
 /** Erro de um comando de inicio (`session_launch`, `session_replace`...) mostrado em dialogo. */
@@ -26,6 +26,8 @@ export type LaunchOverlay =
   | { kind: 'needsElevation'; gameId: GameId }
   | { kind: 'elevationDenied'; gameId: GameId }
   | { kind: 'notConfirmed'; gameId: GameId }
+  | { kind: 'closing'; gameId: GameId; swapTo: GameId | null }
+  | { kind: 'overdue'; gameId: GameId }
   | { kind: 'failure'; failure: LaunchFailure }
   | { kind: 'replace'; currentGameId: GameId; newGameId: GameId };
 
@@ -35,13 +37,17 @@ export interface OverlayInput {
   pendingGameId: GameId | null;
   failure: LaunchFailure | null;
   replace: { currentGameId: GameId; newGameId: GameId } | null;
+  /** Estado em que o usuario voltou a "Fechando..." pelo card "Em andamento" (cancela o `dismissed` local). */
+  reopen?: SessionState | null;
+  /** Jogo que abre depois do fechamento (troca de jogo, CT-01): mostrado em "Fechando...". */
+  swapTo?: GameId | null;
 }
 
 /**
  * Regra pura: estado do nucleo + resultado do ultimo comando -> tela de sessao.
  * `dismissed` (Voltar ou B na espera) evita reabrir a tela a cada evento (docs/api D9).
  */
-export function launchOverlay({ session, pendingGameId, failure, replace }: OverlayInput): LaunchOverlay | null {
+export function launchOverlay({ session, pendingGameId, failure, replace, reopen = null, swapTo = null }: OverlayInput): LaunchOverlay | null {
   if (replace) return { kind: 'replace', ...replace };
   if (failure) return { kind: 'failure', failure };
   const gameId = session.gameId;
@@ -59,13 +65,29 @@ export function launchOverlay({ session, pendingGameId, failure, replace }: Over
         : { kind: 'needsElevation', gameId };
     case 'NotConfirmed':
       return gameId ? { kind: 'notConfirmed', gameId } : null;
+    case 'Closing':
+      // CA-78: "Ir para a biblioteca" dispensa a espera; o card "Em andamento" a reabre (`reopen`).
+      if (!gameId || (session.dismissed && reopen !== 'Closing')) return null;
+      return { kind: 'closing', gameId, swapTo };
+    case 'CloseOverdue':
+      // Segunda confirmacao (RN-12): decisao do usuario, nunca fica escondida por `dismissed`.
+      return gameId ? { kind: 'overdue', gameId } : null;
     default:
-      // Running, Ending, Closing e CloseOverdue: painel e "Fechando" sao do FE-09.
+      // Running e Ending: o painel e aberto por `session://panel`, nao por estado.
       return null;
   }
 }
 
-export type DialogAction = 'back' | 'hide' | 'retry' | 'continue' | 'replace' | 'library' | 'cancel';
+export type DialogAction =
+  | 'back'
+  | 'hide'
+  | 'retry'
+  | 'continue'
+  | 'replace'
+  | 'library'
+  | 'cancel'
+  | 'keepRunning'
+  | 'force';
 
 export interface DialogSpec {
   title: string;
@@ -75,6 +97,8 @@ export interface DialogSpec {
   cancel: { label: string; action: DialogAction };
   /** Direita, quando existe. */
   confirm?: { label: string; action: DialogAction; destructive?: boolean };
+  /** Aviso em destaque abaixo do texto (ex.: progresso nao salvo sera perdido). */
+  warning?: string;
   defaultFocus: 'cancel' | 'confirm';
 }
 
@@ -86,7 +110,18 @@ export function overlayDialog(overlay: LaunchOverlay, games: readonly GameDto[])
   switch (overlay.kind) {
     case 'launching':
     case 'uacWait':
+    case 'closing':
       return null;
+    case 'overdue':
+      return {
+        title: `${nameOf(games, overlay.gameId) ?? 'O jogo'} não fechou`,
+        body: 'O jogo não respondeu ao pedido para fechar.',
+        warning: 'O progresso não salvo será perdido.',
+        tone: 'danger',
+        cancel: { label: 'Cancelar', action: 'keepRunning' },
+        confirm: { label: 'Forçar fechamento', action: 'force', destructive: true },
+        defaultFocus: 'cancel',
+      };
     case 'needsElevation': {
       const copy = errorCopyFor({ code: 'NeedsElevation' }, { gameName: nameOf(games, overlay.gameId) });
       return {

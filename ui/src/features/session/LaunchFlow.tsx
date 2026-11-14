@@ -12,9 +12,11 @@ export function useLaunchOverlay(): LaunchOverlay | null {
   const pendingGameId = useSession((s) => s.pendingGameId);
   const failure = useSession((s) => s.failure);
   const replace = useSession((s) => s.replace);
+  const reopen = useSession((s) => s.reopen);
+  const swapTo = useSession((s) => s.swapTo);
   return useMemo(
-    () => launchOverlay({ session, pendingGameId, failure, replace }),
-    [session, pendingGameId, failure, replace],
+    () => launchOverlay({ session, pendingGameId, failure, replace, reopen, swapTo }),
+    [session, pendingGameId, failure, replace, reopen, swapTo],
   );
 }
 
@@ -24,17 +26,20 @@ export function useLaunchOverlay(): LaunchOverlay | null {
  */
 export function useLaunchFlowEntry(): void {
   const present = useLaunchOverlay() !== null;
+  const stack = useNavigation((s) => s.stack);
   const keyRef = useRef<string | null>(null);
   useEffect(() => {
     const nav = useNavigation.getState();
-    if (present && !keyRef.current) {
+    // A camada pode ter saido da pilha por fora (ex.: "Ir para a biblioteca" volta a raiz): repoe se ainda ha tela.
+    const inStack = keyRef.current !== null && stack.some((e) => e.key === keyRef.current);
+    if (present && !inStack) {
       nav.push('launchFlow');
       keyRef.current = selectTop(useNavigation.getState()).key;
     } else if (!present && keyRef.current) {
       nav.remove(keyRef.current);
       keyRef.current = null;
     }
-  }, [present]);
+  }, [present, stack]);
 }
 
 const nameOf = (games: readonly { id: string; name: string }[], id: string) =>
@@ -71,6 +76,22 @@ export function LaunchFlow({ active }: { active: boolean }) {
     );
   }
 
+  if (overlay.kind === 'closing') {
+    const swap = overlay.swapTo ? nameOf(games, overlay.swapTo) : null;
+    return (
+      <WaitScreen
+        title={`Fechando ${nameOf(games, overlay.gameId)}…`}
+        buttonLabel="Ir para a biblioteca"
+        // CA-78: A ou B levam a biblioteca; o pedido de fechamento continua no nucleo.
+        onLeave={() => {
+          void s().dismiss();
+          s().showLibrary();
+        }}
+      >
+        {swap ? `Esperando o jogo fechar. Depois o Sofá abre ${swap}.` : 'Esperando o jogo fechar. Pode levar alguns segundos.'}
+      </WaitScreen>
+    );
+  }
   const spec = overlayDialog(overlay, games);
   if (!spec) return null;
 
@@ -79,14 +100,23 @@ export function LaunchFlow({ active }: { active: boolean }) {
     switch (action) {
       case 'back':
         // Erro de comando: so fecha. Estados do nucleo (administrador, nao confirmado): Idle de verdade.
-        if (overlay.kind === 'failure') store.closeFailure();
-        else void store.dismiss();
+        if (overlay.kind === 'failure') {
+          store.closeFailure();
+          // Forcar recusado (jogo elevado): o jogo segue aberto, a sessao volta a Running.
+          if (overlay.failure.command === 'session_force_close') void store.dismiss();
+        } else void store.dismiss();
+        break;
+      case 'keepRunning':
+        void store.dismiss();
+        break;
+      case 'force':
+        void store.forceClose();
         break;
       case 'cancel':
         store.cancelReplace();
         break;
       case 'library':
-        store.closeFailure();
+        store.showLibrary();
         break;
       case 'hide':
         void store.hideFailureGame();
@@ -110,6 +140,8 @@ export function LaunchFlow({ active }: { active: boolean }) {
 
   return (
     <ConfirmDialog
+      // Outro dialogo no mesmo lugar (ex.: erro depois de "Forcar fechamento"): remonta para o foco ir ao padrao dele.
+      key={overlay.kind === 'failure' ? `failure:${overlay.failure.error.code}` : overlay.kind}
       title={spec.title}
       tone={spec.tone}
       defaultFocus={spec.defaultFocus}
@@ -117,6 +149,7 @@ export function LaunchFlow({ active }: { active: boolean }) {
       confirmLabel={spec.confirm?.label}
       destructive={spec.confirm?.destructive}
       active={active}
+      warning={spec.warning}
       onCancel={() => run(spec.cancel.action)}
       onConfirm={spec.confirm ? () => run(spec.confirm!.action) : undefined}
     >
