@@ -1,103 +1,38 @@
 /**
- * Tipos do contrato `docs/api/launcher-tv.md` (30 comandos, 8 eventos, 26 codigos).
- * Escritos a mao, minimos, ate os tipos gerados do BE-10 (`./generated/`) entrarem: a troca e so
- * reexportar de la neste arquivo. O resto da UI importa tipos apenas de `@/shared/ipc`.
+ * Tipos do contrato `docs/api/launcher-tv.md` (30 comandos, 8 eventos, 26 codigos). Os DTOs vem de
+ * `./generated/` (BE-10, gerado, nao editar). O resto da UI importa tipos apenas de `@/shared/ipc`.
  */
-export type GameId = string;
-export type MonitorId = string;
+export type {
+  AutostartMechanism,
+  Availability,
+  DirEntry,
+  DirEntryKind,
+  DirListing,
+  FrontOutcome,
+  GameDto,
+  GameId,
+  LaunchFailure,
+  LibrarySnapshot,
+  MonitorDto,
+  MonitorId,
+  Origin,
+  PowerAction,
+  PowerCapabilities,
+  PowerTicket,
+  SessionDto,
+  SessionPanelEvent,
+  SessionState,
+  SettingsDto,
+  VolumeDirection,
+  VolumeState,
+} from './generated';
+export type { ErrorCode, ErrorParams } from './generated';
+import type { ErrorParams } from './generated';
 
-export type Origin = 'Steam' | 'Epic' | 'Gog' | 'Manual';
-export type SessionState =
-  | 'Idle'
-  | 'Launching'
-  | 'NeedsElevation'
-  | 'NotConfirmed'
-  | 'Running'
-  | 'Ending'
-  | 'Closing'
-  | 'CloseOverdue';
-export type PowerAction = 'Shutdown' | 'Restart' | 'Suspend';
-export type Availability = 'Available' | 'Unavailable';
-export type VolumeDirection = 'Up' | 'Down';
-export type FrontOutcome = 'Front' | 'FrontAfterMinimize' | 'Failed';
-export type AutostartMechanism = 'Task' | 'Run' | 'None';
-export type DirEntryKind = 'Drive' | 'Dir' | 'Exe';
-export type LaunchFailure = 'ElevationDenied';
-
-export interface GameDto {
-  id: GameId;
-  /** Nome exibido, ja normalizado pelo nucleo. A UI so renderiza como texto (SEC-07). */
-  name: string;
-  /** Nao nulo quando o usuario renomeou (habilita "Restaurar nome original", CA-62). */
-  originalName: string | null;
-  origin: Origin;
-  /** `cover://<gameId>`; 404 -> placeholder (CA-24). */
-  cover: string;
-  lastPlayedAt: number | null;
-  inProgress: boolean;
-}
-
-export interface LibrarySnapshot {
-  games: GameDto[];
-  focusGameId: GameId | null;
-}
-
-export interface SessionDto {
-  state: SessionState;
-  gameId: GameId | null;
-  since: number | null;
-  dismissed: boolean;
-  elevated: boolean;
-  minimized: boolean;
-  launchFailure: LaunchFailure | null;
-}
-
-export interface VolumeState {
-  level: number;
-  muted: boolean;
-  available: boolean;
-}
-
-export interface MonitorDto {
-  id: MonitorId;
-  name: string;
-  primary: boolean;
-  current: boolean;
-}
-
-export interface SettingsDto {
-  autostart: boolean;
-  autostartMechanism: AutostartMechanism;
-  monitorId: MonitorId | null;
-  logDir: string;
-}
-
-export interface DirEntry {
-  name: string;
-  kind: DirEntryKind;
-}
-
-export interface DirListing {
-  path: string | null;
-  parent: string | null;
-  entries: DirEntry[];
-  /** CT-02: a listagem foi cortada no limite do nucleo. */
-  truncated?: boolean;
-}
-
-export interface PowerCapabilities {
-  shutdown: Availability;
-  restart: Availability;
-  suspend: Availability;
-}
-
-export type PowerTicket = string;
-
-export interface ErrorParams {
-  gameId?: GameId;
-  origin?: Origin;
-}
-
+/**
+ * `code` e `string` (e nao `ErrorCode`) de proposito: a UI recebe o payload sem validacao e codigo
+ * fora da tabela cai em "Desconhecido" (errors.ts). O `ErrorDto` gerado estreita para os 26 codigos.
+ */
 export interface ErrorDto {
   code: string;
   params?: ErrorParams;
