@@ -13,6 +13,9 @@ use crate::domain::library::{
 use crate::domain::session::FrontOutcome;
 use crate::domain::settings::{Settings, Step2Key};
 use crate::domain::time::Millis;
+use crate::domain::volume::VolumeState;
+
+use super::volume_service::VolumeView;
 
 /// Relogios. O dominio recebe `Millis`; quem chama o caso de uso le daqui.
 pub trait Clock: Send + Sync {
@@ -335,6 +338,31 @@ impl ScanCache for NullScanCache {
 /// `library://changed`.
 pub trait LibraryEvents: Send + Sync {
     fn changed(&self);
+}
+
+// ------------------------------------------------------------------------- volume (BE-32)
+
+/// Quem ouve o endpoint de audio: mudanca externa (teclado, mixer) ou troca do dispositivo padrao
+/// (CA-41, CA-42). `None` = ficou sem dispositivo. Chamado de threads do COM: nao bloqueia.
+pub trait AudioListener: Send + Sync {
+    fn changed(&self, state: Option<VolumeState>);
+}
+
+/// Volume mestre do dispositivo de saida padrao (RN-13). O adapter vive numa thread MTA propria e
+/// segue o dispositivo padrao quando ele muda.
+pub trait AudioEndpoint: Send + Sync {
+    /// Estado agora; `None` = sem dispositivo.
+    fn state(&self) -> Option<VolumeState>;
+    /// Grava nivel e mudo. Mudanca feita por aqui **nao** volta pelo `AudioListener` (o caso de
+    /// uso publica o resultado). Erros: `NoAudioDevice`, `Internal`.
+    fn set(&self, state: VolumeState) -> Result<(), AppError>;
+    /// Registra o ouvinte (uma vez, depois de criar o caso de uso).
+    fn subscribe(&self, listener: Arc<dyn AudioListener>);
+}
+
+/// Saida do volume para a UI (`volume://changed`).
+pub trait VolumeEvents: Send + Sync {
+    fn changed(&self, view: &VolumeView);
 }
 
 // ------------------------------------------------------------------------ casos de uso
