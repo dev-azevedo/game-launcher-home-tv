@@ -4,14 +4,19 @@
 
 pub use launcher_core as core;
 
+pub mod cover_cache;
+pub mod folder_browser;
 pub mod foreground;
 pub mod game_starter;
 pub mod hardening;
 pub mod input_thread;
 pub mod job;
 pub mod logging;
+pub mod manual_exe;
+pub mod path_canon;
 pub mod persistence;
 pub mod process_probe;
+pub mod stores;
 pub mod system_clock;
 pub mod system_events;
 pub mod windows_enum;
