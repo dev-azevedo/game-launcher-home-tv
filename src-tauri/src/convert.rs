@@ -1,6 +1,6 @@
 //! Conversoes do dominio para os DTOs da IPC (contrato secoes 1 e 3). Sem regra de negocio.
 
-use launcher_core::application::SessionView;
+use launcher_core::application::{SessionView, VolumeView};
 use launcher_core::domain::input::InputIntent as CoreIntent;
 use launcher_core::domain::session::{
     FrontOutcome as CoreOutcome, LaunchFailure as CoreFailure, SessionState as CoreState,
@@ -8,6 +8,7 @@ use launcher_core::domain::session::{
 
 use crate::dto::{
     FrontOutcome, InputIntent, LaunchFailure, SessionDto, SessionPanelEvent, SessionState,
+    VolumeState,
 };
 
 impl From<CoreState> for SessionState {
@@ -67,6 +68,16 @@ impl From<&SessionView> for SessionDto {
             launch_failure: s.launch_failure.map(|f| match f {
                 CoreFailure::ElevationDenied => LaunchFailure::ElevationDenied,
             }),
+        }
+    }
+}
+
+impl From<VolumeView> for VolumeState {
+    fn from(v: VolumeView) -> Self {
+        Self {
+            level: v.level,
+            muted: v.muted,
+            available: v.available,
         }
     }
 }

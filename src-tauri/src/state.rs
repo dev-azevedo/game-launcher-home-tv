@@ -7,7 +7,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use launcher_core::application::ports::{CoverCache, SettingsRepository};
-use launcher_core::application::{LibraryService, SerialGate, SessionService};
+use launcher_core::application::{LibraryService, SerialGate, SessionService, VolumeService};
 use launcher_core::domain::settings::Settings;
 use launcher_win::input_thread::InputControl;
 
@@ -43,6 +43,8 @@ pub struct AppState {
     pub library: OnceLock<Arc<LibraryService>>,
     /// Capas e icones reencodados (BE-28), servidos por `cover://`.
     pub covers: OnceLock<Arc<dyn CoverCache>>,
+    /// Volume do dispositivo padrao (BE-32); ausente se o Core Audio nao subiu.
+    pub volume: OnceLock<Arc<VolumeService>>,
     /// A primeira leitura da biblioteca (primeiro paint da UI) dispara a varredura em segundo
     /// plano, uma vez so (BE-40).
     pub initial_refresh: AtomicBool,

@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use launcher_core::application::ports::{
     Clock, CoverCache, FolderBrowser, LibraryEvents, LibraryRepository, ManualExeInspector,
-    ScanCache, SettingsRepository, StoreScanner,
+    ScanCache, SettingsRepository, StoreScanner, VolumeEvents,
 };
-use launcher_core::application::{LibraryDeps, LibraryService};
+use launcher_core::application::{LibraryDeps, LibraryService, VolumeService};
 use launcher_core::domain::settings::{LogLevel, Step2Key};
 use launcher_win::cover_cache::WinCoverCache;
 use launcher_win::folder_browser::WinFolderBrowser;
@@ -19,7 +19,7 @@ use launcher_win::stores::{EpicScanner, GogScanner, SteamScanner, StoreEnv, WinR
 use launcher_win::system_clock::SystemClock;
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::events::TauriLibraryEvents;
+use crate::events::{TauriLibraryEvents, TauriVolumeEvents};
 use crate::state::{AppState, UserData};
 
 /// Resolve `%LOCALAPPDATA%\app.sofa.launcher`, liga o log em `logs\`, carrega `settings.json`
@@ -113,4 +113,19 @@ pub fn init_library<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let _ = state.library.set(library);
     tracing::info!("biblioteca ligada");
     Ok(())
+}
+
+/// Liga o volume (BE-32): thread MTA do Core Audio + caso de uso + `volume://changed`. Falha no
+/// Core Audio nao derruba o launcher: sem servico, `volume_get` responde `available = false`.
+pub fn init_volume<R: Runtime>(app: &AppHandle<R>) {
+    let state = app.state::<AppState>();
+    match launcher_win::audio::WinAudioEndpoint::spawn() {
+        Ok(endpoint) => {
+            let events: Arc<dyn VolumeEvents> = Arc::new(TauriVolumeEvents::new(app.clone()));
+            let service = VolumeService::new(Arc::new(endpoint), events);
+            let _ = state.volume.set(service);
+            tracing::info!("volume ligado");
+        }
+        Err(error) => tracing::error!(%error, "Core Audio nao iniciou; volume indisponivel"),
+    }
 }

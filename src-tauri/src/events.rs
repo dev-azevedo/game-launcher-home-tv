@@ -3,8 +3,8 @@
 
 use std::sync::Arc;
 
-use launcher_core::application::ports::{InputSink, LibraryEvents, SessionEvents};
-use launcher_core::application::{SessionService, SessionView};
+use launcher_core::application::ports::{InputSink, LibraryEvents, SessionEvents, VolumeEvents};
+use launcher_core::application::{SessionService, SessionView, VolumeView};
 use launcher_core::domain::input::IntentEvent;
 use launcher_core::domain::library::GameId;
 use launcher_core::domain::session::FrontOutcome;
@@ -12,7 +12,7 @@ use launcher_win::system_events::{SystemEvent, SystemEventSink};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 use crate::dto::{
-    ControllersEvent, InputIntentEvent, LibrarySnapshot, SessionDto, SessionPanelEvent,
+    ControllersEvent, InputIntentEvent, LibrarySnapshot, SessionDto, SessionPanelEvent, VolumeState,
 };
 use crate::library_view::snapshot_dto;
 use crate::state::AppState;
@@ -23,6 +23,8 @@ pub const LIBRARY_CHANGED: &str = "library://changed";
 pub const SESSION_STATE: &str = "session://state";
 pub const SESSION_PANEL: &str = "session://panel";
 pub const SYSTEM_RESUMED: &str = "system://resumed";
+pub const VOLUME_CHANGED: &str = "volume://changed";
+pub const DISPLAY_CHANGED: &str = "display://changed";
 
 fn emit_logged<R: Runtime, P: serde::Serialize + Clone>(
     app: &AppHandle<R>,
@@ -136,6 +138,23 @@ impl<R: Runtime> InputSink for TauriInputSink<R> {
 
     fn combo_fired(&self) {
         self.session.handle_return_combo();
+    }
+}
+
+/// `volume://changed`: mudanca interna ou externa e troca de dispositivo (CA-41, CA-42).
+pub struct TauriVolumeEvents<R: Runtime> {
+    app: AppHandle<R>,
+}
+
+impl<R: Runtime> TauriVolumeEvents<R> {
+    pub fn new(app: AppHandle<R>) -> Self {
+        Self { app }
+    }
+}
+
+impl<R: Runtime> VolumeEvents for TauriVolumeEvents<R> {
+    fn changed(&self, view: &VolumeView) {
+        emit_logged(&self.app, VOLUME_CHANGED, VolumeState::from(*view));
     }
 }
 
