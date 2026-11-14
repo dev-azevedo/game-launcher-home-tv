@@ -1,19 +1,23 @@
+import type { ErrorDto, Origin } from '@/shared/ipc/types';
+
 /**
- * Texto pt-BR por codigo de erro (catalogo: docs/design/launcher-tv/microcopy.md, secao 2).
- * A UI traduz o `code` e nunca mostra texto vindo do nucleo (SEC-06). Parametros (`gameId`, `path`)
- * so resolvem o nome do jogo pela biblioteca. Codigo fora da tabela cai em "Desconhecido".
- *
- * Parte independente do contrato: a lista parte da arquitetura 4.1 + `NetworkPathBlocked` (CA-71).
- * FE-02 completo (100% dos codigos de docs/api/) depende do BE-07.
+ * Texto pt-BR por codigo de erro (catalogo: docs/design/launcher-tv/microcopy.md, secao 2),
+ * cobrindo os 26 codigos de docs/api/launcher-tv.md. A UI traduz o `code` e nunca mostra texto
+ * vindo do nucleo (SEC-06). Os `params` (`gameId`, `origin`) so resolvem o nome do jogo (pela
+ * biblioteca) e o nome da loja. Codigo fora da tabela cai em "Desconhecido".
  */
 export type ErrorContext = {
-  /** Nome do jogo ja resolvido pela biblioteca. */
+  /** Nome do jogo ja resolvido pela biblioteca a partir de `params.gameId`. */
   gameName?: string;
   /** Nome do jogo aberto (troca de jogo). */
   currentGameName?: string;
-  /** Loja, para `StoreNotInstalled`. */
-  storeName?: string;
+  /** `params.origin` de `StoreNotInstalled`. */
+  origin?: Origin;
+  /** Comando que falhou, para codigos com dois textos (`AccessDenied`: pasta ou forcar fechamento). */
+  command?: 'session_force_close' | 'fs_list_dir';
 };
+
+const STORE_NAME: Record<Origin, string> = { Steam: 'Steam', Epic: 'Epic', Gog: 'GOG', Manual: 'loja' };
 
 export interface ErrorCopy {
   message: string;
@@ -26,6 +30,8 @@ export interface ErrorCopy {
 type CopyFactory = (ctx: ErrorContext) => ErrorCopy;
 
 const name = (ctx: ErrorContext) => ctx.gameName ?? 'o jogo';
+
+const UNKNOWN: ErrorCopy = { message: 'Algo deu errado no Sofá. Tente de novo.', actions: ['Voltar'] };
 
 const CATALOG: Record<string, CopyFactory> = {
   Busy: () => ({
@@ -57,29 +63,41 @@ const CATALOG: Record<string, CopyFactory> = {
     support: 'Ela pode ter sido removida, ou o disco foi desconectado.',
     actions: ['Voltar'],
   }),
-  AccessDenied: () => ({
-    message: 'Sem permissão para abrir esta pasta.',
-    support: 'O Windows não deixa o Sofá ver o que há aqui.',
-    actions: ['Voltar'],
-  }),
+  // Dois textos pelo mesmo codigo (contrato D5): forcar fechamento de jogo elevado ou pasta sem leitura.
+  AccessDenied: (ctx) =>
+    ctx.command === 'session_force_close'
+      ? forceCloseDenied(ctx)
+      : {
+          message: 'Sem permissão para abrir esta pasta.',
+          support: 'O Windows não deixa o Sofá ver o que há aqui.',
+          actions: ['Voltar'],
+        },
   EmptyName: () => ({ message: 'O nome não pode ficar vazio.', actions: [] }),
   UnknownGame: () => ({ message: 'Este jogo não está mais na biblioteca.', actions: ['Voltar'] }),
   SessionAlreadyActive: (ctx) => ({
     message: `${ctx.currentGameName ?? 'Outro jogo'} está aberto. Fechar e abrir ${name(ctx)}?`,
     actions: ['Cancelar', 'Fechar e abrir'],
   }),
-  GameFileMissing: () => ({
+  // O caminho nunca cruza a IPC (SEC-03): a UI mostra so o nome do jogo, pela biblioteca (`params.gameId`).
+  GameFileMissing: (ctx) => ({
     message: 'Não encontramos o arquivo do jogo.',
+    support: ctx.gameName,
     actions: ['Voltar', 'Ocultar'],
   }),
   StoreNotInstalled: (ctx) => ({
-    message: `Não encontramos a ${ctx.storeName ?? 'loja'} neste PC. Instale a loja para abrir este jogo.`,
+    message: `Não encontramos a ${ctx.origin ? STORE_NAME[ctx.origin] : 'loja'} neste PC. Instale a loja para abrir este jogo.`,
     actions: ['Voltar'],
   }),
   NeedsElevation: (ctx) => ({
     message: `${ctx.gameName ?? 'O jogo'} precisa de permissão de administrador para abrir. O Windows vai pedir a sua confirmação.`,
     actions: ['Continuar', 'Voltar'],
   }),
+  ElevationDenied: (ctx) => ({
+    message: `O Windows não deu permissão para abrir ${name(ctx)}.`,
+    actions: ['Voltar'],
+  }),
+  InvalidRequest: () => ({ ...UNKNOWN }),
+  Internal: () => ({ ...UNKNOWN }),
   InvalidState: () => ({
     message: 'Isso não pode ser feito agora. Volte e tente de novo.',
     actions: ['Voltar'],
@@ -113,14 +131,17 @@ const CATALOG: Record<string, CopyFactory> = {
   }),
 };
 
-const UNKNOWN: ErrorCopy = { message: 'Algo deu errado no Sofá. Tente de novo.', actions: ['Voltar'] };
-
 /** `AccessDenied` ao forcar o fechamento tem texto proprio (jogo elevado). */
 export function forceCloseDenied(ctx: ErrorContext): ErrorCopy {
   return {
     message: `Não foi possível fechar ${name(ctx)}. O jogo roda como administrador. Feche pelo menu do próprio jogo.`,
     actions: ['Voltar'],
   };
+}
+
+/** Atalho: `ErrorDto` do contrato + contexto -> texto. `params.origin` entra sozinho no contexto. */
+export function errorCopyFor(error: ErrorDto, ctx: ErrorContext = {}): ErrorCopy {
+  return errorCopy(error.code, { origin: error.params?.origin, ...ctx });
 }
 
 export function errorCopy(code: string, ctx: ErrorContext = {}): ErrorCopy {

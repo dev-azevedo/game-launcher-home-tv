@@ -4,6 +4,8 @@ import { CursorAutoHide } from './CursorAutoHide';
 import { InputBridge } from './InputBridge';
 import { startSpatialNavigation } from './navigation/spatial';
 import { createKeyboardSource } from '@/shared/input/keyboard';
+import { mergeSources } from '@/shared/input/intents';
+import { createCoreIntentSource } from '@/shared/ipc';
 
 startSpatialNavigation();
 
@@ -11,8 +13,8 @@ startSpatialNavigation();
 const Gallery = import.meta.env.DEV ? lazy(() => import('../dev/Gallery')) : null;
 
 export function App() {
-  // Fonte do nucleo (`input://intent`) entra em shared/ipc quando o contrato sair (FE-02).
-  const source = useMemo(() => createKeyboardSource(window), []);
+  // Uma rota so: nucleo (`input://intent`) + teclado de emergencia (RN-07).
+  const source = useMemo(() => mergeSources(createCoreIntentSource(), createKeyboardSource(window)), []);
   const showGallery = Gallery !== null && window.location.hash === '#gallery';
   return (
     <>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { errorCopy, forceCloseDenied, KNOWN_ERROR_CODES } from './errors';
+import { CONTRACT_ERROR_CODES } from '@/shared/ipc/types';
+import { errorCopy, errorCopyFor, forceCloseDenied, KNOWN_ERROR_CODES } from './errors';
 import { truncateName } from './text';
 
 const GENERIC = 'Algo deu errado no Sofá. Tente de novo.';
@@ -41,6 +42,49 @@ describe('texto por codigo de erro', () => {
     const name = '<img src=x onerror=alert(1)>';
     expect(errorCopy('NeedsElevation', { gameName: name }).message).toContain(name);
     expect(forceCloseDenied({ gameName: 'Minério' }).message).toContain('Minério');
+  });
+});
+
+describe('cobertura do contrato (docs/api secao 5)', () => {
+  it('os 26 codigos do contrato tem texto proprio, sem cair em "Desconhecido" por omissao', () => {
+    expect(CONTRACT_ERROR_CODES).toHaveLength(26);
+    for (const code of CONTRACT_ERROR_CODES) expect(KNOWN_ERROR_CODES).toContain(code);
+  });
+
+  it('o catalogo nao tem codigo fora do contrato', () => {
+    for (const code of KNOWN_ERROR_CODES) expect(CONTRACT_ERROR_CODES as readonly string[]).toContain(code);
+  });
+
+  it('ElevationDenied (CA-73) usa o nome do jogo e so oferece Voltar', () => {
+    const copy = errorCopy('ElevationDenied', { gameName: 'Minério' });
+    expect(copy.message).toBe('O Windows não deu permissão para abrir Minério.');
+    expect(copy.actions).toEqual(['Voltar']);
+  });
+
+  it('InvalidRequest e Internal mostram o texto generico, sem detalhe tecnico', () => {
+    expect(errorCopy('InvalidRequest').message).toBe(GENERIC);
+    expect(errorCopy('Internal').message).toBe(GENERIC);
+  });
+
+  it('StoreNotInstalled traduz params.origin para o nome da loja (D4)', () => {
+    expect(errorCopyFor({ code: 'StoreNotInstalled', params: { origin: 'Epic' } }).message).toContain('a Epic neste PC');
+    expect(errorCopyFor({ code: 'StoreNotInstalled', params: { origin: 'Gog' } }).message).toContain('a GOG neste PC');
+    expect(errorCopy('StoreNotInstalled').message).toContain('a loja neste PC');
+  });
+
+  it('GameFileMissing mostra o nome do jogo, nunca um caminho (D3)', () => {
+    const copy = errorCopy('GameFileMissing', { gameName: 'Bruma' });
+    expect(copy.support).toBe('Bruma');
+    expect(copy.actions).toEqual(['Voltar', 'Ocultar']);
+  });
+
+  it('AccessDenied tem dois textos conforme o comando (D5)', () => {
+    const folder = errorCopy('AccessDenied', { command: 'fs_list_dir' });
+    const force = errorCopy('AccessDenied', { command: 'session_force_close', gameName: 'Minério' });
+    expect(folder.message).toBe('Sem permissão para abrir esta pasta.');
+    expect(force.message).toContain('O jogo roda como administrador');
+    expect(force.message).toContain('Minério');
+    expect(errorCopy('AccessDenied').message).toBe(folder.message);
   });
 });
 
