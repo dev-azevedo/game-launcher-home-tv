@@ -6,5 +6,6 @@
 
 pub mod input;
 pub mod library;
+pub mod session;
 pub mod settings;
 pub mod time;
