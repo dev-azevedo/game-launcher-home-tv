@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::application::AppError;
+use crate::domain::display::Monitor;
 use crate::domain::input::{InputMode, IntentEvent, PadSample};
 use crate::domain::library::{
     BrowseTarget, DetectedGame, DirListing, GameId, LaunchTarget, Origin, StoredLibrary,
@@ -16,6 +17,7 @@ use crate::domain::settings::{Settings, Step2Key};
 use crate::domain::time::Millis;
 use crate::domain::volume::VolumeState;
 
+use super::display_service::MonitorView;
 use super::power_service::PowerCapabilities;
 use super::volume_service::VolumeView;
 
@@ -381,6 +383,34 @@ pub trait PowerControl: Send + Sync {
 /// Numeros aleatorios criptograficos do sistema (CSPRNG) para o `PowerTicket` (CT-07).
 pub trait RandomSource: Send + Sync {
     fn fill(&self, buf: &mut [u8]) -> Result<(), AppError>;
+}
+
+// -------------------------------------------------------------- monitor e configuracoes (BE-34)
+
+/// Monitores ligados agora (Win32: `EnumDisplayMonitors` + `DisplayConfig`).
+pub trait DisplayTopology: Send + Sync {
+    /// Lista vazia so em estado transitorio (todos desligados) ou falha de enumeracao.
+    fn monitors(&self) -> Vec<Monitor>;
+}
+
+/// Coloca a janela do launcher em tela cheia sem borda no monitor dado (RN-20). Devolve `false`
+/// quando a janela esta oculta (jogo aberto): o movimento fica para quando ela voltar.
+pub trait LauncherPlacement: Send + Sync {
+    fn place(&self, monitor: &Monitor) -> bool;
+}
+
+/// Preferencias gravadas em `settings.json` (a secao `advanced` nunca passa por aqui, SEC-28).
+pub trait SettingsStore: Send + Sync {
+    fn monitor_id(&self) -> Option<String>;
+    fn set_monitor_id(&self, id: Option<String>) -> Result<(), AppError>;
+    /// `apply_install_default_once` ja rodou neste perfil (BE-36).
+    fn install_defaults_applied(&self) -> bool;
+    fn mark_install_defaults_applied(&self) -> Result<(), AppError>;
+}
+
+/// Saida da topologia para a UI (`display://changed`).
+pub trait DisplayEvents: Send + Sync {
+    fn changed(&self, monitors: &[MonitorView]);
 }
 
 // ------------------------------------------------------------------------ casos de uso

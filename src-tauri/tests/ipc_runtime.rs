@@ -351,3 +351,146 @@ fn energia_ticket_de_ponta_a_ponta_pela_ipc() {
         "InvalidRequest"
     );
 }
+
+/// BE-34 pela IPC com monitores falsos (nenhuma janela real se mexe): `display_monitors`,
+/// `settings_set_monitor` (UnknownMonitor, grava, move, `display://changed`) e a preferencia
+/// que continua gravada em `settings_get`.
+#[test]
+fn monitor_pela_ipc_com_topologia_falsa() {
+    use std::sync::{Arc, Mutex};
+
+    use launcher_core::application::ports::{
+        DisplayTopology, LauncherPlacement, Loaded, SettingsRepository, StoreError,
+    };
+    use launcher_core::application::DisplayService;
+    use launcher_core::domain::display::{Monitor, Rect};
+    use launcher_core::domain::settings::Settings;
+    use sofa_lib::events::TauriDisplayEvents;
+    use sofa_lib::settings_store::AppSettingsStore;
+    use sofa_lib::state::{AppState, UserData};
+    use tauri::Listener;
+
+    struct Topology;
+    impl DisplayTopology for Topology {
+        fn monitors(&self) -> Vec<Monitor> {
+            let rect = |x| Rect {
+                x,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            };
+            vec![
+                Monitor {
+                    id: "PC".into(),
+                    name: "Monitor do PC\u{202e}".into(), // controle bidi: o DTO normaliza
+                    primary: true,
+                    rect: rect(0),
+                },
+                Monitor {
+                    id: "TV".into(),
+                    name: "\u{7}".into(), // vazio depois de normalizar
+                    primary: false,
+                    rect: rect(1920),
+                },
+            ]
+        }
+    }
+    #[derive(Default)]
+    struct Placement(Mutex<Vec<String>>);
+    impl LauncherPlacement for Placement {
+        fn place(&self, m: &Monitor) -> bool {
+            self.0.lock().unwrap().push(m.id.clone());
+            true
+        }
+    }
+    #[derive(Default)]
+    struct MemRepo(Mutex<Option<Settings>>);
+    impl SettingsRepository for MemRepo {
+        fn load(&self) -> Loaded<Settings> {
+            Loaded {
+                value: Settings::default(),
+                recovery: None,
+                warnings: Vec::new(),
+            }
+        }
+        fn save(&self, s: &Settings) -> Result<(), StoreError> {
+            *self.0.lock().unwrap() = Some(s.clone());
+            Ok(())
+        }
+    }
+
+    let h = harness();
+    let handle = h._app.handle().clone();
+    let state = h._app.state::<AppState>();
+    let repo = Arc::new(MemRepo::default());
+    state
+        .user_data
+        .set(UserData {
+            data_dir: std::env::temp_dir(),
+            settings_repo: repo.clone(),
+        })
+        .ok()
+        .unwrap();
+    let placement = Arc::new(Placement::default());
+    let display = DisplayService::new(
+        Arc::new(Topology),
+        placement.clone(),
+        Arc::new(AppSettingsStore::new(handle.clone())),
+        Arc::new(TauriDisplayEvents::new(handle.clone())),
+    );
+    display.start();
+    state.display.set(Arc::new(display)).ok().unwrap();
+
+    let seen: Arc<Mutex<Vec<String>>> = Arc::default();
+    let sink = seen.clone();
+    h._app.listen("display://changed", move |e| {
+        sink.lock().unwrap().push(e.payload().to_owned());
+    });
+
+    assert_eq!(
+        h.call("display_monitors", json!({})).unwrap(),
+        json!([
+            { "id": "PC", "name": "Monitor do PC", "primary": true, "current": true },
+            { "id": "TV", "name": "Monitor 2", "primary": false, "current": false }
+        ])
+    );
+    assert_eq!(
+        h.code("settings_set_monitor", json!({ "monitorId": "FANTASMA" })),
+        "UnknownMonitor"
+    );
+    assert!(repo.0.lock().unwrap().is_none(), "nada gravado");
+
+    let dto = h
+        .call("settings_set_monitor", json!({ "monitorId": "TV" }))
+        .unwrap();
+    assert_eq!(dto["monitorId"], "TV");
+    assert_eq!(*placement.0.lock().unwrap(), vec!["TV"]);
+    assert_eq!(
+        repo.0
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .monitor_id
+            .as_deref(),
+        Some("TV")
+    );
+    assert_eq!(
+        h.call("settings_get", json!({})).unwrap()["monitorId"],
+        "TV"
+    );
+    // `display://changed` leva a lista inteira, com o monitor atual marcado.
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    let payloads = seen.lock().unwrap().clone();
+    assert_eq!(payloads.len(), 1, "{payloads:?}");
+    let list: Value = serde_json::from_str(&payloads[0]).unwrap();
+    assert_eq!(list[1]["current"], true);
+    assert_eq!(list[0]["current"], false);
+
+    // Voltar ao principal.
+    let dto = h
+        .call("settings_set_monitor", json!({ "monitorId": null }))
+        .unwrap();
+    assert_eq!(dto["monitorId"], json!(null));
+    assert_eq!(placement.0.lock().unwrap().last().unwrap(), "PC");
+}

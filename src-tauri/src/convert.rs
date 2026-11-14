@@ -1,14 +1,15 @@
 //! Conversoes do dominio para os DTOs da IPC (contrato secoes 1 e 3). Sem regra de negocio.
 
-use launcher_core::application::{SessionView, VolumeView};
+use launcher_core::application::{MonitorView, SessionView, VolumeView};
 use launcher_core::domain::input::InputIntent as CoreIntent;
+use launcher_core::domain::library::normalize_display_name;
 use launcher_core::domain::session::{
     FrontOutcome as CoreOutcome, LaunchFailure as CoreFailure, SessionState as CoreState,
 };
 
 use crate::dto::{
-    FrontOutcome, InputIntent, LaunchFailure, SessionDto, SessionPanelEvent, SessionState,
-    VolumeState,
+    FrontOutcome, InputIntent, LaunchFailure, MonitorDto, SessionDto, SessionPanelEvent,
+    SessionState, VolumeState,
 };
 
 impl From<CoreState> for SessionState {
@@ -80,6 +81,28 @@ impl From<VolumeView> for VolumeState {
             available: v.available,
         }
     }
+}
+
+/// Lista de monitores para a UI: nome do driver normalizado (SEC-07, CT-03); vazio depois de
+/// normalizar vira "Monitor N".
+pub fn monitor_dtos(views: &[MonitorView]) -> Vec<MonitorDto> {
+    views
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            let name = normalize_display_name(&v.monitor.name);
+            MonitorDto {
+                id: v.monitor.id.clone(),
+                name: if name.is_empty() {
+                    format!("Monitor {}", i + 1)
+                } else {
+                    name
+                },
+                primary: v.monitor.primary,
+                current: v.current,
+            }
+        })
+        .collect()
 }
 
 impl SessionPanelEvent {

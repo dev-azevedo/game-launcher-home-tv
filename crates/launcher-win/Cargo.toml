@@ -24,6 +24,7 @@ image.workspace = true
 windows-core = "0.58"
 windows = { workspace = true, features = [
   "implement",
+  "Win32_Devices_Display",
   "Win32_Foundation",
   "Win32_Graphics_Gdi",
   "Win32_Media",

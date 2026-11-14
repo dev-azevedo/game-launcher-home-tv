@@ -10,9 +10,11 @@
 //! O Tauri executa `with_webview` na thread da UI, em ordem; por isso as chamadas daqui nao
 //! bloqueiam quem chama (a escada roda em thread de trabalho e a thread da janela nunca espera).
 
-use launcher_core::application::ports::LauncherWindow;
-use tauri::{AppHandle, Manager, Runtime};
+use launcher_core::application::ports::{LauncherPlacement, LauncherWindow};
+use launcher_core::domain::display::Monitor;
+use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, Runtime};
 
+use crate::state::AppState;
 use crate::window::MAIN_LABEL;
 
 pub struct TauriLauncherWindow<R: Runtime> {
@@ -107,5 +109,50 @@ impl<R: Runtime> LauncherWindow for TauriLauncherWindow<R> {
         if let Err(error) = window.show() {
             tracing::warn!(%error, "nao conseguiu mostrar a janela");
         }
+        // Monitor que mudou enquanto o jogo estava aberto (BE-34): cumpre agora.
+        if let Some(display) = self.app.state::<AppState>().display.get() {
+            display.on_launcher_shown();
+        }
+    }
+}
+
+/// Tela cheia sem borda no monitor dado (RN-20, CA-66). A janela e tirada da tela cheia, levada
+/// ao centro do monitor de destino com metade do tamanho (assim o Windows a atribui a ele sem
+/// duvida) e posta em tela cheia de novo. Janela oculta (jogo aberto): nao mexe e avisa.
+pub struct TauriLauncherPlacement<R: Runtime> {
+    app: AppHandle<R>,
+}
+
+impl<R: Runtime> TauriLauncherPlacement<R> {
+    pub fn new(app: AppHandle<R>) -> Self {
+        Self { app }
+    }
+}
+
+impl<R: Runtime> LauncherPlacement for TauriLauncherPlacement<R> {
+    fn place(&self, monitor: &Monitor) -> bool {
+        let Some(window) = self.app.get_webview_window(MAIN_LABEL) else {
+            return false;
+        };
+        if !window.is_visible().unwrap_or(false) {
+            return false;
+        }
+        let r = monitor.rect;
+        let (w, h) = (r.width / 2, r.height / 2);
+        let steps = [
+            window.set_fullscreen(false),
+            window.set_size(PhysicalSize::new(w.max(200), h.max(200))),
+            window.set_position(PhysicalPosition::new(
+                r.x + i32::try_from(r.width / 4).unwrap_or(0),
+                r.y + i32::try_from(r.height / 4).unwrap_or(0),
+            )),
+            window.set_fullscreen(true),
+        ];
+        for step in steps {
+            if let Err(error) = step {
+                tracing::warn!(%error, "nao conseguiu mover o launcher para o monitor");
+            }
+        }
+        true
     }
 }

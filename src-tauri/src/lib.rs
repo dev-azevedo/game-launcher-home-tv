@@ -13,6 +13,7 @@ pub mod launcher_window;
 pub mod library_view;
 pub mod marks;
 pub mod runtime;
+pub mod settings_store;
 pub mod state;
 pub mod webview_hardening;
 pub mod window;
@@ -80,6 +81,7 @@ pub fn run() {
             bootstrap::init_user_data(app)?;
             bootstrap::init_volume(app.handle());
             bootstrap::init_power(app.handle());
+            bootstrap::init_display(app.handle());
             if let Err(error) = bootstrap::init_library(app.handle()) {
                 // Sem biblioteca o launcher ainda abre: leituras neutras, acoes `Internal`.
                 tracing::error!(%error, "biblioteca nao iniciou");
@@ -100,6 +102,10 @@ pub fn run() {
                 tracing::error!("Sofa em execucao elevada (TokenElevation); nao e esperado");
             }
             window::create_main_window(app)?;
+            // Depois da janela existir: leva o launcher ao monitor da RN-20 (CA-66, CA-67).
+            if let Some(display) = app.state::<state::AppState>().display.get() {
+                display.start();
+            }
             if let Err(error) = runtime::start(app.handle()) {
                 // Sem sessao/entrada o launcher ainda abre (biblioteca e menu); os comandos
                 // dependentes respondem `Internal`.

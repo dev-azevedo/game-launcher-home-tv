@@ -7,7 +7,9 @@ use launcher_core::application::ports::{
     Clock, CoverCache, FolderBrowser, LibraryEvents, LibraryRepository, ManualExeInspector,
     ScanCache, SettingsRepository, StoreScanner, VolumeEvents,
 };
-use launcher_core::application::{LibraryDeps, LibraryService, PowerService, VolumeService};
+use launcher_core::application::{
+    DisplayService, LibraryDeps, LibraryService, PowerService, VolumeService,
+};
 use launcher_core::domain::settings::{LogLevel, Step2Key};
 use launcher_win::cover_cache::WinCoverCache;
 use launcher_win::folder_browser::WinFolderBrowser;
@@ -19,7 +21,9 @@ use launcher_win::stores::{EpicScanner, GogScanner, SteamScanner, StoreEnv, WinR
 use launcher_win::system_clock::SystemClock;
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::events::{TauriLibraryEvents, TauriVolumeEvents};
+use crate::events::{TauriDisplayEvents, TauriLibraryEvents, TauriVolumeEvents};
+use crate::launcher_window::TauriLauncherPlacement;
+use crate::settings_store::AppSettingsStore;
 use crate::state::{AppState, UserData};
 
 /// Resolve `%LOCALAPPDATA%\app.sofa.launcher`, liga o log em `logs\`, carrega `settings.json`
@@ -141,4 +145,17 @@ pub fn init_power<R: Runtime>(app: &AppHandle<R>) {
         clock,
     );
     let _ = state.power.set(Arc::new(service));
+}
+
+/// Liga o monitor do launcher (BE-34): enumeracao Win32, tela cheia no monitor da RN-20 e
+/// `display://changed`. A janela ainda nao existe aqui; `display.start()` roda depois dela.
+pub fn init_display<R: Runtime>(app: &AppHandle<R>) {
+    let state = app.state::<AppState>();
+    let service = DisplayService::new(
+        Arc::new(launcher_win::display::WinDisplayTopology),
+        Arc::new(TauriLauncherPlacement::new(app.clone())),
+        Arc::new(AppSettingsStore::new(app.clone())),
+        Arc::new(TauriDisplayEvents::new(app.clone())),
+    );
+    let _ = state.display.set(Arc::new(service));
 }

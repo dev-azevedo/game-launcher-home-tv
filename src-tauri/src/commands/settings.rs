@@ -5,9 +5,28 @@ use tauri::State;
 
 use launcher_core::application::AppError;
 
+use crate::convert::monitor_dtos;
 use crate::dto::*;
-use crate::ipc::{args, guard, no_args, not_wired};
+use crate::ipc::{args, blocking, guard, no_args, not_wired};
 use crate::state::AppState;
+
+/// `SettingsDto` de agora: monitor e pasta de logs vem das configuracoes; o autostart vem do
+/// Windows (ADR-0006, BE-36).
+fn settings_dto(state: &AppState) -> Result<SettingsDto, AppError> {
+    let settings = state.settings.lock().map_err(|_| AppError::Internal)?;
+    let log_dir = state
+        .user_data
+        .get()
+        .map(|u| u.data_dir.join("logs").display().to_string())
+        .unwrap_or_default();
+    Ok(SettingsDto {
+        // O estado real do autostart vem do Windows (ADR-0006) e entra com o BE-36.
+        autostart: false,
+        autostart_mechanism: AutostartMechanism::None,
+        monitor_id: settings.monitor_id.clone(),
+        log_dir,
+    })
+}
 
 #[tauri::command]
 pub async fn settings_get(
@@ -16,19 +35,7 @@ pub async fn settings_get(
 ) -> Result<SettingsDto, ErrorDto> {
     guard("settings_get", || {
         no_args(&request)?;
-        let settings = state.settings.lock().map_err(|_| AppError::Internal)?;
-        let log_dir = state
-            .user_data
-            .get()
-            .map(|u| u.data_dir.join("logs").display().to_string())
-            .unwrap_or_default();
-        Ok(SettingsDto {
-            // O estado real do autostart vem do Windows (ADR-0006) e entra com o BE-36.
-            autostart: false,
-            autostart_mechanism: AutostartMechanism::None,
-            monitor_id: settings.monitor_id.clone(),
-            log_dir,
-        })
+        settings_dto(&state)
     })
 }
 
@@ -40,20 +47,35 @@ pub async fn settings_set_autostart(request: Request<'_>) -> Result<SettingsDto,
     })
 }
 
+/// `settings_set_monitor` (#27): o id deve estar em `display_monitors` (`UnknownMonitor`); nulo
+/// volta ao principal. Grava a preferencia e move o launcher na hora (CA-66).
 #[tauri::command]
-pub async fn settings_set_monitor(request: Request<'_>) -> Result<SettingsDto, ErrorDto> {
-    guard("settings_set_monitor", || {
-        let _a: SetMonitorArgs = args(&request)?;
-        Err(not_wired("settings_set_monitor"))
+pub async fn settings_set_monitor(
+    request: Request<'_>,
+    state: State<'_, AppState>,
+) -> Result<SettingsDto, ErrorDto> {
+    let a: SetMonitorArgs = guard("settings_set_monitor", || args(&request))?;
+    let display = state.display.get().cloned();
+    blocking("settings_set_monitor", move || {
+        display
+            .ok_or_else(|| not_wired("settings_set_monitor"))?
+            .set_monitor(a.monitor_id.0)
     })
+    .await?;
+    guard("settings_set_monitor", || settings_dto(&state))
 }
 
 #[tauri::command]
-pub async fn display_monitors(request: Request<'_>) -> Result<Vec<MonitorDto>, ErrorDto> {
-    guard("display_monitors", || {
-        no_args(&request)?;
-        Ok(Vec::new()) // DisplayTopology entra com BE-34
+pub async fn display_monitors(
+    request: Request<'_>,
+    state: State<'_, AppState>,
+) -> Result<Vec<MonitorDto>, ErrorDto> {
+    guard("display_monitors", || no_args(&request))?;
+    let display = state.display.get().cloned();
+    blocking("display_monitors", move || {
+        Ok(display.map_or_else(Vec::new, |d| monitor_dtos(&d.monitors())))
     })
+    .await
 }
 
 #[tauri::command]
