@@ -40,7 +40,7 @@ export default function Gallery() {
                 }}
               >
                 <CoverImage src={i === 0 ? 'cover://nao-existe' : null} name={name} />
-                <OriginBadge origin={i === 1 ? 'epic' : 'steam'} />
+                <OriginBadge origin={i === 1 ? 'Epic' : 'Steam'} />
                 {i === 0 ? <InProgressBadge /> : null}
               </div>
             ))}

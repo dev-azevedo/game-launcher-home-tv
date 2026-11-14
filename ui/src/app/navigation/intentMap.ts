@@ -58,6 +58,8 @@ const TABLES: Record<ScreenKind, Table> = {
   sessionPanel: { ...base, Menu: { type: 'open', screen: 'quickMenu' } },
   // RN-31: telas de espera so aceitam A (no botao) e B.
   waiting: { Confirm: base.Confirm, Back: base.Back },
+  // Camada de sessao (Abrindo, erros, administrador): mesmo conjunto de dialogo.
+  launchFlow: { ...base },
   settings: { ...base },
   folderBrowser: { ...base },
 };

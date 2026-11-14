@@ -133,8 +133,8 @@ describe('selos, aviso e menu', () => {
   it('origem e andamento', () => {
     render(
       <>
-        <OriginBadge origin="gog" />
-        <OriginBadge origin="manual" />
+        <OriginBadge origin="Gog" />
+        <OriginBadge origin="Manual" />
         <InProgressBadge />
       </>,
     );

@@ -8,11 +8,19 @@ export const SCREEN_KINDS = [
   'confirmDialog',
   'sessionPanel',
   'waiting',
+  'launchFlow',
   'settings',
   'folderBrowser',
 ] as const;
 
 export type ScreenKind = (typeof SCREEN_KINDS)[number];
+
+/** Dados que a camada precisa para abrir (so IDs e enums, nunca caminho: SEC-03). */
+export interface ScreenParams {
+  gameId?: string;
+  /** Qual confirmacao o `confirmDialog` mostra. */
+  confirm?: 'hide';
+}
 
 export interface ScreenEntry {
   /** Chave unica da instancia (a mesma tela pode abrir de novo). */
@@ -20,4 +28,5 @@ export interface ScreenEntry {
   kind: ScreenKind;
   /** Chave de foco de quem abriu, para devolver o foco ao fechar a camada. */
   returnFocusKey?: string;
+  params?: ScreenParams;
 }

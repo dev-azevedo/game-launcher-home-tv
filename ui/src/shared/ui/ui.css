@@ -97,3 +97,11 @@ html.reduced .focusable{transition:none}
   .spinner{animation-duration:2.4s}
   .boot-bar i{animation:none;width:62%}
 }
+
+/* toast */
+.toast-slot{position:absolute;left:50%;bottom:calc(var(--safe-y) + calc(56*var(--u)) + var(--space-2));transform:translateX(-50%);z-index:30;pointer-events:none}
+.toast{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-4);background:var(--brand-surface-raised);border-radius:var(--radius-pill);box-shadow:var(--shadow-dialog);font:600 var(--text-body)/1.2 var(--font-text);max-width:calc(1300*var(--u));animation:rise 200ms var(--ease-out)}
+.toast .ic{color:var(--brand-success)}
+@keyframes rise{from{opacity:0;transform:translateY(calc(16*var(--u)))}}
+@media (prefers-reduced-motion:reduce){.toast{animation:none}}
+html.reduced .toast{animation:none}

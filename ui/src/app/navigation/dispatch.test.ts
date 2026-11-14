@@ -6,6 +6,7 @@ function setup(kind: ScreenKind, over: Partial<DispatchDeps> = {}) {
   const deps: DispatchDeps = {
     top: () => ({ key: `${kind}#1`, kind }),
     push: vi.fn(),
+    focusedGameId: () => 'steam:620',
     pop: vi.fn(() => true),
     moveFocus: vi.fn(),
     activate: vi.fn(() => true),
@@ -61,7 +62,13 @@ describe('dispatchIntent', () => {
     dispatchIntent({ intent: 'Menu', repeat: false }, deps);
     dispatchIntent({ intent: 'View', repeat: false }, deps);
     expect(deps.push).toHaveBeenNthCalledWith(1, 'quickMenu');
-    expect(deps.push).toHaveBeenNthCalledWith(2, 'gameOptions');
+    expect(deps.push).toHaveBeenNthCalledWith(2, 'gameOptions', { gameId: 'steam:620' });
+  });
+
+  it('View sem jogo em foco (ex.: card "Todos os jogos") nao abre opcoes', () => {
+    const deps = setup('home', { focusedGameId: () => null });
+    expect(dispatchIntent({ intent: 'View', repeat: false }, deps)).toBeNull();
+    expect(deps.push).not.toHaveBeenCalled();
   });
 
   it('volume e pagina vao para a tela; ignorados em dialogos (CA-65)', () => {

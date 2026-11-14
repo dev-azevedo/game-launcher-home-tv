@@ -13,13 +13,14 @@ interface ConfirmDialogProps {
   warning?: string;
   icon?: IconName;
   tone?: DialogTone;
-  confirmLabel: string;
+  /** Ausente = dialogo de aviso com um botao so (o de cancelar, Voltar). */
+  confirmLabel?: string;
   cancelLabel?: string;
   /** Obrigatorio: quem monta o dialogo decide o foco inicial (RN-14: destrutivos usam "cancel"). */
   defaultFocus: 'cancel' | 'confirm';
   /** Acao do botao de confirmar e visual destrutivo. */
   destructive?: boolean;
-  onConfirm: () => void;
+  onConfirm?: () => void;
   onCancel: () => void;
   active?: boolean;
 }
@@ -44,7 +45,7 @@ export function ConfirmDialog({
   return (
     <FocusLayer
       focusKey="confirm-dialog"
-      defaultFocus={defaultFocus === 'cancel' ? 'dlg-cancel' : 'dlg-confirm'}
+      defaultFocus={defaultFocus === 'cancel' || !confirmLabel ? 'dlg-cancel' : 'dlg-confirm'}
       active={active}
     >
       <div className="center">
@@ -63,14 +64,16 @@ export function ConfirmDialog({
               <Focusable as="button" focusKey="dlg-cancel" className="btn" onActivate={onCancel}>
                 {cancelLabel}
               </Focusable>
-              <Focusable
-                as="button"
-                focusKey="dlg-confirm"
-                className={`btn ${destructive ? 'danger' : 'primary'}`}
-                onActivate={onConfirm}
-              >
-                {confirmLabel}
-              </Focusable>
+              {confirmLabel ? (
+                <Focusable
+                  as="button"
+                  focusKey="dlg-confirm"
+                  className={`btn ${destructive ? 'danger' : 'primary'}`}
+                  onActivate={onConfirm}
+                >
+                  {confirmLabel}
+                </Focusable>
+              ) : null}
             </div>
           </div>
         </div>

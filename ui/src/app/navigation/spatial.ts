@@ -1,4 +1,4 @@
-import { init, setKeyMap, navigateByDirection } from '@noriginmedia/norigin-spatial-navigation';
+import { destroy, init, setKeyMap, navigateByDirection } from '@noriginmedia/norigin-spatial-navigation';
 import type { Direction } from '@/shared/input/intents';
 
 let started = false;
@@ -16,4 +16,11 @@ export function startSpatialNavigation(): void {
 
 export function moveFocus(direction: Direction): void {
   void navigateByDirection(direction);
+}
+
+/** Reinicia a arvore de foco (testes: o estado do norigin e global entre casos). */
+export function resetSpatialNavigation(): void {
+  destroy();
+  started = false;
+  startSpatialNavigation();
 }

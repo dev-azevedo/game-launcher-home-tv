@@ -1,10 +1,10 @@
-export type Origin = 'steam' | 'epic' | 'gog' | 'manual';
+import type { Origin } from '@/shared/ipc/types';
 
 const ORIGIN_LABEL: Record<Origin, string> = {
-  steam: 'Steam',
-  epic: 'Epic',
-  gog: 'GOG',
-  manual: 'Manual',
+  Steam: 'Steam',
+  Epic: 'Epic',
+  Gog: 'GOG',
+  Manual: 'Manual',
 };
 
 export function originLabel(origin: Origin): string {

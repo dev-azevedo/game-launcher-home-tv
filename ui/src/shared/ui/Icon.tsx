@@ -2,6 +2,32 @@ import type { ReactNode } from 'react';
 
 /** Icones do mockup (trace de 24x24). SVG estatico em JSX: nenhum HTML montado por string (SEC-07). */
 const PATHS = {
+  plus: <path d="M12 5v14M5 12h14" />,
+  view: (
+    <>
+      <rect x="4" y="7" width="11" height="11" rx="1.5" />
+      <path d="M9 7V5.5A1.5 1.5 0 0110.5 4H18a2 2 0 012 2v7.5a1.5 1.5 0 01-1.5 1.5H17" />
+    </>
+  ),
+  menu: <path d="M5 8h14M5 12h14M5 16h14" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  vol: (
+    <>
+      <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z" fill="currentColor" stroke="none" />
+      <path d="M15.5 9a4.2 4.2 0 010 6M18 6.5a8 8 0 010 11" />
+    </>
+  ),
+  mute: (
+    <>
+      <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4z" fill="currentColor" stroke="none" />
+      <path d="M16 9.5l5 5M21 9.5l-5 5" />
+    </>
+  ),
   play: <path d="M8 5.5v13l11-6.5z" fill="currentColor" />,
   gamepad: (
     <>
