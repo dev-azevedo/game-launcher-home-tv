@@ -39,7 +39,7 @@ export default function Gallery() {
                   background: 'var(--brand-surface)',
                 }}
               >
-                <CoverImage src={i === 0 ? 'cover://nao-existe' : null} name={name} />
+                <CoverImage gameId={i === 0 ? 'nao-existe' : null} name={name} />
                 <OriginBadge origin={i === 1 ? 'Epic' : 'Steam'} />
                 {i === 0 ? <InProgressBadge /> : null}
               </div>

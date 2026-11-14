@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { COMMAND_NAMES, createCoreIntentSource, events, EVENT_NAMES, ipc, IpcError, toErrorDto } from '.';
+import { clearMocks, mockConvertFileSrc } from '@tauri-apps/api/mocks';
+import { COMMAND_NAMES, coverUrl, createCoreIntentSource, events, EVENT_NAMES, ipc, IpcError, toErrorDto } from '.';
 import { emitCoreEvent, mockCore, rejectWith, resetCore } from './testing';
 
 afterEach(() => resetCore());
@@ -138,5 +139,20 @@ describe('eventos', () => {
     expect(spy.display).toHaveBeenCalledWith([]);
     expect(spy.resumed).toHaveBeenCalledTimes(1);
     offs.forEach((off) => off());
+  });
+});
+
+describe('coverUrl', () => {
+  afterEach(() => clearMocks());
+
+  it('no Tauri (Windows) monta http://cover.localhost com o GameId codificado', () => {
+    mockConvertFileSrc('windows');
+    expect(coverUrl('steam:620')).toBe('http://cover.localhost/steam%3A620');
+    expect(coverUrl('epic:Fortnite/x y')).toBe('http://cover.localhost/epic%3AFortnite%2Fx%20y');
+    expect(coverUrl('manual:00ab12ef')).toBe('http://cover.localhost/manual%3A00ab12ef');
+  });
+
+  it('fora do Tauri cai em cover://<id> codificado', () => {
+    expect(coverUrl('steam:620')).toBe('cover://steam%3A620');
   });
 });

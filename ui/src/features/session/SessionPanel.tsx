@@ -77,7 +77,7 @@ export function SessionPanel({ active, entry }: { active: boolean; entry: Screen
         <div className="menu options" role="dialog" aria-label="Jogo em andamento">
           <div className="panel-hero">
             <div className="thumb">
-              <CoverImage src={game?.cover} name={name} />
+              <CoverImage gameId={game?.cover ? game.id : null} name={name} />
             </div>
             <div className="ph1">
               <div className="lab">Em andamento</div>

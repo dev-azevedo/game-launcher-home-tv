@@ -29,7 +29,7 @@ export const GameCard = memo(function GameCard({ game, focusKey, onPlay, onFocus
         onActivate={() => onPlay(game)}
         onFocus={() => onFocusGame(game, focusKey)}
       >
-        <CoverImage src={game.cover} name={game.name} />
+        <CoverImage gameId={game.cover ? game.id : null} name={game.name} />
         <div className="scrim" />
         <OriginBadge origin={game.origin} />
         {game.inProgress ? <InProgressBadge /> : null}

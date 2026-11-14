@@ -3,3 +3,4 @@ export { ipc, type Ipc } from './commands';
 export { events, createCoreIntentSource } from './events';
 export { IpcError, errorOf, toErrorDto } from './errors';
 export * from './types';
+export { coverUrlRaw as coverUrl } from './transport';

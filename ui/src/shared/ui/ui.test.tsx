@@ -105,7 +105,7 @@ describe('WaitScreen (RN-31, CA-77, CA-78)', () => {
 
 describe('CoverImage (CA-24, SEC-08)', () => {
   it('usa carga preguicosa, decodificacao assincrona e dimensoes fixas', () => {
-    const { container } = render(<CoverImage src="cover://steam:1" name="Minério" />);
+    const { container } = render(<CoverImage gameId="steam:1" name="Minério" />);
     const img = container.querySelector('img')!;
     expect(img).toHaveAttribute('loading', 'lazy');
     expect(img).toHaveAttribute('decoding', 'async');
@@ -115,7 +115,7 @@ describe('CoverImage (CA-24, SEC-08)', () => {
   });
 
   it('capa com 404 vira placeholder com o nome', () => {
-    const { container } = render(<CoverImage src="cover://steam:404" name="Minério" />);
+    const { container } = render(<CoverImage gameId="steam:404" name="Minério" />);
     fireEvent.error(container.querySelector('img')!);
     expect(container.querySelector('img')).toBeNull();
     expect(screen.getByTestId('cover-placeholder')).toHaveTextContent('Minério');

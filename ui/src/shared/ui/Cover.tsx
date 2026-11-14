@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { coverUrl } from '@/shared/ipc';
 
 /** Capa sem imagem (CA-24): gradiente da marca com o nome em Sora 700. Nome sempre como texto (SEC-07). */
 export function CoverPlaceholder({ name }: { name: string }) {
@@ -12,8 +13,8 @@ export function CoverPlaceholder({ name }: { name: string }) {
 }
 
 interface CoverImageProps {
-  /** `cover://<gameId>` (SEC-08). Ausente = placeholder. */
-  src?: string | null;
+  /** GameId do jogo (a URL sai de `coverUrl`, SEC-08). Ausente = placeholder. */
+  gameId?: string | null;
   name: string;
 }
 
@@ -21,7 +22,8 @@ interface CoverImageProps {
  * Capa 2:3 com dimensoes fixas (sem layout shift), carga preguicosa e decodificacao assincrona.
  * Falha de carga (404, decodificacao) cai no placeholder (SEC-08, CA-24).
  */
-export function CoverImage({ src, name }: CoverImageProps) {
+export function CoverImage({ gameId, name }: CoverImageProps) {
+  const src = gameId ? coverUrl(gameId) : null;
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   if (!src || failedSrc === src) return <CoverPlaceholder name={name} />;
   return (
