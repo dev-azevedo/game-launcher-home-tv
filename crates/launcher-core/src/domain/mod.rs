@@ -4,6 +4,7 @@
 //! (BE-11), `session` (BE-15), `input` (BE-13), `volume` (BE-31), `display` (BE-34), `power`
 //! (BE-33).
 
+pub mod input;
 pub mod library;
 pub mod settings;
 pub mod time;
