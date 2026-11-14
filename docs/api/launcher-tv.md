@@ -285,3 +285,17 @@ Nenhum código de `errors.ts` ficou sem correspondente no contrato.
 - Teste compara `generate_handler!` e `capabilities/main.json` com a tabela da seção 2 (30 nomes) e confirma que `purge` não aparece.
 - Cada comando é chamado com campo extra, tipo errado e `GameId` malformado e deve devolver `InvalidRequest`.
 - Bindings TypeScript são gerados por `tauri-specta` (fallback `ts-rs`) em `ui/src/shared/ipc/generated/` (combinado com o dev-frontend), sem edição manual.
+
+## 8. Notas de implementação (BE-14, BE-16 a BE-21; rev. 3, sem mudança de comandos, eventos, DTOs nem códigos)
+
+O contrato das seções 1 a 7 vale como está. Esta seção só registra como o núcleo cumpre os pontos que a UI e o QA observam.
+
+- **Sessão (#10 a #18)**: `session_launch`, `session_launch_with_uac`, `session_replace`, `session_retry` e `session_return_to_game` rodam em thread de bloqueio (o UAC e a verificação de primeiro plano podem demorar) e a `SerialGate` é tomada antes de qualquer coisa (`Busy` tem prioridade sobre `Internal`). Sem o serviço de sessão ligado (falha no `setup`), as ações respondem `Internal`, `session_get` devolve `Idle` e `session_dismiss` não faz nada.
+- **`session://state`**: emitido a cada mudança do `SessionDto` (inclusive `dismissed`, `elevated`, `minimized`, `launchFailure`); o `Idle` inicial não é evento. `since` é o instante de entrada no estado em ms desde a época Unix.
+- **`session://panel`**: emitido **depois** de a escada de primeiro plano terminar (não antes), com o `outcome` real; só existe com sessão em `Running`, `Ending`, `Closing` ou `CloseOverdue`. Uma combinação enquanto outra escada roda é ignorada. A janela e o WebView2 já foram retomados antes da escada e a entrada volta ao modo `Foreground` logo depois dela.
+- **`library://changed` no fim de sessão (CA-30)**: leva o último `LibrarySnapshot` conhecido com `focusGameId` do jogo que fechou. Até o BE-29 entrar, a lista de jogos desse evento é a do cache do núcleo (vazia fora do desenvolvimento); a UI deve manter o foco por `focusGameId`.
+- **`session_replace`**: valida o novo jogo antes de pedir o fechamento. O jogo novo abre em thread própria quando a sessão chega a `Idle`; sem escada de primeiro plano nesse caso (o Sofá já está na frente, é a UI que pediu a troca).
+- **`session_launch_with_uac` (AF-01)**: além de `NeedsElevation` e do mesmo `gameId`, o núcleo guarda a identidade do `.exe` (caminho, tamanho e data) no momento do erro 740 e recusa (`InvalidState`) se mudou até o pedido de UAC.
+- **`session_return_to_game`**: devolve o foco ao jogo, confere que ele ficou em primeiro plano (`ForegroundDenied` se não) e só então esconde o Sofá e suspende o WebView2.
+- **`input://intent`**: nunca emitido com o jogo na frente (modo `Background`). `input://controllers` é emitido uma vez na partida (estado inicial) e a cada mudança de quantidade.
+- **`system://resumed`**: payload `{}`. `display://changed` (BE-34) ainda não é emitido: a mudança de topologia só vai para o log.
