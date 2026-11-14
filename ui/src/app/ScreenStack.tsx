@@ -4,6 +4,7 @@ import { GameOptions } from '@/features/library/GameOptions';
 import { HideConfirmDialog } from '@/features/library/HideConfirmDialog';
 import { HomeScreen } from '@/features/library/HomeScreen';
 import { useLibrary } from '@/features/library/store';
+import { LaunchFlow, useLaunchFlowEntry } from '@/features/session/LaunchFlow';
 import { Toast } from '@/shared/ui/Toast';
 import { useNavigation } from './navigation/store';
 
@@ -15,6 +16,7 @@ const RenameDialog = lazy(() => import('@/features/library/RenameDialog'));
  */
 export function ScreenStack({ headerExtras }: { headerExtras?: React.ReactNode }) {
   const stack = useNavigation((s) => s.stack);
+  useLaunchFlowEntry();
   const notice = useLibrary((s) => s.notice);
   const clearNotice = useLibrary((s) => s.clearNotice);
   return (
@@ -39,6 +41,8 @@ export function ScreenStack({ headerExtras }: { headerExtras?: React.ReactNode }
                 <RenameDialog active={active} entry={entry} parentKey={parentKey} />
               </Suspense>
             );
+          case 'launchFlow':
+            return <LaunchFlow key={entry.key} active={active} />;
           default:
             return null;
         }
