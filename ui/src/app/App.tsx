@@ -5,6 +5,8 @@ import { InputBridge } from './InputBridge';
 import { ScreenStack } from './ScreenStack';
 import { startSpatialNavigation } from './navigation/spatial';
 import { startLibrary, useLibrary } from '@/features/library/store';
+import { ControllerBanner, ControllerChip } from '@/features/input/ControllerStatus';
+import { startControllers } from '@/features/input/store';
 import { startSession } from '@/features/session/store';
 import { createKeyboardSource } from '@/shared/input/keyboard';
 import { mergeSources } from '@/shared/input/intents';
@@ -30,7 +32,7 @@ export function App() {
       if (import.meta.env.DEV && needsDevCore()) await (await import('../dev/devCore')).installDevCore();
       if (cancelled) return;
       setCoreReady(true);
-      stops = [startLibrary(), startSession()];
+      stops = [startLibrary(), startSession(), startControllers()];
     })();
     return () => {
       cancelled = true;
@@ -49,7 +51,8 @@ export function App() {
         </Suspense>
       ) : (
         <>
-          <ScreenStack />
+          <ScreenStack headerExtras={<ControllerChip />} />
+          <ControllerBanner />
           {libraryStatus === 'loading' ? <BootSplash /> : null}
         </>
       )}
