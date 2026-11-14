@@ -3,6 +3,7 @@ import { BootSplash } from './BootSplash';
 import { CursorAutoHide } from './CursorAutoHide';
 import { InputBridge } from './InputBridge';
 import { ScreenStack } from './ScreenStack';
+import { startBackgroundGuard, startSystemResume } from './system';
 import { startSpatialNavigation } from './navigation/spatial';
 import { startLibrary, useLibrary } from '@/features/library/store';
 import { ControllerBanner, ControllerChip } from '@/features/input/ControllerStatus';
@@ -34,7 +35,7 @@ export function App() {
       if (import.meta.env.DEV && needsDevCore()) await (await import('../dev/devCore')).installDevCore();
       if (cancelled) return;
       setCoreReady(true);
-      stops = [startLibrary(), startSession(), startControllers(), startVolume()];
+      stops = [startLibrary(), startSession(), startControllers(), startVolume(), startSystemResume(), startBackgroundGuard()];
     })();
     return () => {
       cancelled = true;

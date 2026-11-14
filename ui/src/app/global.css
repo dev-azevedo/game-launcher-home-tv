@@ -9,3 +9,7 @@ button{font:inherit;color:inherit;background:none;border:0}
 .safe{position:absolute;inset:var(--safe-y) var(--safe-x);display:flex;flex-direction:column;min-height:0}
 /* RN-32: unica excecao, card de capa cortado na borda da fileira. */
 .safe-bleed{margin-inline:calc(-1*var(--safe-x))}
+/* Segundo plano (RN-21, FE-14): janela oculta ou minimizada nao anima nada (spinner, pulso, holofote). */
+html[data-window-hidden="true"] *,
+html[data-window-hidden="true"] *::before,
+html[data-window-hidden="true"] *::after{animation-play-state:paused!important}
