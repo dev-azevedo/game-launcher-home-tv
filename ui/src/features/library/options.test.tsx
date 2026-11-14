@@ -60,7 +60,8 @@ describe('opcoes do jogo (CA-79, RN-33)', () => {
     press(activateFocused);
     await waitFor(() => expect(core.count('session_launch')).toBe(1));
     expect(core.calls[0]!.args).toEqual({ gameId: 'steam:1' });
-    expect(selectTop(useNavigation.getState()).kind).toBe('home');
+    // A lista fecha; o que fica por cima e a espera "Abrindo…" (FE-08), nao a lista.
+    expect(useNavigation.getState().stack.some((e) => e.kind === 'gameOptions')).toBe(false);
   });
 
   it('jogo em andamento: primeiro item e "Voltar ao jogo"', async () => {
