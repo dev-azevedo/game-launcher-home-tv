@@ -1,7 +1,9 @@
 //! BE-36 no Agendador de Tarefas e no registro de verdade (`--features win-integration`), como
-//! usuario comum, sem UAC. Tudo usa nomes **proprios de teste** (`Sofa QA Autostart (<SID>)` e o
-//! valor `SofaQaTest` em `HKCU\...\Run`), nunca a tarefa nem o valor reais do Sofa, e cada teste
-//! apaga o que criou (guarda no `Drop`), conferindo no fim que nada sobrou.
+//! usuario comum, sem UAC. Tudo usa nomes **proprios de teste e unicos por teste** (tarefa
+//! `Sofa QA Autostart <pid>x<n> (<SID>)` e valor `SofaQaTest<pid>x<n>` em `HKCU\...\Run`), nunca a
+//! tarefa nem o valor reais do Sofa, e cada teste apaga o que criou (guarda no `Drop`),
+//! conferindo no fim que nada sobrou. Como os nomes nao se repetem, os testes rodam em paralelo
+//! (QA-BUG-03).
 //!
 //! A recusa fora de `Program Files` (DR-04) usa `current_exe` falso; ligar com o binario real de
 //! teste (em `target\debug`) tem que recusar.
@@ -9,6 +11,7 @@
 
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use launcher_core::application::ports::{
@@ -83,12 +86,23 @@ impl TaskScheduler for RegisterDenied {
 struct Cleanup {
     sched: WinTaskScheduler,
     run: WinRunEntry,
+    /// Nome do valor em `Run` e em `StartupApproved`, unico deste teste.
+    run_name: String,
 }
 impl Cleanup {
     fn new() -> Self {
+        static N: AtomicU32 = AtomicU32::new(0);
+        let tag = format!(
+            "{}x{}",
+            std::process::id(),
+            N.fetch_add(1, Ordering::SeqCst)
+        );
+        let run_name = format!("{QA_RUN}{tag}");
         let c = Self {
-            sched: WinTaskScheduler::with_test_prefix(QA_TASK).expect("SID do usuario"),
-            run: WinRunEntry::with_value_name(QA_RUN),
+            sched: WinTaskScheduler::with_test_prefix(&format!("{QA_TASK} {tag}"))
+                .expect("SID do usuario"),
+            run: WinRunEntry::with_value_name(&run_name),
+            run_name,
         };
         c.wipe();
         c
@@ -97,7 +111,7 @@ impl Cleanup {
         let _ = self.sched.delete();
         let _ = self.run.remove();
         let _ = Command::new("reg")
-            .args(["delete", APPROVED_KEY, "/v", QA_RUN, "/f"])
+            .args(["delete", APPROVED_KEY, "/v", self.run_name.as_str(), "/f"])
             .output();
     }
 }
@@ -147,13 +161,13 @@ fn real_exe_path() -> String {
 }
 
 /// Valor de `Run` pelo `reg query` (independente do adapter).
-fn reg_run_value() -> Option<String> {
+fn reg_run_value(c: &Cleanup) -> Option<String> {
     let out = Command::new("reg")
         .args([
             "query",
             r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
             "/v",
-            QA_RUN,
+            c.run_name.as_str(),
         ])
         .output()
         .unwrap();
@@ -265,7 +279,7 @@ fn ligar_cria_um_unico_mecanismo_e_desligar_remove_os_dois() {
 
     // Um Run antigo (de uma versao anterior) e removido ao ligar a tarefa.
     c.run.set(&exe).unwrap();
-    assert!(reg_run_value().is_some());
+    assert!(reg_run_value(&c).is_some());
     let on = svc.enable().unwrap();
     assert_eq!(
         on,
@@ -274,7 +288,7 @@ fn ligar_cria_um_unico_mecanismo_e_desligar_remove_os_dois() {
             mechanism: Mechanism::Task
         }
     );
-    assert!(reg_run_value().is_none(), "um mecanismo por vez");
+    assert!(reg_run_value(&c).is_none(), "um mecanismo por vez");
     assert!(matches!(
         c.sched.state(Some(&exe)).unwrap(),
         TaskState::Mine { .. }
@@ -282,7 +296,7 @@ fn ligar_cria_um_unico_mecanismo_e_desligar_remove_os_dois() {
 
     assert_eq!(svc.disable().unwrap(), AutostartStatus::OFF);
     assert_eq!(c.sched.state(Some(&exe)).unwrap(), TaskState::Absent);
-    assert!(reg_run_value().is_none());
+    assert!(reg_run_value(&c).is_none());
     assert_eq!(svc.status(), AutostartStatus::OFF);
 }
 
@@ -303,7 +317,7 @@ fn falha_da_tarefa_cria_o_run_sozinho() {
             mechanism: Mechanism::Run
         }
     );
-    let value = reg_run_value().expect("valor Run criado");
+    let value = reg_run_value(&c).expect("valor Run criado");
     eprintln!("{value}");
     assert!(
         value.contains(&format!("\"{exe}\" --autostart")),
@@ -318,7 +332,7 @@ fn falha_da_tarefa_cria_o_run_sozinho() {
             "add",
             APPROVED_KEY,
             "/v",
-            QA_RUN,
+            c.run_name.as_str(),
             "/t",
             "REG_BINARY",
             "/d",
@@ -345,7 +359,7 @@ fn falha_da_tarefa_cria_o_run_sozinho() {
     assert_eq!(c.run.state(Some(&exe)).unwrap(), RunState::Enabled);
 
     assert_eq!(svc.disable().unwrap(), AutostartStatus::OFF);
-    assert!(reg_run_value().is_none());
+    assert!(reg_run_value(&c).is_none());
 }
 
 /// Run com valor de outro programa no mesmo nome: nao e do Sofa.
@@ -358,7 +372,7 @@ fn run_com_outro_conteudo_e_estranho() {
             "add",
             r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
             "/v",
-            QA_RUN,
+            c.run_name.as_str(),
             "/t",
             "REG_SZ",
             "/d",
@@ -385,7 +399,7 @@ fn binario_fora_de_program_files_recusa_ligar() {
     );
     assert_eq!(svc.enable(), Err(AppError::AutostartFailed));
     assert_eq!(c.sched.state(None).unwrap(), TaskState::Absent);
-    assert!(reg_run_value().is_none());
+    assert!(reg_run_value(&c).is_none());
 }
 
 /// SEC-21 / BE-36: `InstallDefaults` DWORD 1 liga uma vez; 0 e 7 deixam desligado.
