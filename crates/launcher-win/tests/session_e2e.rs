@@ -15,7 +15,7 @@ use launcher_core::application::ports::{
 };
 use launcher_core::application::{AppError, SessionDeps, SessionService, SessionView};
 use launcher_core::domain::input::InputMode;
-use launcher_core::domain::library::{GameId, LaunchSpec, LaunchTarget};
+use launcher_core::domain::library::{GameId, InstallPathPolicy, LaunchSpec, LaunchTarget};
 use launcher_core::domain::session::{FrontOutcome, SessionConfig, SessionState};
 use launcher_core::domain::settings::AdvancedSettings;
 use launcher_win::foreground::Win32WindowSystem;
@@ -174,6 +174,7 @@ fn rig(games: &[(u8, &[&str])], cfg: SessionConfig) -> Rig {
             input: gate.clone(),
             events: events.clone(),
             runner: Arc::new(Threads),
+            install_policy: InstallPathPolicy::new(r"C:\Windows", Vec::new()),
         },
         cfg,
         ProbeConfig {

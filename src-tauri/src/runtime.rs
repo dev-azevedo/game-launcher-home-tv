@@ -19,6 +19,7 @@ use launcher_win::foreground::Win32WindowSystem;
 use launcher_win::game_starter::WinGameStarter;
 use launcher_win::input_thread::{InputControl, InputRunner, InputThread};
 use launcher_win::process_probe::WinSessionProbe;
+use launcher_win::stores::StoreEnv;
 use launcher_win::system_clock::SystemClock;
 use launcher_win::system_events::SystemEvents;
 use launcher_win::xinput::XInputSource;
@@ -132,6 +133,8 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
             input: input_gate,
             events,
             runner: Arc::new(ThreadRunner),
+            // Mesma politica de pastas das lojas (SEC-16): vale tambem para a pasta de um `.exe`.
+            install_policy: StoreEnv::system().policy,
         },
         SessionConfig::from(&advanced.session),
         ProbeConfig {

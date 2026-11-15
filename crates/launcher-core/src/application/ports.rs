@@ -186,6 +186,9 @@ pub struct WatchPlan {
     pub job: Option<Box<dyn Any + Send>>,
     /// Pasta de instalacao para a varredura (Steam, Epic e jogo elevado, fora do Job por UIPI).
     pub scan_dir: Option<String>,
+    /// Caminho exato do `.exe`, quando a pasta dele reprova SEC-16 (SEC-BUG-04): so a imagem
+    /// igual a esse caminho conta como processo do jogo. Vale se `scan_dir` e `None`.
+    pub exact_exe: Option<String>,
     /// Steam: `RunningAppID` mantem a sessao viva (ADR-0005).
     pub steam_app_id: Option<u32>,
 }

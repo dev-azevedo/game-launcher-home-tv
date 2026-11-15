@@ -128,6 +128,7 @@ fn watch_job(t: &LaunchTarget, sink: &Arc<Sink>) -> (Box<dyn SessionWatch>, Inst
         job: started.job,
         // Pasta do jogo: o `classify` dos PIDs do Job precisa dela (SEC-BUG-01).
         scan_dir: t.install_dir.clone(),
+        exact_exe: None,
         steam_app_id: None,
     };
     assert!(plan.job.is_some(), "exe iniciado pelo Sofa entra no Job");
@@ -416,6 +417,97 @@ fn forcar_no_job_so_encerra_membros_e_poupa_o_que_esta_fora_da_pasta() {
     );
 }
 
+/// SEC-BUG-04, modo Job: com a pasta reprovada em SEC-16 (aqui, sem `scan_dir`), so a imagem igual
+/// ao exe do jogo e membro. Um processo do Job na mesma pasta do exe e acompanhante: "Forcar" nao o
+/// encerra.
+#[test]
+fn job_com_exe_exato_poupa_o_processo_vizinho_na_mesma_pasta() {
+    let sb = Sandbox::new();
+    let exe = sb.game(r"Raiz\game.exe");
+    let vizinho = sb.game(r"Raiz\vizinho-sofa-qa.exe");
+    let t = target(
+        &exe,
+        &["spawn", &vizinho.to_string_lossy(), "8000", "30000"],
+    );
+    let started = WinGameStarter
+        .start(&t, StartVerb::Normal)
+        .expect("iniciar");
+    let plan = WatchPlan {
+        game: t.game.clone(),
+        job: started.job,
+        scan_dir: None,
+        exact_exe: Some(exe.to_string_lossy().into_owned()),
+        steam_app_id: None,
+    };
+    let sink = Arc::new(Sink::default());
+    let s: Arc<dyn ProbeSink> = sink.clone();
+    let watch = WinSessionProbe::with_store_dirs(vec![])
+        .watch(plan, 1, s, cfg())
+        .unwrap();
+    sink.wait("seen", 1, Duration::from_secs(3))
+        .expect("inicio");
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while !alive_by_name("vizinho-sofa-qa.exe") {
+        assert!(Instant::now() < deadline, "o vizinho nao abriu");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert_eq!(watch.pids().len(), 1, "so o exe do jogo e membro");
+    watch.force_close().expect("encerra so o membro");
+    sink.wait("gone", 1, Duration::from_secs(3))
+        .expect("fim apos forcar");
+    assert!(
+        alive_by_name("vizinho-sofa-qa.exe"),
+        "outra imagem na mesma pasta nao e membro, nao e encerrada"
+    );
+    // Deixa o vizinho acabar sozinho para a pasta de teste poder ser apagada.
+    let deadline = Instant::now() + Duration::from_secs(12);
+    while alive_by_name("vizinho-sofa-qa.exe") && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// SEC-BUG-04, varredura (jogo manual elevado): outro processo do usuario na mesma pasta do exe
+/// nao entra no conjunto e sobrevive ao "Forcar fechamento".
+#[test]
+fn varredura_com_exe_exato_nao_pega_outro_processo_da_mesma_pasta() {
+    let sb = Sandbox::new();
+    let game = sb.game(r"Raiz\game.exe");
+    let outro = sb.game(r"Raiz\outro.exe");
+    let sink = Arc::new(Sink::default());
+    let plan = WatchPlan {
+        game: GameId::parse("manual:9f3a1c2b7d4e5a60").unwrap(),
+        job: None,
+        scan_dir: None,
+        exact_exe: Some(game.to_string_lossy().into_owned()),
+        steam_app_id: None,
+    };
+    let s: Arc<dyn ProbeSink> = sink.clone();
+    let watch = WinSessionProbe::with_store_dirs(vec![])
+        .watch(plan, 1, s, cfg())
+        .unwrap();
+
+    let mut o = Command::new(&outro)
+        .args(["sleep", "30000"])
+        .spawn()
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(2500));
+    assert_eq!(sink.count("seen"), 0, "outro exe na mesma pasta nao entra");
+
+    let mut g = Command::new(&game)
+        .args(["sleep", "30000"])
+        .spawn()
+        .unwrap();
+    sink.wait("seen", 1, Duration::from_secs(4))
+        .expect("o exe exato entra");
+    assert_eq!(watch.pids(), vec![g.id()]);
+    watch.force_close().expect("encerra so o membro");
+    assert_eq!(g.wait().unwrap().code(), Some(1));
+    sink.wait("gone", 1, Duration::from_secs(4)).expect("fim");
+    assert!(o.try_wait().unwrap().is_none(), "o outro processo vive");
+    let _ = o.kill();
+    let _ = o.wait();
+}
+
 #[test]
 fn varredura_por_pasta_ignora_homonimo_fora_da_pasta_e_ve_o_fim() {
     let sb = Sandbox::new();
@@ -428,6 +520,7 @@ fn varredura_por_pasta_ignora_homonimo_fora_da_pasta_e_ve_o_fim() {
         game: GameId::parse("steam:620").unwrap(),
         job: None,
         scan_dir: Some(dir),
+        exact_exe: None,
         steam_app_id: None,
     };
     let s: Arc<dyn ProbeSink> = sink.clone();
@@ -474,6 +567,7 @@ fn varredura_exclui_processos_do_cliente_da_loja() {
         game: GameId::parse("steam:620").unwrap(),
         job: None,
         scan_dir: Some(dir),
+        exact_exe: None,
         steam_app_id: None,
     };
     let s: Arc<dyn ProbeSink> = sink.clone();
@@ -511,6 +605,7 @@ fn o_proprio_sofa_e_o_webview2_dele_nunca_entram_mas_a_steam_iniciada_por_ele_si
         game: GameId::parse("steam:620").unwrap(),
         job: None,
         scan_dir: Some(dir),
+        exact_exe: None,
         steam_app_id: None,
     };
     let s: Arc<dyn ProbeSink> = sink.clone();
@@ -595,6 +690,7 @@ fn force_close_por_varredura_encerra_o_processo_associado() {
         game: GameId::parse("epic:SampleGameA").unwrap(),
         job: None,
         scan_dir: Some(dir),
+        exact_exe: None,
         steam_app_id: None,
     };
     let s: Arc<dyn ProbeSink> = sink.clone();
@@ -678,6 +774,7 @@ fn cpu_da_varredura_em_sessao() {
         game: GameId::parse("steam:620").unwrap(),
         job: None,
         scan_dir: Some(dir),
+        exact_exe: None,
         steam_app_id: None,
     };
     let s: Arc<dyn ProbeSink> = sink.clone();

@@ -20,7 +20,8 @@ use crate::application::ports::{
 };
 use crate::application::AppError;
 use crate::domain::input::InputMode;
-use crate::domain::library::{GameId, LaunchSpec, LaunchTarget};
+use crate::domain::library::{GameId, InstallPathPolicy, LaunchSpec, LaunchTarget};
+use crate::domain::session::GameScope;
 use crate::domain::session::{
     FrontOutcome, Session, SessionConfig, SessionEffect, SessionSnapshot, SessionState,
 };
@@ -45,6 +46,8 @@ pub struct SessionDeps {
     pub input: Arc<dyn InputGate>,
     pub events: Arc<dyn SessionEvents>,
     pub runner: Arc<dyn TaskRunner>,
+    /// Pastas proibidas (SEC-16): a pasta de um `.exe` so associa processos se passar nela.
+    pub install_policy: InstallPathPolicy,
 }
 
 /// Exigencia de AF-01: o 740 de **este** jogo e a identidade do arquivo naquele momento.
@@ -295,17 +298,29 @@ impl SessionService {
         started: Started,
         generation: u64,
     ) -> Result<(), AppError> {
-        let (scan_dir, steam_app_id) = match &target.spec {
-            LaunchSpec::SteamUri { app_id } => (target.install_dir.clone(), Some(*app_id)),
-            LaunchSpec::EpicUri { .. } => (target.install_dir.clone(), None),
+        let (scan_dir, exact_exe, steam_app_id) = match &target.spec {
+            LaunchSpec::SteamUri { app_id } => (target.install_dir.clone(), None, Some(*app_id)),
+            LaunchSpec::EpicUri { .. } => (target.install_dir.clone(), None, None),
             // Jogo elevado fica fora do Job (UIPI): so varredura por pasta (ADR-0005). Com Job, a
             // pasta serve ao `classify` dos PIDs do Job (SEC-BUG-01, SEC-17): so membros contam.
-            LaunchSpec::Exe { .. } => (target.install_dir.clone(), None),
+            // A pasta do `.exe` so vale se passar em SEC-16 (`D:\jogo.exe` daria `D:`): senao a
+            // associacao e so pelo caminho exato do exe (SEC-BUG-04).
+            LaunchSpec::Exe { path, .. } => {
+                match GameScope::for_exe(
+                    path,
+                    target.install_dir.as_deref(),
+                    &self.deps.install_policy,
+                ) {
+                    GameScope::Dir(dir) => (Some(dir), None, None),
+                    GameScope::ExactExe(exe) => (None, Some(exe), None),
+                }
+            }
         };
         let plan = WatchPlan {
             game: target.game.clone(),
             job: started.job,
             scan_dir,
+            exact_exe,
             steam_app_id,
         };
         let sink: Arc<dyn ProbeSink> = self.me.upgrade().ok_or(AppError::Internal)?;
@@ -698,6 +713,7 @@ mod tests {
     struct WatchPlanInfo {
         has_job: bool,
         scan_dir: Option<String>,
+        exact_exe: Option<String>,
         steam_app_id: Option<u32>,
     }
     impl SessionProbe for Probe {
@@ -713,6 +729,7 @@ mod tests {
                 WatchPlanInfo {
                     has_job: plan.job.is_some(),
                     scan_dir: plan.scan_dir,
+                    exact_exe: plan.exact_exe,
                     steam_app_id: plan.steam_app_id,
                 },
             ));
@@ -895,6 +912,18 @@ mod tests {
                 )),
             );
         }
+        games.insert(
+            gid("manual:0000000000000002"),
+            Ok(target(
+                "manual:0000000000000002",
+                LaunchSpec::Exe {
+                    path: r"C:\Jogos\X\x.exe".into(),
+                    args: vec![],
+                    working_dir: Some(r"C:\Jogos\X".into()),
+                },
+                Some(r"C:\Jogos\X"),
+            )),
+        );
         games.insert(gid("gog:1000000001"), Err(AppError::NetworkPathBlocked));
         let starter = Arc::new(Starter::default());
         let probe = Arc::new(Probe::default());
@@ -929,6 +958,7 @@ mod tests {
                 input: gate.clone(),
                 events: events.clone(),
                 runner: queue.clone(),
+                install_policy: InstallPathPolicy::new(r"C:\Windows", Vec::new()),
             },
             SessionConfig::default(),
             ProbeConfig {
@@ -1036,7 +1066,15 @@ mod tests {
         r.svc.launch(gid("manual:9f3a1c2b7d4e5a60")).unwrap();
         let (_, plan) = r.probe.calls.lock().unwrap()[0].clone();
         assert!(!plan.has_job);
-        assert_eq!(plan.scan_dir.as_deref(), Some(r"C:\Jogos"));
+        // `C:\Jogos` e raso demais para SEC-16: so o exe exato associa (SEC-BUG-04).
+        assert_eq!(plan.scan_dir, None);
+        assert_eq!(plan.exact_exe.as_deref(), Some(r"C:\Jogos\game.exe"));
+
+        let r = rig();
+        r.svc.launch(gid("manual:0000000000000002")).unwrap();
+        let (_, plan) = r.probe.calls.lock().unwrap()[0].clone();
+        assert_eq!(plan.scan_dir.as_deref(), Some(r"C:\Jogos\X"));
+        assert_eq!(plan.exact_exe, None);
     }
 
     #[test]
@@ -1156,11 +1194,11 @@ mod tests {
         let snap = r.svc.get().snapshot;
         assert_eq!(snap.state, SessionState::Launching);
         assert!(snap.elevated);
-        // Jogo elevado fica fora do Job: so varredura por pasta.
-        assert_eq!(
-            r.probe.calls.lock().unwrap()[0].1.scan_dir.as_deref(),
-            Some(r"C:\Jogos")
-        );
+        // Jogo elevado fica fora do Job: so varredura. A pasta `C:\Jogos` reprova SEC-16, entao a
+        // varredura do sistema inteiro associa so o exe exato (SEC-BUG-04).
+        let plan = r.probe.calls.lock().unwrap()[0].1.clone();
+        assert_eq!(plan.scan_dir, None);
+        assert_eq!(plan.exact_exe.as_deref(), Some(r"C:\Jogos\game.exe"));
     }
 
     #[test]

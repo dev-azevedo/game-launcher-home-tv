@@ -26,7 +26,7 @@ use launcher_core::application::ports::{
     ProbeConfig, ProbeSink, SessionProbe, SessionWatch, WatchPlan,
 };
 use launcher_core::application::AppError;
-use launcher_core::domain::session::{classify, ProcessInfo, SessionContext};
+use launcher_core::domain::session::{classify, GameScope, ProcessInfo, SessionContext};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{
     CloseHandle, GetLastError, ERROR_ACCESS_DENIED, FILETIME, HANDLE, LPARAM, WAIT_OBJECT_0, WPARAM,
@@ -175,7 +175,7 @@ struct Scanner {
 }
 
 impl Scanner {
-    fn new(install_dir: String, store_dirs: Vec<String>) -> Self {
+    fn new(scope: GameScope, store_dirs: Vec<String>) -> Self {
         // SAFETY: handle pseudo do proprio processo.
         let own_pid = unsafe { GetCurrentProcessId() };
         let own_sid = user_sid(unsafe { GetCurrentProcess() });
@@ -186,7 +186,7 @@ impl Scanner {
                 own_pid,
                 own_session_id: session_of(own_pid).unwrap_or(0),
                 own_child_pids: Vec::new(),
-                install_dir,
+                scope,
                 store_dirs,
             },
             own_sid,
@@ -479,6 +479,14 @@ impl WinSessionProbe {
     }
 }
 
+/// Onde a imagem de um processo do jogo pode estar: a pasta (SEC-16 ja conferida pelo caso de uso)
+/// ou, se ela reprovou, so o exe exato (SEC-BUG-04). `None` se o plano nao traz nenhum dos dois.
+fn scope_of(scan_dir: Option<String>, exact_exe: Option<String>) -> Option<GameScope> {
+    scan_dir
+        .map(GameScope::Dir)
+        .or_else(|| exact_exe.map(GameScope::ExactExe))
+}
+
 enum Mode {
     Job(Arc<Job>, Arc<Mutex<Scanner>>),
     Scan(Arc<Mutex<Scanner>>),
@@ -651,13 +659,13 @@ impl SessionProbe for WinSessionProbe {
         let stopping = Arc::new(AtomicBool::new(false));
 
         if let Some(job) = plan.job {
-            // Sem pasta de instalacao nao ha como dizer quem e membro: nao vigia (SEC-17).
-            let Some(dir) = plan.scan_dir else {
+            // Sem pasta nem exe nao ha como dizer quem e membro: nao vigia (SEC-17).
+            let Some(scope) = scope_of(plan.scan_dir, plan.exact_exe) else {
                 return Err(AppError::Internal);
             };
             let job = job.downcast::<Job>().map_err(|_| AppError::Internal)?;
             let job: Arc<Job> = Arc::new(*job);
-            let scanner = Arc::new(Mutex::new(Scanner::new(dir, self.store_dirs.clone())));
+            let scanner = Arc::new(Mutex::new(Scanner::new(scope, self.store_dirs.clone())));
             let (j, sc, st, sk) = (
                 Arc::clone(&job),
                 Arc::clone(&scanner),
@@ -676,10 +684,10 @@ impl SessionProbe for WinSessionProbe {
             }));
         }
 
-        let Some(dir) = plan.scan_dir else {
+        let Some(scope) = scope_of(plan.scan_dir, plan.exact_exe) else {
             return Err(AppError::Internal); // nada para vigiar
         };
-        let scanner = Arc::new(Mutex::new(Scanner::new(dir, self.store_dirs.clone())));
+        let scanner = Arc::new(Mutex::new(Scanner::new(scope, self.store_dirs.clone())));
         let (sc, st, stop_ev) = (
             Arc::clone(&scanner),
             Arc::clone(&stopping),
