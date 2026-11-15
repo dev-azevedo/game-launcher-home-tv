@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { selectTop, useNavigation } from '@/app/navigation/store';
-import { gameName } from '@/features/library/domain';
 import { useLibrary } from '@/features/library/store';
-import type { GameDto } from '@/shared/ipc';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { WaitScreen } from '@/shared/ui/WaitScreen';
-import { launchOverlay, overlayDialog, type DialogAction, type LaunchOverlay } from './overlay';
+import { launchOverlay, overlayDialog, overlayWait, type DialogAction, type LaunchOverlay } from './overlay';
 import { useSession } from './store';
 
 /** Tela de sessao atual (ou `null`), derivada do estado do nucleo e do ultimo comando. */
@@ -44,8 +42,6 @@ export function useLaunchFlowEntry(): void {
   }, [present, stack]);
 }
 
-const nameOf = (games: readonly GameDto[], id: string) => gameName(games, id, 'o jogo');
-
 /**
  * Camada de inicio de jogo (FE-08): "Abrindo <nome>…" sobre WaitScreen (CA-77), aviso de
  * administrador em duas etapas (CA-73), erros do contrato (CA-28, CA-71), nao confirmado (CA-29)
@@ -58,38 +54,22 @@ export function LaunchFlow({ active }: { active: boolean }) {
 
   if (!overlay) return null;
 
-  if (overlay.kind === 'launching') {
-    return (
-      <WaitScreen title={`Abrindo ${nameOf(games, overlay.gameId)}…`} buttonLabel="Voltar" onLeave={() => void s().dismiss()}>
-        Aguarde. O jogo vai aparecer na frente.
-      </WaitScreen>
-    );
-  }
-  if (overlay.kind === 'uacWait') {
+  const wait = overlayWait(overlay, games);
+  if (wait) {
     return (
       <WaitScreen
-        title={`${nameOf(games, overlay.gameId)} pede permissão de administrador`}
-        buttonLabel="Voltar"
-        onLeave={() => void s().dismiss()}
-      >
-        Confirme no Windows com teclado ou mouse. A combinação de retorno pode não funcionar neste jogo.
-      </WaitScreen>
-    );
-  }
-
-  if (overlay.kind === 'closing') {
-    const swap = overlay.swapTo ? nameOf(games, overlay.swapTo) : null;
-    return (
-      <WaitScreen
-        title={`Fechando ${nameOf(games, overlay.gameId)}…`}
-        buttonLabel="Ir para a biblioteca"
-        // CA-78: A ou B levam a biblioteca; o pedido de fechamento continua no nucleo.
+        title={wait.title}
+        buttonLabel={wait.buttonLabel}
+        spinLabel={wait.spinLabel}
+        cover={wait.cover}
+        icon={wait.icon}
+        // CA-78: no fechamento, A ou B levam a biblioteca; o pedido de fechamento continua no nucleo.
         onLeave={() => {
           void s().dismiss();
-          s().showLibrary();
+          if (wait.leave === 'library') s().showLibrary();
         }}
       >
-        {swap ? `Esperando o jogo fechar. Depois o Sofá abre ${swap}.` : 'Esperando o jogo fechar. Pode levar alguns segundos.'}
+        {wait.body}
       </WaitScreen>
     );
   }
@@ -145,10 +125,14 @@ export function LaunchFlow({ active }: { active: boolean }) {
       key={overlay.kind === 'failure' ? `failure:${overlay.failure.error.code}` : overlay.kind}
       title={spec.title}
       tone={spec.tone}
+      icon={spec.icon}
+      cover={spec.cover}
       defaultFocus={spec.defaultFocus}
       cancelLabel={spec.cancel.label}
       confirmLabel={spec.confirm?.label}
       destructive={spec.confirm?.destructive}
+      confirmKind={spec.confirm?.kind}
+      confirmIcon={spec.confirm?.icon}
       active={active}
       warning={spec.warning}
       onCancel={() => run(spec.cancel.action)}

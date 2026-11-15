@@ -1,7 +1,9 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useBackHandler } from '@/shared/input/activation';
 import { timing } from '@/shared/theme/tokens';
+import { DialogSide, type DialogCover } from './DialogSide';
 import { Focusable, FocusLayer } from './Focusable';
+import type { IconName } from './Icon';
 
 interface WaitScreenProps {
   /** Ex.: "Abrindo <nome>…" (texto, SEC-07). */
@@ -12,6 +14,10 @@ interface WaitScreenProps {
   /** So interrompe a espera; nao cancela o inicio nem o fechamento do jogo (RN-31). */
   onLeave: () => void;
   guardMs?: number;
+  /** Rotulo ao lado do spinner ("Iniciando", "Esperando o Windows", "Fechando"). */
+  spinLabel?: string;
+  cover?: DialogCover | null;
+  icon?: IconName;
 }
 
 /**
@@ -24,6 +30,9 @@ export function WaitScreen({
   buttonLabel,
   onLeave,
   guardMs = timing.waitScreenGuardMs,
+  spinLabel,
+  cover,
+  icon,
 }: WaitScreenProps) {
   const titleId = useId();
   const [armed, setArmed] = useState(guardMs <= 0);
@@ -40,11 +49,13 @@ export function WaitScreen({
       <div className="center">
         <div className="scrim-l" />
         <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
+          {cover || icon ? <DialogSide cover={cover} icon={icon} /> : null}
           <div className="dc">
             <h2 id={titleId}>{title}</h2>
+            {children ? <div className="body">{children}</div> : null}
             <div className="rowspin">
               <div className="spinner" aria-hidden="true" />
-              <div className="body">{children}</div>
+              {spinLabel ? <span className="spin-label">{spinLabel}</span> : null}
             </div>
             <div className="btnrow">
               <Focusable

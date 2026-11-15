@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from 'react';
 import { useBackHandler } from '@/shared/input/activation';
 import { Focusable, FocusLayer } from './Focusable';
+import { DialogSide, type DialogCover } from './DialogSide';
 import { Icon, type IconName } from './Icon';
 
 export type DialogTone = 'warn' | 'danger' | 'ok';
@@ -15,6 +16,8 @@ interface ConfirmDialogProps {
   warningTone?: 'danger' | 'warn';
   icon?: IconName;
   tone?: DialogTone;
+  /** Capa do jogo no lado esquerdo, no lugar do icone. */
+  cover?: DialogCover | null;
   /** Ausente = dialogo de aviso com um botao so (o de cancelar, Voltar). */
   confirmLabel?: string;
   cancelLabel?: string;
@@ -22,6 +25,9 @@ interface ConfirmDialogProps {
   defaultFocus: 'cancel' | 'confirm';
   /** Acao do botao de confirmar e visual destrutivo. */
   destructive?: boolean;
+  /** Visual do botao de confirmar: `primary` (ambar), `neutral` (secundario) ou `danger`. Padrao: `destructive ? danger : primary`. */
+  confirmKind?: 'primary' | 'neutral' | 'danger';
+  confirmIcon?: IconName;
   onConfirm?: () => void;
   onCancel: () => void;
   active?: boolean;
@@ -35,15 +41,19 @@ export function ConfirmDialog({
   warningTone = 'danger',
   icon = 'alert',
   tone = 'warn',
+  cover,
   confirmLabel,
   cancelLabel = 'Cancelar',
   defaultFocus,
   destructive = false,
+  confirmKind,
+  confirmIcon,
   onConfirm,
   onCancel,
   active = true,
 }: ConfirmDialogProps) {
   const titleId = useId();
+  const kind = confirmKind ?? (destructive ? 'danger' : 'primary');
   useBackHandler(active ? onCancel : undefined);
   return (
     <FocusLayer
@@ -54,11 +64,7 @@ export function ConfirmDialog({
       <div className="center">
         <div className="scrim-l" />
         <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
-          <div className="side">
-            <div className={`badge-ic${tone === 'warn' ? '' : ` ${tone}`}`}>
-              <Icon name={icon} />
-            </div>
-          </div>
+          <DialogSide cover={cover} icon={icon} tone={tone} />
           <div className="dc">
             <h2 id={titleId}>{title}</h2>
             {children ? <div className="body">{children}</div> : null}
@@ -71,9 +77,10 @@ export function ConfirmDialog({
                 <Focusable
                   as="button"
                   focusKey="dlg-confirm"
-                  className={`btn ${destructive ? 'danger' : 'primary'}`}
+                  className={kind === 'neutral' ? 'btn' : `btn ${kind}`}
                   onActivate={onConfirm}
                 >
+                  {confirmIcon ? <Icon name={confirmIcon} /> : null}
                   {confirmLabel}
                 </Focusable>
               ) : null}

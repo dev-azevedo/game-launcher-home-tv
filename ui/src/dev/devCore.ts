@@ -21,7 +21,7 @@ import type {
  * - biblioteca e controle: `lib=cheia|muitos|vazia|unico|longo|carregando`, `ctrl=none|lost`
  * - sessao: `start=running` (Steam 1000 em andamento) ou `start=panel` (abre o painel); `trava=yes` (o jogo
  *   ignora o pedido de fechar e vai a CloseOverdue); `fg=denied` (voltar ao jogo recusado); `force=denied`
- *   (jogo administrador); `fast=1` (os 10 s viram 3 s). Fora do contrato de eventos, F2 abre o painel.
+ *   (jogo administrador); `fast=1` (os 10 s viram 3 s). Fora do contrato de eventos, F9 abre o painel (simula a combinacao de retorno; F2 e a tecla de View do produto).
  * - menu rapido: `audio=none` (sem dispositivo), `suspend=no` (suspensao indisponivel), `power=fail`
  *   (Windows recusa), `autostart=on|off`
  * - configuracoes: `monitors=um|dois|ausente`, `hidden=nenhum|muitos`, `autostart=fail` (nao liga)
@@ -347,9 +347,9 @@ async function install(): Promise<void> {
       if (start === 'panel') setTimeout(() => panel('Front'), 700);
     }
   }
-  // F2 simula a combinacao de retorno (no produto ela vem do nucleo, com o Sofa em segundo plano).
+  // F9 simula a combinacao de retorno (no produto ela vem do nucleo, com o Sofa em segundo plano).
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'F2' && session.state === 'Running') panel(params.get('minimized') === '1' ? 'FrontAfterMinimize' : 'Front');
+    if (e.key === 'F9' && session.state === 'Running') panel(params.get('minimized') === '1' ? 'FrontAfterMinimize' : 'Front');
   });
   Object.assign(window, {
     __devCore: {

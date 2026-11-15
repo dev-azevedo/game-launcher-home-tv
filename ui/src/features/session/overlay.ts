@@ -1,3 +1,5 @@
+import type { DialogCover } from '@/shared/ui/DialogSide';
+import type { IconName } from '@/shared/ui/Icon';
 import type { ErrorDto, GameDto, GameId, SessionDto, SessionState } from '@/shared/ipc';
 import { findGame } from '@/features/library/domain';
 import { errorCopyFor } from '@/shared/domain/errors';
@@ -91,22 +93,83 @@ export type DialogAction =
   | 'force';
 
 export interface DialogSpec {
+  /** Nome do jogo (ou frase curta da spec); a mensagem vai em `body` (DES-BUG-01). */
   title: string;
   body?: string;
   tone: 'warn' | 'danger' | 'ok';
+  icon?: IconName;
+  /** Capa do jogo no lado esquerdo; sem ela, o icone tematico. */
+  cover?: DialogCover | null;
   /** Esquerda: B tambem aciona este botao. */
   cancel: { label: string; action: DialogAction };
-  /** Direita, quando existe. */
-  confirm?: { label: string; action: DialogAction; destructive?: boolean };
+  /** Direita, quando existe. `kind` neutro = acao secundaria (so o primario e ambar, DES-BUG-02). */
+  confirm?: { label: string; action: DialogAction; destructive?: boolean; kind?: 'primary' | 'neutral'; icon?: IconName };
   /** Aviso em destaque abaixo do texto (ex.: progresso nao salvo sera perdido). */
   warning?: string;
   defaultFocus: 'cancel' | 'confirm';
 }
 
-const nameOf = (games: readonly GameDto[], id: GameId | undefined): string | undefined =>
-  findGame(games, id)?.name;
+/** Tela de espera (RN-31): titulo, texto, rotulo do spinner e o unico botao. */
+export interface WaitSpec {
+  title: string;
+  body: string;
+  spinLabel: string;
+  buttonLabel: string;
+  /** `dismiss`: so interrompe a espera; `library`: tambem volta a biblioteca (CA-78). */
+  leave: 'dismiss' | 'library';
+  cover?: DialogCover | null;
+  icon?: IconName;
+}
 
-/** Textos do contrato (microcopy secao 2) para cada estado que vira dialogo. Esperas nao entram aqui. */
+const nameOf = (games: readonly GameDto[], id: GameId | undefined): string | undefined => findGame(games, id)?.name;
+
+function coverOf(games: readonly GameDto[], id: GameId | undefined): DialogCover | null {
+  const game = findGame(games, id);
+  return game ? { id: game.id, name: game.name, hasCover: game.cover !== '' } : null;
+}
+
+/** Tela de espera de cada estado (abrindo, esperando o UAC, fechando); `null` nos demais. */
+export function overlayWait(overlay: LaunchOverlay, games: readonly GameDto[]): WaitSpec | null {
+  switch (overlay.kind) {
+    case 'launching':
+      return {
+        title: `Abrindo ${nameOf(games, overlay.gameId) ?? 'o jogo'}…`,
+        body: 'Aguarde. O jogo vai aparecer na frente.',
+        spinLabel: 'Iniciando',
+        buttonLabel: 'Voltar',
+        leave: 'dismiss',
+        cover: coverOf(games, overlay.gameId),
+        icon: 'play',
+      };
+    case 'uacWait': {
+      const name = nameOf(games, overlay.gameId) ?? 'o jogo';
+      return {
+        title: name,
+        body: `${name} pede permissão de administrador. Confirme no Windows com teclado ou mouse. A combinação de retorno pode não funcionar neste jogo.`,
+        spinLabel: 'Esperando o Windows',
+        buttonLabel: 'Voltar',
+        leave: 'dismiss',
+        icon: 'shield',
+      };
+    }
+    case 'closing': {
+      const swap = overlay.swapTo ? (nameOf(games, overlay.swapTo) ?? 'o jogo') : null;
+      return {
+        title: `Fechando ${nameOf(games, overlay.gameId) ?? 'o jogo'}…`,
+        body: swap ? `Esperando o jogo fechar. Depois o Sofá abre ${swap}.` : 'Esperando o jogo fechar. Pode levar alguns segundos.',
+        spinLabel: 'Fechando',
+        buttonLabel: 'Ir para a biblioteca',
+        leave: 'library',
+        cover: coverOf(games, overlay.gameId),
+        icon: 'power',
+      };
+    }
+    default:
+      return null;
+  }
+}
+
+/** Textos do contrato (microcopy secao 2) para cada estado que vira dialogo. Esperas: `overlayWait`. */
 export function overlayDialog(overlay: LaunchOverlay, games: readonly GameDto[]): DialogSpec | null {
   switch (overlay.kind) {
     case 'launching':
@@ -119,31 +182,46 @@ export function overlayDialog(overlay: LaunchOverlay, games: readonly GameDto[])
         body: 'O jogo não respondeu ao pedido para fechar.',
         warning: 'O progresso não salvo será perdido.',
         tone: 'danger',
+        cover: coverOf(games, overlay.gameId),
         cancel: { label: 'Cancelar', action: 'keepRunning' },
         confirm: { label: 'Forçar fechamento', action: 'force', destructive: true },
         defaultFocus: 'cancel',
       };
     case 'needsElevation': {
-      const copy = errorCopyFor({ code: 'NeedsElevation' }, { gameName: nameOf(games, overlay.gameId) });
+      const name = nameOf(games, overlay.gameId);
+      const copy = errorCopyFor({ code: 'NeedsElevation' }, { gameName: name });
       return {
-        title: copy.message,
+        title: name ?? 'Jogo',
+        body: copy.message,
         tone: 'warn',
+        icon: 'shield',
         cancel: { label: 'Voltar', action: 'back' },
         confirm: { label: 'Continuar', action: 'continue' },
         defaultFocus: 'confirm',
       };
     }
     case 'elevationDenied': {
-      const copy = errorCopyFor({ code: 'ElevationDenied' }, { gameName: nameOf(games, overlay.gameId) });
-      return { title: copy.message, tone: 'danger', cancel: { label: 'Voltar', action: 'back' }, defaultFocus: 'cancel' };
+      const name = nameOf(games, overlay.gameId);
+      const copy = errorCopyFor({ code: 'ElevationDenied' }, { gameName: name });
+      return {
+        title: name ?? 'Jogo',
+        body: copy.message,
+        tone: 'danger',
+        icon: 'shield',
+        cover: coverOf(games, overlay.gameId),
+        cancel: { label: 'Voltar', action: 'back' },
+        defaultFocus: 'cancel',
+      };
     }
     case 'notConfirmed': {
-      const name = nameOf(games, overlay.gameId) ?? 'o jogo';
+      const name = nameOf(games, overlay.gameId);
       return {
-        title: `Não foi possível confirmar que ${name} abriu.`,
+        title: name ?? 'Jogo',
+        body: `Não foi possível confirmar que ${name ?? 'o jogo'} abriu.`,
         tone: 'warn',
+        cover: coverOf(games, overlay.gameId),
         cancel: { label: 'Voltar', action: 'back' },
-        confirm: { label: 'Tentar de novo', action: 'retry' },
+        confirm: { label: 'Tentar de novo', action: 'retry', icon: 'refresh' },
         defaultFocus: 'confirm',
       };
     }
@@ -151,9 +229,11 @@ export function overlayDialog(overlay: LaunchOverlay, games: readonly GameDto[])
       const current = nameOf(games, overlay.currentGameId) ?? 'Outro jogo';
       const next = nameOf(games, overlay.newGameId) ?? 'o jogo';
       return {
+        // A frase da spec (CA-31) fica como titulo.
         title: `${current} está aberto. Fechar e abrir ${next}?`,
         body: `O progresso não salvo de ${current} pode ser perdido.`,
         tone: 'danger',
+        cover: coverOf(games, overlay.currentGameId),
         cancel: { label: 'Cancelar', action: 'cancel' },
         confirm: { label: 'Fechar e abrir', action: 'replace', destructive: true },
         defaultFocus: 'cancel',
@@ -165,28 +245,43 @@ export function overlayDialog(overlay: LaunchOverlay, games: readonly GameDto[])
 }
 
 function failureDialog({ error, gameId, command }: LaunchFailure, games: readonly GameDto[]): DialogSpec {
-  const copy = errorCopyFor(error, { gameName: nameOf(games, error.params?.gameId ?? gameId), command });
+  const id = error.params?.gameId ?? gameId;
+  const name = nameOf(games, id);
+  const copy = errorCopyFor(error, { gameName: name, command });
+  const cover = coverOf(games, id);
+  const back = { label: 'Voltar', action: 'back' as const };
   switch (error.code) {
-    // CA-28 e CA-71: Ocultar e Voltar, foco em Voltar.
+    // CA-28 e CA-71: Voltar e Ocultar, foco em Voltar. "Ocultar" e acao secundaria (neutra).
     case 'GameFileMissing':
     case 'NetworkPathBlocked':
       return {
-        title: copy.message,
-        body: copy.support,
+        title: name ?? 'Jogo',
+        body: copy.message,
         tone: 'warn',
-        cancel: { label: 'Voltar', action: 'back' },
-        confirm: { label: 'Ocultar', action: 'hide' },
+        cover,
+        cancel: back,
+        confirm: { label: 'Ocultar', action: 'hide', kind: 'neutral', icon: 'eyeoff' },
         defaultFocus: 'cancel',
       };
     case 'ForegroundDenied':
       return {
-        title: copy.message,
+        title: name ?? 'Jogo',
+        body: copy.message,
         tone: 'warn',
+        cover,
         cancel: { label: 'Ir para a biblioteca', action: 'library' },
-        confirm: { label: 'Tentar de novo', action: 'retry' },
+        confirm: { label: 'Tentar de novo', action: 'retry', icon: 'refresh' },
         defaultFocus: 'confirm',
       };
+    case 'StoreNotInstalled':
+      return { title: name ?? 'Jogo', body: copy.message, tone: 'warn', cover, cancel: back, defaultFocus: 'cancel' };
+    case 'AccessDenied':
+      // Forcar fechamento recusado (jogo elevado): o titulo e o jogo.
+      if (command === 'session_force_close') {
+        return { title: name ?? 'Jogo', body: copy.message, tone: 'danger', icon: 'shield', cover, cancel: back, defaultFocus: 'cancel' };
+      }
+      return { title: copy.message, body: copy.support, tone: 'warn', cancel: back, defaultFocus: 'cancel' };
     default:
-      return { title: copy.message, body: copy.support, tone: 'warn', cancel: { label: 'Voltar', action: 'back' }, defaultFocus: 'cancel' };
+      return { title: copy.message, body: copy.support, tone: 'warn', cancel: back, defaultFocus: 'cancel' };
   }
 }

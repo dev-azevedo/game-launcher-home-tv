@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ScreenStack } from '@/app/ScreenStack';
@@ -109,6 +109,34 @@ describe('iniciar jogo (FE-08)', () => {
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
   });
 
+  it('hierarquia (DES-BUG-01): titulo e o nome do jogo, a mensagem vai no corpo, com a capa ao lado', async () => {
+    mockCore({ session_launch: rejectWith({ code: 'GameFileMissing' }) });
+    await renderStack();
+    await act(async () => void (await useSession.getState().play(MINERIO)));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByRole('heading')).toHaveTextContent(/^Minério$/);
+    expect(dialog.querySelector('.body')).toHaveTextContent('Não encontramos o arquivo do jogo.');
+    expect(dialog.querySelector('.side .thumb')).not.toBeNull();
+  });
+
+  it('"Abrindo" tem capa e o rotulo "Iniciando"', async () => {
+    await renderStack();
+    act(() => useSession.getState().setSession(session({ state: 'Launching', gameId: 'steam:1' })));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByRole('heading')).toHaveTextContent('Abrindo Minério…');
+    expect(within(dialog).getByText('Iniciando')).toBeInTheDocument();
+    expect(dialog.querySelector('.side .thumb')).not.toBeNull();
+  });
+
+  it('Ocultar (acao secundaria) e neutro; so o item em foco fica ambar (DES-BUG-02)', async () => {
+    mockCore({ session_launch: rejectWith({ code: 'GameFileMissing' }) });
+    await renderStack();
+    await act(async () => void (await useSession.getState().play(MINERIO)));
+    const hide = await screen.findByRole('button', { name: 'Ocultar' });
+    expect(hide).not.toHaveClass('primary');
+    expect(hide).not.toHaveClass('danger');
+  });
+
   it('NetworkPathBlocked: texto proprio, Ocultar e Voltar, foco em Voltar (CA-71)', async () => {
     mockCore({ session_launch: rejectWith({ code: 'NetworkPathBlocked' }) });
     await renderStack();
@@ -153,8 +181,9 @@ describe('iniciar jogo (FE-08)', () => {
     mockCore({ session_dismiss: null });
     await renderStack();
     act(() => useSession.getState().setSession(session({ state: 'Launching', gameId: 'steam:1', elevated: true })));
-    expect(await screen.findByText('Minério pede permissão de administrador')).toBeInTheDocument();
-    expect(screen.getByText(/Confirme no Windows com teclado ou mouse/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Minério' })).toBeInTheDocument();
+    expect(screen.getByText(/Minério pede permissão de administrador\. Confirme no Windows com teclado ou mouse/)).toBeInTheDocument();
+    expect(screen.getByText('Esperando o Windows')).toBeInTheDocument();
     act(() =>
       useSession.getState().setSession(session({ state: 'NeedsElevation', gameId: 'steam:1', launchFailure: 'ElevationDenied' })),
     );
