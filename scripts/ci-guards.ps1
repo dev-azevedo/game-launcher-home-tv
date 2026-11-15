@@ -76,6 +76,19 @@ $script:ManifestRule = @{ Id = 'SEC-28'; Pattern = 'uiAccess\s*=\s*["'']true["''
 $script:NsisPattern = '\b(nsExec::\w+|ExecWait|ExecShell\w*|Exec)\b'
 $script:NsisGoodPattern = '\b(nsExec::\w+|ExecWait|ExecShell\w*|Exec)\s+(/\w+(=\S+)?\s+)*[''"`]{0,3}\$SYSDIR[\\/]'
 
+# SEC-31 / SEC-32 (DR-06, SG-09): o plugin `System` chama a API do Windows direto e escapa do padrao
+# acima. Iniciar processo, abrir shell, apagar e mover arquivo por `System::Call` so no `.nsh` do
+# desinstalador revisado pela seguranca (BE-38); em qualquer outro arquivo, nunca. O padrao pega
+# tambem `dll::Funcao` fora de um `System::Call` (por exemplo num `!define`).
+$script:NsisApis = 'CreateProcess\w*|ShellExecute\w*|DeleteFile\w*|RemoveDirectory\w*|SHFileOperation\w*|MoveFile\w*'
+$script:NsisSystemCallPattern = '(\bSystem::Call\b.*?|::\s*)\b(' + $script:NsisApis + ')\b'
+$script:NsisSystemCallOwners = @('src-tauri/windows/uninstall-hooks.nsh')
+
+# SEC-25 / SEC-31: `Delete` e `RMDir` do NSIS nunca sobre a pasta de dados do usuario nem sob
+# `$LOCALAPPDATA` / `$APPDATA` (nem pela variavel que a guarde): quem apaga os dados e o `--purge-user-data`
+# (token do usuario) ou o fallback por handle do ADR-0006 6b. Vale tambem para o dono acima.
+$script:NsisDataDeletePattern = '^\s*(Delete|RMDir)\b.*(\$\{?\w*(DATA|PROFILE)\w*\}?|%(LOCAL)?APPDATA%|%USERPROFILE%|app\.sofa\.launcher)'
+
 function ConvertTo-Rel([string]$Root, [string]$Path) {
     $full = (Resolve-Path -LiteralPath $Path).Path
     $base = (Resolve-Path -LiteralPath $Root).Path.TrimEnd('\')
@@ -170,6 +183,12 @@ function Invoke-Guards([string]$Root) {
             if ($lines[$i] -match $script:NsisPattern -and $lines[$i] -notmatch $script:NsisGoodPattern) {
                 $violations.Add(('SEC-32 {0}:{1} executavel externo sem $SYSDIR\ ({2})' -f $rel, ($i + 1), $Matches[0]))
             }
+            if ($lines[$i] -match $script:NsisSystemCallPattern -and ($script:NsisSystemCallOwners -notcontains $rel)) {
+                $violations.Add(('SEC-32 {0}:{1} System::Call com `{2}` fora do .nsh do desinstalador revisado' -f $rel, ($i + 1), $Matches[2]))
+            }
+            if ($lines[$i] -match $script:NsisDataDeletePattern) {
+                $violations.Add(('SEC-31 {0}:{1} `{2}` do NSIS sobre a pasta de dados do usuario (use o purge do usuario)' -f $rel, ($i + 1), $Matches[1]))
+            }
         }
     }
     # Sem a virgula: a lista e desenrolada na saida e o chamador usa @(...) para contar.
@@ -190,6 +209,21 @@ function Invoke-GuardSelfTest {
         Set-Content -LiteralPath (Join-Path $win 'clean.rs') -Value @('// EWX_FORCE nao e usado', 'fn c() { EWX_POWEROFF; }', '#[cfg(test)]', 'mod tests { fn t() { remove_dir_all(p); } }')
         Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/ok.manifest') -Value '<requestedExecutionLevel level="asInvoker" uiAccess="false"/>'
         Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/ok.nsh') -Value @('; ExecWait sem SYSDIR em comentario', 'nsExec::Exec ''"$SYSDIR\schtasks.exe" /?''')
+        # NSIS: o dono revisado pode chamar API pelo System; Delete e RMDir fora da pasta de dados
+        # e comentario sobre a pasta de dados passam em qualquer arquivo.
+        New-Item -ItemType Directory -Force -Path (Join-Path $tmp 'src-tauri/windows') | Out-Null
+        Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/windows/uninstall-hooks.nsh') -Value @(
+            'System::Call ''kernel32::CreateProcessW(w r1, w r2, p 0, p 0, i 0, i 0, p 0, p 0, p r3, p r4) i .r0''',
+            'System::Call ''kernel32::WaitForSingleObject(p r1, i 60000)''',
+            'Delete "$INSTDIR\sofa.exe"',
+            'RMDir /r "$INSTDIR"'
+        )
+        Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/ok-system.nsh') -Value @(
+            '; System::Call kernel32::DeleteFileW so em comentario; RMDir /r "$LOCALAPPDATA\app.sofa.launcher" idem',
+            'System::Call ''kernel32::GetExitCodeProcess(p r1, *i .r2)''',
+            'Delete "$SMPROGRAMS\Sofa.lnk"',
+            'rmdir "$INSTDIR\bin"'
+        )
         $clean = @(Invoke-Guards $tmp)
         if ($clean.Count -ne 0) { throw ("autoteste: arvore limpa acusou violacao: " + ($clean -join '; ')) }
 
@@ -224,6 +258,28 @@ function Invoke-GuardSelfTest {
         Set-Content -LiteralPath (Join-Path $win 'rogue.rs') -Value ($planted | ForEach-Object { "fn x() { $_(); }" })
         Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/bad.manifest') -Value '<requestedExecutionLevel level="asInvoker" uiAccess="true"/>'
         Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/bad.nsh') -Value @('nsExec::Exec "schtasks.exe /delete"', 'ExecWait "cmd /c del x"', 'nsExec::Exec ''"cmd.exe" /c $SYSDIR\x.exe''')
+        # NSIS: System::Call fora do dono (uma linha por API) e Delete/RMDir sobre a pasta de dados.
+        $nsisApis = @('CreateProcessW', 'ShellExecuteW', 'DeleteFileW', 'RemoveDirectoryW', 'SHFileOperationW', 'MoveFileExW', 'DeleteFileA')
+        Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/bad-system.nsh') -Value @(
+            'System::Call ''kernel32::CreateProcessW(w r1, w r2, p 0, p 0, i 0, i 0, p 0, p 0, p r3, p r4) i .r0''',
+            'System::Call "shell32::ShellExecuteW(p 0, t ''open'', t ''x'', t '''', t '''', i 1)"',
+            'System::Call ''kernel32::DeleteFileW(w "$INSTDIR\x")''',
+            'System::Call ''kernel32::RemoveDirectoryW(w "$INSTDIR\x")''',
+            'system::call ''shell32::SHFileOperationW(p r1)''',
+            'System::Call ''kernel32::MoveFileExW(w "a", w "b", i 4)''',
+            '!define FN "kernel32::DeleteFileA"'
+        )
+        Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/bad-data.nsh') -Value @(
+            'RMDir /r "$LOCALAPPDATA\app.sofa.launcher"',
+            'Delete "$APPDATA\app.sofa.launcher\library.json"',
+            'RMDir /r $DataDir',
+            'rmdir /r "%LOCALAPPDATA%\app.sofa.launcher"'
+        )
+        # O dono revisado nao pode apagar a pasta de dados pelo NSIS (a regra vale para ele tambem).
+        Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/windows/uninstall-hooks.nsh') -Value @(
+            'System::Call ''kernel32::CreateProcessW(w r1, w r2, p 0, p 0, i 0, i 0, p 0, p 0, p r3, p r4) i .r0''',
+            'RMDir /r "$LOCALAPPDATA\app.sofa.launcher"'
+        )
         $found = @(Invoke-Guards $tmp)
         $text = $found -join "`n"
         foreach ($token in $planted) {
@@ -235,6 +291,16 @@ function Invoke-GuardSelfTest {
         if ($text -notmatch 'midtest\.rs:7 `DeleteFileW`') { throw 'autoteste: codigo de producao depois de #[cfg(test)] no meio do arquivo nao foi varrido' }
         if ($text -match 'midtest\.rs:(4|10) ') { throw 'autoteste: item #[cfg(test)] foi varrido (deveria ser pulado)' }
         if ($text -notmatch 'bad\.nsh:3 ') { throw 'autoteste: $SYSDIR como argumento (nao como executavel) nao foi acusado' }
+        foreach ($api in $nsisApis) {
+            if ($text -notmatch ('bad-system\.nsh:\d+ System::Call com `' + $api + '`')) { throw "autoteste: System::Call com $api fora do dono nao foi acusado" }
+        }
+        if ($text -notmatch 'bad-system\.nsh:7 System::Call com `DeleteFileA`') { throw 'autoteste: dll::Funcao fora de System::Call nao foi acusada' }
+        foreach ($n in 1..4) {
+            if ($text -notmatch ('SEC-31 src-tauri/bad-data\.nsh:' + $n + ' ')) { throw "autoteste: Delete/RMDir sobre a pasta de dados (linha $n) nao foi acusado" }
+        }
+        if ($text -notmatch 'SEC-31 src-tauri/windows/uninstall-hooks\.nsh:2 ') { throw 'autoteste: o dono do System::Call tambem nao pode apagar a pasta de dados pelo NSIS' }
+        if ($text -match 'uninstall-hooks\.nsh:1 ') { throw 'autoteste: dono do System::Call acusado indevidamente' }
+        if ($text -match 'ok-system\.nsh') { throw 'autoteste: arquivo NSIS limpo acusado' }
         # Os donos nao podem aparecer entre as violacoes.
         foreach ($owner in @('xinput.rs', 'foreground.rs')) {
             if ($text -match ($owner + ':\d+ `(XInputGetState|SetForegroundWindow)`')) { throw "autoteste: dono acusado indevidamente: $owner" }
