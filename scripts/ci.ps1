@@ -34,7 +34,10 @@
 .PARAMETER ReleasesDir
   Pasta de releases local (D-34). Padrao: ..\sofa-releases, ao lado do repo (fora do git).
 .PARAMETER SkipMsvcTests
-  Com -Release: nao roda `cargo test --workspace` no MSVC (so a trava do manifesto e os testes do instalador).
+  Com -Release: nao roda os testes no MSVC (so a trava do manifesto e os testes do instalador).
+.PARAMETER FullMsvcTests
+  Com -Release: roda `cargo test --workspace` completo no MSVC, inclusive session_e2e e session_runtime, que
+  sobem o `sofa-test-game.exe`; o Defender pode barrar esse helper (falso positivo `Bearfoos.A!ml`, erro 225).
 .PARAMETER AllowUntagged
   Com -Release: permite build sem a tag v<versao> no HEAD e com arvore suja (build de teste; fica marcado
   em BUILD-INFO.txt). Release oficial exige a tag (RN-30).
@@ -51,6 +54,7 @@ param(
     [switch]$SkipDevChecks,
     [string]$ReleasesDir,
     [switch]$SkipMsvcTests,
+    [switch]$FullMsvcTests,
     [switch]$AllowUntagged
 )
 
@@ -144,7 +148,7 @@ if ($Release -and -not $SelfTestOnly) {
             if ($script:failed.Count -gt 0) { Write-Host ("`n=== {0}: PULADO (passo anterior falhou)" -f $n) -ForegroundColor Yellow }
             else { Invoke-Step $n $b }
         }
-        Invoke-Release -Root $root -ReleasesDir $ReleasesDir -SkipMsvcTests:$SkipMsvcTests -SkipAudit:$SkipAudit -AllowUntagged:$AllowUntagged -Step $stepGuard
+        Invoke-Release -Root $root -ReleasesDir $ReleasesDir -SkipMsvcTests:$SkipMsvcTests -FullMsvcTests:$FullMsvcTests -SkipAudit:$SkipAudit -AllowUntagged:$AllowUntagged -Step $stepGuard
     }
 }
 

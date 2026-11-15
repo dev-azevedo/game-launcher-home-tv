@@ -60,9 +60,12 @@ só é necessário para o que é distribuído (loader do WebView2 estático, CFG
 ADR-0001). O MSVC entra em `scripts/ci.ps1 -Release`, que depois dos passos acima gera o release em
 `..\sofa-releases\v<versão>` (ao lado do repo, fora do git; troque com `-ReleasesDir`):
 
-1. `cargo test --workspace` no MSVC (`-SkipMsvcTests` pula), na toolchain MSVC **da versão fixada** em
+1. `cargo test` no MSVC (`-SkipMsvcTests` pula), na toolchain MSVC **da versão fixada** em
    `rust-toolchain.toml` (ou `stable-...-msvc` se for a mesma versão; senão o script diz o comando
-   `rustup toolchain install`).
+   `rustup toolchain install`). Por padrão sem `session_e2e` e `session_runtime`, que sobem o
+   `sofa-test-game.exe`: o Defender classifica esse helper (compilado no MSVC) como
+   `Trojan:Win32/Bearfoos.A!ml`, falso positivo, e bloqueia a execução (erro 225). `-FullMsvcTests`
+   roda tudo (adicione `target\` às exclusões do Defender se quiser).
 2. Relatórios de `cargo deny` e `npm audit` (produção, nível alto) em `relatorios\`.
 3. `tauri build --target x86_64-pc-windows-msvc --bundles nsis` (a CLI vem do `ui/package.json`, sem
    scripts de instalação): NSIS por máquina, `Program Files\Sofa`, bootstrapper do WebView2 embutido.

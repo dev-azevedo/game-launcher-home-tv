@@ -6,7 +6,7 @@
 
   Passos, nesta ordem (qualquer falha para tudo e nao deixa instalador na pasta de releases):
     1. toolchain MSVC na versao fixada em rust-toolchain.toml (SEC-24)
-    2. cargo test --workspace no MSVC (pula com -SkipMsvcTests)
+    2. cargo test no MSVC (pula com -SkipMsvcTests; -FullMsvcTests inclui os testes do jogo de teste, que o Defender barra)
     3. relatorios: cargo deny e npm audit de producao (anexados ao release)
     4. `tauri build --target x86_64-pc-windows-msvc --bundles nsis` (NSIS perMachine, bootstrapper do WebView2)
     5. TRAVA ARQ-BUG-08: o sofa.exe MSVC com exatamente um RT_MANIFEST valido (tests/manifest_resource.rs)
@@ -48,6 +48,7 @@ function Invoke-Release {
         [Parameter(Mandatory)][string]$Root,
         [string]$ReleasesDir,
         [switch]$SkipMsvcTests,
+        [switch]$FullMsvcTests,
         [switch]$SkipAudit,
         [switch]$AllowUntagged,
         [Parameter(Mandatory)][scriptblock]$Step
@@ -85,7 +86,20 @@ function Invoke-Release {
         New-Item -ItemType Directory -Force -Path (Join-Path $stage 'relatorios') | Out-Null
 
         if (-not $SkipMsvcTests) {
-            & $Step 'cargo test --workspace (MSVC)' { cargo test --workspace --target $target }
+            if ($FullMsvcTests) {
+                & $Step 'cargo test --workspace (MSVC, completo)' { cargo test --workspace --target $target }
+            }
+            else {
+                # Padrao: sem os testes que sobem o `sofa-test-game.exe` (session_e2e e session_runtime). O Defender
+                # classifica esse helper de teste, compilado no MSVC, como `Trojan:Win32/Bearfoos.A!ml` (falso positivo
+                # de aprendizado de maquina) e bloqueia a execucao (erro 225). O instalador e o sofa.exe de release
+                # passam no Defender (conferido com `MpCmdRun -Scan -File`). `-FullMsvcTests` roda tudo.
+                & $Step 'cargo test (MSVC): launcher-core, sofa e launcher-win sem os testes do jogo de teste' {
+                    cargo test -p launcher-core -p sofa --target $target
+                    if ($LASTEXITCODE -ne 0) { return }
+                    cargo test -p launcher-win --target $target --lib --test library_integration --test qa_robustez
+                }
+            }
         }
 
         & $Step 'relatorio: cargo deny' {
