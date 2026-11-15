@@ -57,7 +57,7 @@ O instalador não tem assinatura digital (é uma versão de teste, feita para us
 
 | # | O que fazer | Esperado | Resultado |
 |---|---|---|---|
-| 1.1 | **Confira o arquivo antes de abrir.** Abra o PowerShell na pasta do instalador e rode `Get-FileHash .\Sofa_0.1.0_x64-setup.exe -Algorithm SHA256`. Compare o valor com o de `SHA256SUMS.txt` (nesta versão termina em `…13af`) | Os dois iguais (CA-76). Se forem diferentes, **não instale** e me avise. Se houver uma versão nova do instalador, o valor muda: vale sempre o `SHA256SUMS.txt` que veio junto do arquivo | |
+| 1.1 | **Confira o arquivo antes de abrir.** Abra o PowerShell na pasta do instalador e rode `Get-FileHash .\Sofa_0.1.0_x64-setup.exe -Algorithm SHA256`. Compare o valor com o de `SHA256SUMS.txt` (nesta versão termina em `…cf33`) | Os dois iguais (CA-76). Se forem diferentes, **não instale** e me avise. Se houver uma versão nova do instalador, o valor muda: vale sempre o `SHA256SUMS.txt` que veio junto do arquivo | |
 | 1.2 | Dê dois cliques no instalador. O **SmartScreen** (a tela azul "O Windows protegeu seu PC") pode aparecer, ou o Defender pode reclamar | Só continue se o 1.1 deu certo: clique em **Mais informações** e depois em **Executar assim mesmo**. Não desligue o antivírus. Se o Defender bloquear ou mandar o arquivo para quarentena, pare, tire uma foto da mensagem e anote | |
 | 1.3 | O Windows pede **permissão de administrador** (a tela escura "Deseja permitir que este aplicativo faça alterações?") | Aparece, e é esperado só aqui, na instalação (CA-50). Se você tem a senha de **outro administrador**, use essa; se só tem a sua conta, aceite com ela e anote "uma conta só" | |
 | 1.4 | Passe pelas telas do instalador | A caixa **"Iniciar com o Windows"** vem marcada (CA-51). Há um texto orientando a entrar no Windows sem teclado (RN-19). Instala em `C:\Program Files\Sofa` sem pedir nada manual | |
@@ -67,6 +67,7 @@ O instalador não tem assinatura digital (é uma versão de teste, feita para us
 | 1.8 | No mesmo `sofa.txt`, procure "ACL da pasta de instalação" (é a lista de quem pode mexer na pasta). Se quiser ver ao vivo: `icacls "C:\Program Files\Sofa"` | Os usuários comuns só **leem e executam**: nenhuma linha `Users:(M)`, `Users:(F)` nem `Everyone` (SEC-20). Cole o que aparecer | |
 | 1.9 | Abra o Sofá pelo atalho do menu Iniciar com ele já aberto | O atalho existe. Abrir de novo não cria segunda janela, só traz a atual (CA-02) | |
 | 1.10 | Rode `Get-ScheduledTask 'Sofa Autostart*'` no PowerShell (se "Iniciar com o Windows" ficou marcada) | A tarefa existe só para a **sua** conta (e, se você instalou com outra senha de administrador, **não** para a conta do administrador) (SEC-21, SEC-22, E-19). Se não existir tarefa, pode ser o outro mecanismo (Run): anote | |
+| 1.11 | Opcional, 1 minuto: no PowerShell, rode o instalador com outra pasta: `.\Sofa_0.1.0_x64-setup.exe /D=C:\Teste` | Recusa e mostra a mensagem de **pasta fixa**: "O Sofá só pode ser instalado em Program Files. Rode o instalador sem a opção /D=." Nada é instalado. Se aparecer UAC antes, aceite. O desinstalador tem uma mensagem parecida ("Desinstale em Aplicativos instalados."), que só aparece se alguém rodar o desinstalador de fora de Program Files: não precisa testar | |
 
 ## Bloco 2. Boot e início automático (20 min)
 

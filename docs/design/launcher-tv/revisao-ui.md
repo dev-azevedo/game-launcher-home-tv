@@ -7,7 +7,7 @@
 | Referências | `docs/design/launcher-tv.md` (seções 13 e 16), `microcopy.md`, `mockups/tv.html` e `mockups/prototipo.html`, `docs/brand/sofa/` |
 | Veredito | Rodada 1: aprovado com ajustes. **Rodada 2: aprovado, DES-BUG-01 a 07 fechados, sem bug novo.** |
 
-Pasta dos screenshots (1920×1080 salvo indicação): `C:\Users\JHONAT~1.AZE\AppData\Local\Temp\claude\17d258b0d4ac8099\f8d80d67-1d19-4574-8bf0-c4b10e3a96b2\scratchpad\des09\`. Nos nomes, `u-` é a UI (Vite, porta 5181) e `m-` é o mockup (`tv.html?scenario=...`).
+Pasta dos screenshots (1920×1080 salvo indicação): pasta temporária local (não versionada). Nos nomes, `u-` é a UI (Vite, porta 5181) e `m-` é o mockup (`tv.html?scenario=...`).
 
 ## 1. Como foi feito
 
