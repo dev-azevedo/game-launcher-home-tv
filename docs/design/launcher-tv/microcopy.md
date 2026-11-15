@@ -191,3 +191,84 @@ Regras de texto:
 | Configurações > Geral, rótulo | Pasta de logs | Mostra o caminho como texto puro. |
 | Configurações > Tela, monitor | <nome> · Principal · Em uso | Sem resolução (o `MonitorDto` não traz e não é necessária). |
 | Card "Em andamento" durante Fechando ou fechamento atrasado | A reabre "Fechando <nome>…" ou a oferta de "Forçar fechamento" | Mesmos textos de antes. Mesma trava de 600 ms. |
+
+## 4. Instalador e desinstalador
+
+Fonte do texto: `src-tauri/windows/PortugueseBR.nsh` (um `LangString` por linha). Este catálogo é a versão final; a comparação com o que o dev escreveu está em `revisao-instalador.md`. Voz da marca: frase curta, sem "ops" nem "por favor", diz o que houve e o que fazer.
+
+Regras desta seção:
+- O nome do produto é sempre "Sofá", com acento. Dentro de `LangString`, usar `${DISPLAYNAME}` quando o nome vier de variável. Nunca `{{product_name}}` (o bundler não troca no arquivo de idioma) nem `${PRODUCTNAME}` (vale "Sofa", sem acento).
+- Reticências com o caractere "…" (U+2026), como no resto do app.
+- Arquivo `.nsh` em UTF-8 **com BOM**. Sem BOM, o NSIS Unicode lê como ANSI e mostra "SofÃ¡".
+- Tamanho: rádio da página de reinstalação até cerca de 65 caracteres (uma linha); texto do corpo dessa página até cerca de 140; dica da página "Iniciar com o Windows" até cerca de 140; aviso de logon até cerca de 280.
+- Termos: Biblioteca, Configurações, Iniciar com o Windows, Manter dados (CA-68).
+
+### Reinstalar e atualizar
+| ID | Onde aparece | Texto final |
+|---|---|---|
+| `addOrReinstall` | Rádio, mesma versão | Reinstalar o Sofá |
+| `alreadyInstalled` | Título da página | Sofá já instalado |
+| `alreadyInstalledLong` | Corpo, mesma versão | A versão `${VERSION}` já está instalada. Reinstalar mantém a biblioteca e as configurações. Desinstalar pergunta o que fazer com elas. |
+| `chooseMaintenanceOption` | Subtítulo, mesma versão | Escolha o que fazer. |
+| `chooseHowToInstall` | Subtítulo, versão diferente | Escolha como instalar o Sofá. |
+| `uninstallBeforeInstalling` | Rádio 1, versão diferente | Substituir a versão instalada (mantém seus dados) |
+| `dontUninstall` | Rádio 2, versão diferente | Instalar por cima, sem remover a versão atual |
+| `dontUninstallDowngrade` | Rádio 2 desligado, versão anterior | Instalar por cima (indisponível para versão anterior) |
+| `olderOrUnknownVersionInstalled` | Corpo, versão instalada mais antiga ou desconhecida | Uma versão `$R4` do Sofá está instalada. A biblioteca, as configurações e a opção Iniciar com o Windows continuam como estão. |
+| `newerVersionInstalled` | Corpo, versão instalada mais nova | Uma versão mais nova do Sofá já está instalada. Não recomendamos instalar uma versão anterior por cima. |
+| `older` | Valor de `$R4` | mais antiga |
+| `unknown` | Valor de `$R4` | desconhecida |
+| `uninstallApp` | Rádio 2, mesma versão | Desinstalar o Sofá |
+| `silentDowngrades` | Aviso em instalação sem telas (`/P`, `/S`, `/UPDATE`) | Este modo de instalação não permite instalar uma versão anterior. Use o instalador com telas. (mantém o `$\n` do fim) |
+| `unableToUninstall` | Caixa de aviso | Não foi possível remover a versão instalada. Feche o Sofá e tente de novo. Se continuar, desinstale em Aplicativos instalados. |
+
+### Sofá aberto
+| ID | Onde aparece | Texto final |
+|---|---|---|
+| `appRunning` | Instalação cancelada com o Sofá aberto | O `${DISPLAYNAME}` está aberto. Feche-o e tente de novo. |
+| `appRunningOkKill` | Caixa OK/Cancelar | O `${DISPLAYNAME}` está aberto.`$\n`Clique em OK para fechá-lo. |
+| `failedToKillApp` | Falha ao fechar | Não foi possível fechar o `${DISPLAYNAME}`. Feche-o você mesmo e tente de novo. |
+
+### Atalho
+| ID | Onde aparece | Texto final |
+|---|---|---|
+| `createDesktop` | Caixa na tela final | Criar atalho na área de trabalho |
+
+### WebView2 (CA-50)
+| ID | Onde aparece | Texto final |
+|---|---|---|
+| `installingWebview2` | Lista de detalhes | Instalando o WebView2… |
+| `webview2InstallSuccess` | Lista de detalhes | WebView2 instalado. |
+| `webview2InstallError` | Lista de detalhes | A instalação do WebView2 falhou (código `$1`). |
+| `webview2AbortError` | Aborta a instalação (spec, não muda) | Não foi possível baixar o WebView2. Conecte o PC à internet e tente de novo. |
+| `webview2Downloading`, `webview2DownloadSuccess`, `webview2DownloadError` | Não usados (o bootstrapper embutido baixa sozinho) | Baixando o WebView2… · WebView2 baixado. · Não foi possível baixar o WebView2: `$0` |
+
+### Página "Iniciar com o Windows" (CA-01, CA-51, RN-19)
+| ID | Onde aparece | Texto final |
+|---|---|---|
+| `sofaOptionsTitle` | Título da página | Iniciar com o Windows |
+| `sofaOptionsSubtitle` | Subtítulo | Escolha se o Sofá abre sozinho quando você entra no Windows. |
+| `sofaStartupCheckbox` | Caixa, marcada | Iniciar com o Windows |
+| `sofaStartupHint` | Sob a caixa | Esta escolha vale como padrão para cada usuário do PC. Cada um pode mudar depois, em Configurações. |
+| `sofaNoKeyboardNote` | Aviso na página | Para ligar o PC e jogar sem teclado, configure o logon automático ou o Windows Hello no Windows. O Sofá começa na área de trabalho. O instalador não altera o seu logon. |
+
+### Desinstalador (CA-52, CA-68, D-43)
+| ID | Onde aparece | Texto final |
+|---|---|---|
+| `keepAppData` | Caixa na confirmação, marcada | Manter dados (biblioteca e configurações) |
+| `sofaKeepData` | Lista de detalhes | Mantendo a biblioteca e as configurações. |
+| `sofaPurgeStart` | Lista de detalhes | Apagando os dados do Sofá do seu usuário… |
+| `sofaSidIgnored` | Lista de detalhes | Um perfil do Windows com identificador inválido foi ignorado ao remover a inicialização. |
+| `sofaPurgePartial` | Caixa de aviso, seguida da pasta | Não foi possível apagar todos os dados do Sofá. Alguns arquivos podem ter ficado na pasta abaixo (biblioteca, configurações, capas, logs e cache). Você pode apagar a pasta. |
+| `sofaPurgeUnread` | Caixa de aviso, seguida da pasta | Não foi possível confirmar a remoção dos dados do Sofá. Alguns arquivos podem ter ficado na pasta abaixo (biblioteca, configurações, capas, logs e cache). Você pode apagar a pasta. |
+| `sofaPurgeInvalidTarget` | Caixa de aviso, seguida da pasta | Os dados do Sofá não foram apagados: a pasta não passou na verificação de segurança. Ela está abaixo. Confira o conteúdo antes de apagar. |
+| `sofaPurgeAppOpen` | Caixa de aviso, seguida da pasta | O Sofá estava aberto, então os dados não foram apagados. Eles continuam na pasta abaixo, e você pode apagá-la. |
+| `sofaPurgeRunning` | Caixa de aviso, seguida da pasta | A remoção dos dados ainda não terminou. Se algo sobrar, apague a pasta abaixo. |
+| `sofaPurgeNoProfile` | Caixa de aviso (sem pasta) | Não foi possível saber qual usuário está usando o Windows, então nenhum dado foi apagado. Para removê-los, apague a pasta app.sofa.launcher em AppData\Local do seu usuário. |
+
+### Fora do `PortugueseBR.nsh` (texto visível que o instalador herda)
+| Onde | Hoje | Final |
+|---|---|---|
+| Rodapé de todas as telas (`BrandingText`, vem de `copyright` em `tauri.conf.json`) | Copyright (c) Sofa | Copyright (c) Sofá |
+| "Aplicativos instalados", coluna Editor (`publisher` em `tauri.conf.json`) | Sofa | Sofá |
+| Telas padrão do NSIS (boas-vindas, pasta, concluído, confirmação do desinstalador) | texto de fábrica do NSIS em pt-BR | decisão aberta, ver `revisao-instalador.md` seção 5 |

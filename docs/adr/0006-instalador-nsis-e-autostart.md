@@ -1,7 +1,7 @@
 ---
 status: accepted (fechado pelo SP-07 técnico; instalador elevado, RunAsUser e DLL no QA-17)
 date: 2026-11-13
-revised: 2026-11-13 (P-01, P-03, P-07 decididos; SEC-21/22/23/25 e AF-05/AF-10 incorporados; rev. 3: SEC-31, SEC-32, DR-03; rev. 4: D-31, D-32, D-35; rev. 5: resultado do SP-07); 2026-11-14 (rev. 6: DR-06 e D-43, fallback restrito a dois arquivos; código de saída do purge; SEC-BUG-03)
+revised: 2026-11-13 (P-01, P-03, P-07 decididos; SEC-21/22/23/25 e AF-05/AF-10 incorporados; rev. 3: SEC-31, SEC-32, DR-03; rev. 4: D-31, D-32, D-35; rev. 5: resultado do SP-07); 2026-11-14 (rev. 6: DR-06 e D-43, fallback restrito a dois arquivos; código de saída do purge; SEC-BUG-03); 2026-11-15 (rev. 7: implementação do instalador, template próprio, pasta fixa, SEC-32 com $PLUGINSDIR e $INSTDIR, schtasks por SID)
 feature: launcher-tv
 ---
 
@@ -20,6 +20,13 @@ NSIS do Tauri 2 (`bundle.windows.nsis`) com:
 - Hooks NSIS (`NSIS_HOOK_POSTINSTALL`, `NSIS_HOOK_PREUNINSTALL`) para os passos abaixo.
 
 MSI (WiX) fica de fora: não traz ganho para uso pessoal e dificulta a pergunta customizada do desinstalador (CA-68).
+
+**Implementação (rev. 7, BE-37 a BE-39 e BE-42, aceita no ARQ-05 rodada 3):**
+- **Template NSIS próprio** (`src-tauri/windows/installer.nsi`, fork do template do Tauri 2.12.4, escolhido em `bundle.windows.nsis.template`), com `hooks.nsh`, `install-hooks.nsh`, `uninstall-hooks.nsh` e `PortugueseBR.nsh`. Os hooks sozinhos não bastavam, porque o template original apaga dados com `RmDir /r` elevado e grava em `HKCU`. Saíram: a remoção recursiva de dados, a gravação em `HKCU`, a migração de WiX, o WebView2 por download ou offline e a atualização do runtime. Custo: a cada atualização do Tauri, as diferenças listadas no cabeçalho do fork têm de ser reaplicadas (tarefa explícita, igual ao `windows-rs`).
+- **Pasta de instalação fixa**: `$PROGRAMFILES64\Sofa`. O SEC-20 e a exceção de `$INSTDIR` abaixo dependem de a pasta herdar as ACLs de `Program Files`. Escolher outra pasta, pela página de diretório ou por `/D=`, **não** é permitido (ARQ-BUG-16).
+- **Executável externo (SEC-32)**: só por `$SYSDIR\`, `$PLUGINSDIR\` (o bootstrapper do WebView2, na pasta temporária privada do NSIS da conta que instala) ou `$INSTDIR\` (o desinstalador anterior, e só se estiver no `$INSTDIR` atual). Continuam proibidos `$TEMP\`, nome relativo e caminho vindo de variável ou do registro.
+- **§6a: remoção do autostart de todos os perfis** por `"$SYSDIR\schtasks.exe" /Delete /TN "Sofa Autostart (<SID>)" /F`, com SID validado caractere a caractere em `^S-1-5-21(-[0-9]{1,10}){4}$`. A enumeração por COM com prefixo foi descartada: exigiria `VARIANT` por valor pelo plugin `System`, sem segurança no NSIS. Junto vai a remoção do valor `Sofa` em `HKU\<SID>\...\Run` e em `StartupApproved\Run` dos hives carregados. Hive descarregado deixa entrada órfã, que o Windows ignora porque o exe não existe mais.
+- **§6b: usuário interativo**: o SID vem de duas fontes, o token do Explorer da sessão e o usuário da sessão (`WTSQuerySessionInformationW`). Divergência ou ausência das duas = nada apagado. O `LocalAppData` é o `ProfileImagePath` da `ProfileList` + `\AppData\Local`, e o fallback exige que o caminho final seja o mesmo texto, sem junção no caminho. As duas regras são mais restritivas que o texto anterior.
 
 ### 2. Autostart: dono único, criado no contexto do usuário
 

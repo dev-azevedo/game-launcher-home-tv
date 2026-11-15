@@ -1,51 +1,74 @@
-# Roteiro de teste do Sofá (QA-16, esboço da rodada 1)
+# Roteiro de teste do Sofá (QA-16)
 
-Este roteiro é só seu e roda no PC da sala, com Windows 10, na TV. Você não precisa consertar nada nem entender o porquê de cada passo: faça, anote o que viu e mande o zip de logs no fim. Caso que você não consegue fazer (falta o hardware, o jogo não está instalado) vale como "não deu": anote assim, sem tentar compensar.
+Este roteiro é só seu e roda no PC da sala, com Windows 10, na TV. Você não precisa entender o porquê de cada passo nem consertar nada: faça, anote o que viu e mande o zip de logs no fim. O que você não conseguir fazer (falta o hardware, o jogo não está instalado) vale como "Não deu". Anote assim, sem tentar compensar.
 
-**Estado do esboço (rodada 2 do QA).** Faltam duas coisas que chegam depois: o instalador de teste (BE-39, marcado "depende do BE-39" onde entra) e a sua lista de jogos (D-29, no bloco 5). A rodada 2 acrescentou o desligamento com inicialização rápida (bloco 7), o teclado completo (bloco 9), o jogo manual com processo fora da pasta (5.14) e o código 4 da remoção de dados (bloco 13). O resto já pode ser lido e ajustado.
+**Instale e desinstale o Sofá só no PC da sala.** Não rode o instalador em outro computador.
 
-**Tempo total estimado:** 3 a 4 horas, em blocos que podem ser feitos em dias diferentes. Os blocos 1 a 3 são o mínimo para o Sofá servir no dia a dia.
+**Tempo total estimado:** 4 a 5 horas e meia, em 2 ou 3 sessões. Quem manda no tempo é o bloco 5, que depende de quantos jogos você escolher. Para o Sofá servir no dia a dia, o mínimo são os blocos 1 a 3. A desinstalação (bloco 14) fica **por último**, porque apaga o que foi testado.
+
+| Bloco | Assunto | Tempo |
+|---|---|---|
+| 0 | Antes de começar | 10 min |
+| 1 | Instalação | 30 min |
+| 2 | Boot e início automático | 20 min |
+| 3 | Controle e navegação | 25 min |
+| 4 | Biblioteca real | 30 min |
+| 5 | Jogos, modos de tela e degraus | 60 a 90 min |
+| 6 | Volume | 15 min |
+| 7 | Energia | 35 min |
+| 8 | Telas e TV | 30 min |
+| 9 | Teclado e mouse | 10 min |
+| 10 | Jogo com anti-cheat, offline | 20 min |
+| 11 | Conta padrão e outro administrador (se você tiver) | 20 min |
+| 12 | Degraus 2 e 3 e logs | 20 min |
+| 13 | Coletar os logs (antes de desinstalar) | 5 min |
+| 14 | Desinstalação | 30 min |
+| 15 | Coleta final e envio | 5 min |
 
 ## O que ter à mão
 
-- Teclado e mouse (para o UAC, para renomear jogo e para os casos de emergência).
-- Controle Xbox com fio **e** sem fio (adaptador e/ou Bluetooth), se tiver os dois. Se tiver um segundo controle, melhor.
-- Notebook ou celular para anotar, ou imprima a tabela de cada bloco.
-- Uma segunda tela (monitor ou outra TV), se tiver. Sem ela, os casos de duas telas ficam "não deu".
-- A credencial de **outro administrador** do Windows (bloco 11) e uma conta **padrão** (não administradora) para testar a instalação.
-- Um jogo com anti-cheat que funcione **offline** (bloco 10).
-- O Process Explorer (Sysinternals) para o bloco 11. Baixe de learn.microsoft.com/sysinternals.
+- Um **pendrive** com a pasta do instalador (`Sofa_0.1.0_x64-setup.exe`, `SHA256SUMS.txt` e `README.txt`) **e** o arquivo `scripts\coletar-logs.ps1` do repositório. O instalador **não** traz o coletor de logs: leve os dois juntos e copie tudo para uma pasta do PC da sala, por exemplo `Documentos\Sofa-teste`.
+- Teclado e mouse (para a permissão do Windows, para renomear jogo e para emergências).
+- Controle Xbox com fio **e** sem fio (adaptador e/ou Bluetooth), se tiver os dois. Um segundo controle ajuda.
+- Celular para anotar e fotografar a tela, ou a tabela de cada bloco impressa.
+- Uma segunda tela (monitor ou outra TV), se tiver. Sem ela, os casos de duas telas ficam "Não deu".
+- Opcional: a senha de **outro administrador** do Windows e uma conta **padrão** (comum, sem poderes de administrador). Sem elas, o bloco 11 fica "Não deu" e o resto segue.
+- Um jogo com anti-cheat que rode **offline** (bloco 10).
 
-**Regra de ouro:** se algo travar a tela e o controle não resolver, use o teclado de emergência: setas, Enter (A), Esc (B) e F1 (Menu). Anote que precisou.
+**Regra de ouro:** se algo travar a tela e o controle não resolver, use o teclado: setas, Enter (A), Esc ou Backspace (B) e F1 (Menu). Anote que precisou.
 
 ## Como anotar
 
-Cada bloco tem uma tabela. Marque **OK**, **Falhou** ou **Não deu** e escreva uma linha do que viu quando não for OK. Horário aproximado ajuda a achar o ponto no log. Prints com o celular também servem.
+Cada bloco tem uma tabela. Marque **OK**, **Falhou** ou **Não deu** e escreva uma linha do que viu quando não for OK. A hora aproximada ajuda a achar o ponto no log. Fotos da tela com o celular servem.
 
 ---
 
 ## Bloco 0. Antes de começar (10 min)
 
-1. Abra o PowerShell e rode `powercfg /a`. Anote se aparece **Suspensão (S3)** ou **Espera (S3)** na lista de estados disponíveis. O resultado vale para o bloco 8 (se "Suspender" deve aparecer no Sofá).
+1. Abra o PowerShell e rode `powercfg /a`. Anote se aparece **Suspensão (S3)** ou **Espera (S3)** na lista de estados disponíveis. O resultado vale para o bloco 7 (se "Suspender" deve aparecer no Sofá).
 2. Anote o modelo da TV, a resolução usada hoje no Windows (Configurações > Sistema > Vídeo) e a escala (100%, 125%…).
 3. Anote o modelo do controle e como ele conecta (cabo, adaptador, Bluetooth).
-4. Se o Windows pede PIN ou senha ao ligar, o Sofá só começa depois que você entrar na área de trabalho. Isso é esperado e não é falha (RN-19).
+4. Se o Windows pede PIN ou senha ao ligar, o Sofá só começa depois que você entrar na área de trabalho. Isso é esperado, não é falha (RN-19).
+5. Veja se o **WebView2** já está instalado: Configurações > Aplicativos > Aplicativos instalados, e procure "Microsoft Edge WebView2 Runtime". Anote se achou. Ele é um componente da Microsoft que o Sofá usa para desenhar a tela. **Não desinstale**: só anote. Se já estiver instalado, o item 1.6 fica "Não deu".
 
-## Bloco 1. Instalação — *depende do BE-39* (20 min)
+## Bloco 1. Instalação (30 min)
 
-Faça com a conta **padrão** e a credencial do outro administrador (D-31). Não use sua conta de administrador para clicar "Sim" no UAC.
+O instalador não tem assinatura digital (é uma versão de teste, feita para uso pessoal). Por isso o Windows pode estranhar o arquivo. Os passos abaixo mostram como seguir com segurança.
 
 | # | O que fazer | Esperado | Resultado |
 |---|---|---|---|
-| 1.1 | Confira o SHA-256 do instalador: `Get-FileHash .\Sofa-Setup.exe` e compare com o arquivo `SHA256SUMS.txt` | Os dois iguais (CA-76) | |
-| 1.2 | Rode o instalador. O SmartScreen avisa que o editor é desconhecido | Aparece o aviso (sem assinatura, é esperado). "Mais informações" > "Executar assim mesmo" | |
-| 1.3 | No UAC, escolha a credencial do outro administrador | Instala em `C:\Program Files` sem outro passo manual (CA-50) | |
-| 1.4 | Se o WebView2 não estava instalado: deixe o instalador baixar | Baixa e instala. Sem internet, mostra "Não foi possível baixar o WebView2…" (teste desligando o Wi-Fi só se quiser) | |
-| 1.5 | Veja a caixa "Iniciar com o Windows" na instalação | Vem marcada (CA-51) | |
-| 1.6 | Ao terminar, deixe abrir o Sofá. Abra o Process Explorer, ache `sofa.exe`, clique 2x > aba Security | Integridade **Medium**, usuário = a conta padrão, **não** a conta do administrador do UAC (SEC-21, E-19) | |
-| 1.7 | Há atalho no menu Iniciar? Abra por ele com o Sofá já aberto | Atalho existe. Abrir de novo não cria segunda janela, só traz a atual (CA-02) | |
+| 1.1 | **Confira o arquivo antes de abrir.** Abra o PowerShell na pasta do instalador e rode `Get-FileHash .\Sofa_0.1.0_x64-setup.exe -Algorithm SHA256`. Compare o valor com o de `SHA256SUMS.txt` (nesta versão termina em `…13af`) | Os dois iguais (CA-76). Se forem diferentes, **não instale** e me avise. Se houver uma versão nova do instalador, o valor muda: vale sempre o `SHA256SUMS.txt` que veio junto do arquivo | |
+| 1.2 | Dê dois cliques no instalador. O **SmartScreen** (a tela azul "O Windows protegeu seu PC") pode aparecer, ou o Defender pode reclamar | Só continue se o 1.1 deu certo: clique em **Mais informações** e depois em **Executar assim mesmo**. Não desligue o antivírus. Se o Defender bloquear ou mandar o arquivo para quarentena, pare, tire uma foto da mensagem e anote | |
+| 1.3 | O Windows pede **permissão de administrador** (a tela escura "Deseja permitir que este aplicativo faça alterações?") | Aparece, e é esperado só aqui, na instalação (CA-50). Se você tem a senha de **outro administrador**, use essa; se só tem a sua conta, aceite com ela e anote "uma conta só" | |
+| 1.4 | Passe pelas telas do instalador | A caixa **"Iniciar com o Windows"** vem marcada (CA-51). Há um texto orientando a entrar no Windows sem teclado (RN-19). Instala em `C:\Program Files\Sofa` sem pedir nada manual | |
+| 1.5 | Termine e deixe o Sofá abrir | Abre em tela cheia **sem** pedir permissão de administrador de novo | |
+| 1.6 | **Só se o WebView2 não estava instalado (bloco 0, item 5):** repare no que o instalador fez | Baixou e instalou o WebView2 sozinho (CA-50). Para testar a falta de internet, desligue o Wi-Fi ou o cabo **antes** de instalar: deve aparecer "Não foi possível baixar o WebView2. Conecte o PC à internet e tente de novo." Religue a rede depois | |
+| 1.7 | Com o Sofá aberto, rode o coletor: `powershell -ExecutionPolicy Bypass -File .\coletar-logs.ps1`. Abra o zip e leia `sofa.txt` | Em "Processo sofa.exe" aparece **"Medium … elevado=False"**. Isso quer dizer que o Sofá roda como programa comum, sem poderes de administrador (SEC-20, SEC-21). Se aparecer "High" ou "elevado=True", anote | |
+| 1.8 | No mesmo `sofa.txt`, procure "ACL da pasta de instalação" (é a lista de quem pode mexer na pasta). Se quiser ver ao vivo: `icacls "C:\Program Files\Sofa"` | Os usuários comuns só **leem e executam**: nenhuma linha `Users:(M)`, `Users:(F)` nem `Everyone` (SEC-20). Cole o que aparecer | |
+| 1.9 | Abra o Sofá pelo atalho do menu Iniciar com ele já aberto | O atalho existe. Abrir de novo não cria segunda janela, só traz a atual (CA-02) | |
+| 1.10 | Rode `Get-ScheduledTask 'Sofa Autostart*'` no PowerShell (se "Iniciar com o Windows" ficou marcada) | A tarefa existe só para a **sua** conta (e, se você instalou com outra senha de administrador, **não** para a conta do administrador) (SEC-21, SEC-22, E-19). Se não existir tarefa, pode ser o outro mecanismo (Run): anote | |
 
-## Bloco 2. Boot e início automático (15 min)
+## Bloco 2. Boot e início automático (20 min)
 
 | # | O que fazer | Esperado | Resultado |
 |---|---|---|---|
@@ -53,7 +76,7 @@ Faça com a conta **padrão** e a credencial do outro administrador (D-31). Não
 | 2.2 | Dentro do Sofá: Menu > Configurações > Geral. Anote o texto de "Iniciar com o Windows" (liga, e qual mecanismo: tarefa agendada ou Run) | Ligado; mecanismo anotado | |
 | 2.3 | Desligue "Iniciar com o Windows" e reinicie | O Sofá **não** abre sozinho (CA-04) | |
 | 2.4 | Ligue de novo, reinicie | Volta a abrir (CA-04). O UAC **não** apareceu nem ao ligar nem ao desligar (CA-74) | |
-| 2.5 | No Process Explorer, o `sofa.exe` aberto no boot | Integridade Medium (M-02, SEC-20) | |
+| 2.5 | Com o Sofá aberto pelo boot, rode o coletor de logs e leia `sofa.txt` | "Medium … elevado=False" também quando o Sofá abre sozinho no boot (M-02, SEC-20) | |
 
 ## Bloco 3. Controle e navegação (25 min)
 
@@ -92,18 +115,27 @@ Repita com cada forma de conexão que você tiver. Anote qual.
 
 ## Bloco 5. Cada jogo, cada modo de tela, cada degrau (60 a 90 min)
 
-**Lista de jogos (D-29): a preencher.** Quando você me mandar a lista, entra aqui uma linha por jogo. Para cada um:
+**Você escolhe os jogos na hora (D-29).** Preencha uma linha por jogo na tabela. Escolha o que você realmente joga, com pelo menos um de cada tipo que você tiver: Steam, Epic, GOG, um jogo cadastrado à mão e, no bloco 10, um com anti-cheat. Se algum jogo funcionar em mais de um modo de tela (janela, sem borda, tela cheia exclusiva), teste cada modo e preencha uma linha por modo. Para cada jogo:
 
 1. Abra pelo Sofá com **A** (CA-26). Anote o tempo até a janela do jogo aparecer.
 2. Com o jogo em primeiro plano, segure **View + Menu por 1,5 s**. O Sofá deve vir para a frente em até 3 s com o painel do jogo (CA-32, M-04). Cronometre.
 3. **Voltar ao jogo.** O jogo volta do mesmo ponto (CA-34).
 4. Volte ao painel e use **Ir para a biblioteca**. O card mostra "Em andamento" e A volta ao jogo (CA-36).
 5. Feche o jogo **pelo menu do próprio jogo**. O Sofá volta sozinho em até 3 s com o jogo em foco na biblioteca (CA-30).
-6. Repita 1 a 5 com os degraus **1 e 4** e, depois, com os **degraus 2 e 3** (veja o bloco 12 para trocar).
+6. Repita 1 a 5 com os degraus que o Sofá usa hoje (1, 3, 2 e 4, nessa ordem) e, depois, só com **1 e 4** (veja o bloco 12 para trocar).
 
-| Jogo | Origem | Modo de tela (janela / sem borda / tela cheia exclusiva) | Degraus | Abre (s) | Retorno por View+Menu (s) | Fim pelo menu do jogo, volta sozinho (s) | Lançador próprio antes do jogo? | O jogo reage ao controle com o Sofá na frente? | Obs. |
+As linhas em itálico são exemplos do que escrever; apague ou sobrescreva.
+
+| Jogo | Origem (Steam, Epic, GOG, manual) | Modo de tela (janela, sem borda, tela cheia exclusiva) | Degraus (todos, ou só 1 e 4) | Abre (s) | Retorno por View+Menu (s) | Fim pelo menu do jogo, volta sozinho (s) | Lançador próprio antes do jogo? | O jogo reage ao controle com o Sofá na frente? | Obs. |
 |---|---|---|---|---|---|---|---|---|---|
-| *(vem da lista D-29)* | | | | | | | | | |
+| *Exemplo Steam: nome do jogo* | *Steam* | *sem borda* | *todos* | *12* | *1,5* | *2* | *não* | *não* | *tudo certo* |
+| *Exemplo Epic: nome do jogo* | *Epic* | *janela* | *todos* | | | | | | |
+| *Exemplo GOG: nome do jogo* | *GOG* | *tela cheia exclusiva* | *todos* | | | | | | |
+| *Exemplo manual: `.exe` solto* | *manual* | | *todos* | | | | | | |
+| *Exemplo anti-cheat, offline (bloco 10)* | | | *todos* | | | | | | |
+| | | | | | | | | | |
+| | | | | | | | | | |
+| | | | | | | | | | |
 | | | | | | | | | | |
 | | | | | | | | | | |
 
@@ -138,7 +170,7 @@ Mais casos de sessão, com **um** jogo qualquer da lista:
 | 6.6 | Desative todos os dispositivos de áudio de saída (Configurações do som) e abra o Volume | "Nenhum dispositivo de áudio encontrado", botões desabilitados (CA-42). **Reative depois.** | |
 | 6.7 | LT/RT dentro do menu rápido, de um diálogo ou com um jogo em primeiro plano | Nada muda (CA-65) | |
 
-## Bloco 7. Energia (30 min)
+## Bloco 7. Energia (35 min)
 
 Salve seu trabalho antes. Os testes desligam e reiniciam o PC de verdade.
 
@@ -195,7 +227,7 @@ Use **modo offline** e uma conta que você não se importe de perder, se possív
 
 ## Bloco 11. Conta padrão e outro administrador (D-31) (20 min)
 
-Se o bloco 1 foi feito com a conta padrão, boa parte já está feita. Falta conferir:
+Só vale se você tiver uma conta padrão (comum) e a senha de outro administrador. Se o bloco 1 já foi feito com essas contas, boa parte está feita. Falta conferir:
 
 | # | O que fazer | Esperado | Resultado |
 |---|---|---|---|
@@ -227,26 +259,36 @@ A escada de retorno tenta 4 jeitos para trazer o Sofá à frente, na ordem **1, 
 4. Se um jogo ou anti-cheat reagir à tecla F24, deixe só `"step2": false` e repita. Anote o que mudou.
 5. Se errar um nome ou um valor, o Sofá ignora só aquele campo, usa o padrão dele e avisa no log. Apagar a seção `advanced` volta tudo ao padrão.
 
-## Bloco 13. Desinstalação — *depende do BE-39* (20 min)
+## Bloco 13. Coletar os logs, antes de desinstalar (5 min)
+
+Faça esta coleta **antes** do bloco 14: a desinstalação pode apagar os logs.
+
+1. Abra o PowerShell na pasta onde copiou o `coletar-logs.ps1` (o pendrive do início). O instalador não traz esse arquivo.
+2. Com o Sofá **aberto**, rode: `powershell -ExecutionPolicy Bypass -File .\coletar-logs.ps1`
+3. O zip aparece na área de trabalho: `sofa-logs-AAAAMMDD-HHMMSS.zip`. Abra, confira o `LEIA-ME.txt` e guarde.
+
+O que vai no zip: os logs do Sofá, o `settings.json`, a versão do Windows, o hardware, as telas, o WebView2, o resultado de `powercfg /a` e o estado do Sofá instalado (nível de permissão, lista de quem pode mexer na pasta, tarefa agendada, entrada de início). O que **não** vai: a lista de jogos, as capas, seu nome de usuário e o nome do PC (viram `<usuario>` e `<pc>`).
+
+Os logs rodam em até 3 arquivos de 5 MB, e o mais antigo se perde. Se quiser separar por bloco, rode o coletor logo depois dos blocos longos (5, 10 e 12).
+
+## Bloco 14. Desinstalação (30 min)
+
+**Esta é a última etapa.** Desinstalar **sem manter os dados** apaga a biblioteca e as configurações do Sofá (nunca os seus jogos). Depois você refaz a biblioteca pelo "Atualizar biblioteca". Faça só no PC da sala.
 
 | # | O que fazer | Esperado | Resultado |
 |---|---|---|---|
-| 13.1 | Atualize: rode um instalador mais novo por cima, com a biblioteca já montada | Mantém biblioteca, configurações e "Iniciar com o Windows" (CA-53) | |
-| 13.2 | Desinstale por "Aplicativos instalados", **mantendo** os dados | Remove o app, atalhos e o início automático da sua conta. Jogos no disco intactos. A pasta `%LOCALAPPDATA%\app.sofa.launcher` continua (CA-52, CA-68) | |
-| 13.3 | Reinstale | Biblioteca e configurações voltam (CA-68) | |
-| 13.4 | Desinstale **desmarcando "Manter dados"** com o Sofá **aberto** | A remoção de dados se recusa com o Sofá aberto (código 4) e **nada é apagado**; o desinstalador deve pedir para fechar o Sofá. Anote o texto exato. Nunca rode `sofa.exe --purge-user-data` à mão contra a pasta de uso real (CA-68, SEC-25) | |
-| 13.5 | Feche o Sofá (o `EBWebView` ainda pode ficar em uso por uns segundos) e desinstale de novo, sem manter os dados | Biblioteca e configurações somem; se algo da pasta `EBWebView` sobrar, a pasta é mostrada para você. Os jogos e outras pastas não são tocados. A remoção roda sem administrador (a única exceção é `library.json` e `settings.json`, RN-18). Anote o que sobrou (CA-68, SEC-25, SEC-31) | |
-| 13.6 | Confira se a entrada de início automático e a tarefa agendada sumiram | Sumiram (CA-52) | |
+| 14.1 | **Reinstalar por cima.** Com a biblioteca montada, rode o **mesmo instalador** de novo (confira o hash outra vez se for uma versão nova) | Atualiza sem apagar nada: biblioteca, configurações e "Iniciar com o Windows" continuam como estavam (CA-53). Abra o Sofá e confira | |
+| 14.2 | Desinstale em Configurações > Aplicativos > Aplicativos instalados > Sofá, **mantendo os dados** (a caixa "Manter dados" vem marcada) | Remove o app, os atalhos e o início automático. Seus jogos no disco ficam intactos. A pasta `%LOCALAPPDATA%\app.sofa.launcher` continua (CA-52, CA-68). O Windows pede permissão de administrador | |
+| 14.3 | Reinstale | Biblioteca e configurações voltam (CA-68) | |
+| 14.4 | Abra o Sofá e deixe-o **aberto**. Desinstale **desmarcando "Manter dados"** | O desinstalador fecha o Sofá sozinho ou pede para você fechar. Se avisar que o Sofá ainda está aberto, **nada é apagado**: feche e repita. Anote o texto exato (CA-68, SEC-25). Não rode `sofa.exe --purge-user-data` à mão | |
+| 14.5 | Se algo travou na 14.4, feche o Sofá, espere uns 10 s (a parte que desenha a tela, a pasta `EBWebView`, pode ficar em uso um pouco) e desinstale de novo, sem manter os dados | Biblioteca e configurações somem. Se algo da `EBWebView` sobrar, a pasta é mostrada para você. Os jogos e outras pastas não são tocados. Anote o que sobrou (CA-68, SEC-25, SEC-31) | |
+| 14.6 | Confira que a pasta `C:\Program Files\Sofa` sumiu e que não há mais atalho do Sofá | Sumiram (CA-52) | |
+| 14.7 | Confira que o início automático saiu: `Get-ScheduledTask 'Sofa Autostart*'` não acha nada, e reiniciar o PC não abre o Sofá | Sumiu (CA-52, RN-17) | |
 
-## Bloco 14. Coletar os logs e devolver (5 min)
+## Bloco 15. Coleta final e envio (5 min)
 
-1. Abra o PowerShell na pasta onde está o `coletar-logs.ps1`.
-2. Rode: `powershell -ExecutionPolicy Bypass -File .\coletar-logs.ps1`
-3. O zip aparece na área de trabalho: `sofa-logs-AAAAMMDD-HHMMSS.zip`. Abra, confira o `LEIA-ME.txt` e envie.
-
-O que vai no zip: os logs do Sofá, o `settings.json`, a versão do Windows, o hardware, as telas, o WebView2, o resultado de `powercfg /a` e o estado do Sofá instalado (integridade, tarefa agendada, entrada de início). O que **não** vai: a lista de jogos, as capas, seu nome de usuário e o nome do PC (viram `<usuario>` e `<pc>`).
-
-Rode o coletor **logo depois** de cada bloco longo (5, 10 e 12) se quiser separar os logs. Os logs rodam em até 3 arquivos de 5 MB e o mais antigo se perde.
+1. Rode o coletor de novo (`powershell -ExecutionPolicy Bypass -File .\coletar-logs.ps1`). Como o Sofá já foi removido, o zip só mostra o que sobrou no PC: o relatório deve dizer que não há tarefa nem entrada de início do Sofá.
+2. Envie os **dois zips** (o do bloco 13 e este) junto com as suas anotações.
 
 ## Fechamento
 

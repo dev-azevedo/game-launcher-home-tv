@@ -1,4 +1,6 @@
-# Revisão de arquitetura: launcher-tv (ARQ-05, rodadas 1 e 2)
+# Revisão de arquitetura: launcher-tv (ARQ-05, rodadas 1 a 3)
+
+> **Rodada 3 (2026-11-15):** ciclo de correção 2 e leva 5 (instalador, desinstalador, release). Fecharam os ARQ-BUG-07, 08, 13 e 14. São novos os ARQ-BUG-15 (modo Job: o fim da sessão depende de uma espera de 500 ms) e 16 (o instalador aceita pasta fora de `Program Files`), ambos médios. Ver a seção "Rodada 3" no fim.
 
 > **Rodada 2 (2026-11-14):** conferência do ciclo de correção 1 (`git diff 85b3174..HEAD`). Fecharam os ARQ-BUG-01 a 06 e 09 a 12. Os ARQ-BUG-07, 08 e 13 seguem abertos como BE-44, BE-46 e BE-45. Há um novo, o ARQ-BUG-14 (baixo). Ver a seção "Rodada 2" no fim deste documento.
 
@@ -121,3 +123,65 @@ Nenhum desvio muda RN ou CA da spec. Sugestão ao PO (opcional, sem mudar compor
 ### Pendente para fechar o ARQ-05
 
 Instalador e release (BE-37 a BE-39, com o ARQ-BUG-08/BE-46 como trava do build MSVC), BE-43 com o padrão final dos degraus no ADR-0003, QA-13, BE-44, BE-45 e o ARQ-BUG-14 (rodada 3).
+
+---
+
+## Rodada 3 (2026-11-15): ciclo de correção 2 e leva 5 (instalador, desinstalador, release)
+
+| Campo | Valor |
+|---|---|
+| Diff | Leva curta `7433138..782543b`: SEC-BUG-04 (`GameScope`), ARQ-BUG-14 (BE-48), BE-44 (`AsyncLog`), BE-45 (`SettingsService`), QA-BUG-04 e o guard de `System::Call` (BE-50). Leva 5 `782543b..HEAD`: BE-37, BE-38, BE-39, BE-42 e BE-46 |
+| Verificação executada | `cargo test -p launcher-core`: 312 testes passam. `cargo test -p launcher-win --lib`: 109 passam, 2 ignorados. `scripts/ci-guards.ps1`: 0 violações e autoteste com 64 violações plantadas, todas detectadas. Instalador, desinstalador e release só por leitura do código (`installer.nsi`, `*.nsh`, `ci-release.ps1`, `tauri.conf.json`); instalar de verdade é QA-17 |
+| Veredito | **aprovado com ressalvas** (continua parcial). Dois ARQ-BUG médios novos (15 e 16), que devem ser corrigidos antes do QA-17 |
+
+### Situação dos ARQ-BUGs
+
+| ID | Sev. | Situação | Como foi conferido |
+|---|---|---|---|
+| ARQ-BUG-07 | baixo | **fechado** (BE-44, 1b98685) | `AsyncLog`: o `tracing` monta a linha num buffer local e a entrega por `try_send` a uma fila limitada (4096). Uma thread própria grava no `RotatingFile`. Fila cheia descarta e conta, e o próximo registro gravado avisa quantos se perderam. Thread de entrada sem disco nem `Mutex` global (INV-04). `logging::flush` no `exit_hook`. Teste com disco parado |
+| ARQ-BUG-08 | baixo | **fechado** (BE-46, 8604e44) | `manifest_resource.rs` lê o diretório de recursos do PE (tipo 24, ID, idioma). Reprova no MSVC sem exatamente um `RT_MANIFEST`/1 com `asInvoker`, `uiAccess="false"` e Common Controls v6; no `-gnu`, avisa. Prova com PE sintético. Roda como trava do `ci.ps1 -Release` (`SOFA_MANIFEST_EXE`). O aviso do linker não aparece no MSVC (desvio 8 resolvido) |
+| ARQ-BUG-13 | baixo | **fechado** (BE-45, 1b2ab73) | `SettingsService` em `launcher-core/application/settings_service.rs`, testado com repositório fake. Implementa `SettingsStore` para `DisplayService` e `AutostartService`. `settings_store.rs` foi removido. Arquitetura 2.1 (Settings) atualizada |
+| ARQ-BUG-14 | baixo | **fechado** (BE-48, 2aa1114), **com regressão: ARQ-BUG-15** | O modo Job não tira mais snapshot ToolHelp (`scan_job` lê só `JobObjectBasicProcessIdList`, confere `IsProcessInJob` e aplica `classify` com `own_child_pids` vazio; contador `snapshots_taken()` no teste). `pids()`, `request_close()` e `force_close()` usam só os membros em cache. ADR-0005 rev. 7 sem a releitura "a cada varredura de `Running`" |
+| ARQ-BUG-15 | médio | **novo** (dev-backend) | Ver abaixo |
+| ARQ-BUG-16 | médio | **novo** (dev-backend; a segurança confere) | Ver abaixo |
+
+Conferidos sem achado: **SEC-BUG-04** (`GameScope::{Dir, ExactExe}` no domínio, `for_exe` passa a pasta por `check_install_dir` e reaproveita `domain/path.rs`; `attach` escolhe a pasta ou o exe exato), **QA-BUG-04** (regra pura em `display_name.rs`) e **BE-50** (guard de `System::Call` e de `Delete`/`RMDir` sobre a pasta de dados).
+
+### ARQ-BUGs novos
+
+| ID | Sev. | Responsável | Arquivo:linha | Problema | Correção sugerida |
+|---|---|---|---|---|---|
+| ARQ-BUG-15 | médio | dev-backend | `crates/launcher-win/src/process_probe.rs`: `wait_member_exit` (`EXIT_SIGNAL_WAIT_MS = 500`) e `job_loop` (espera dentro do `scanner.lock()`; `ActiveZero` sem espera) | Depois do ARQ-BUG-14, o fim da sessão no modo Job depende de um prazo fixo. A porta avisa `EXIT_PROCESS` antes de o processo sinalizar, então a sonda espera **até 500 ms** pelo handle. Jogo grande pode levar mais que isso para desmontar o processo (liberar GBs de memória, driver de GPU). Nesse caso o membro ainda parece vivo, e o `ACTIVE_PROCESS_ZERO` que chega logo depois é tratado **sem espera nenhuma**. Como o modo Job não tem varredura periódica, nenhuma outra mensagem vem: a sessão fica em `Running` para sempre e o Sofá não volta (CA-30, RN-10). Com um acompanhante vivo no Job (o caso do SEC-BUG-01), basta passar dos 500 ms no `EXIT_PROCESS`. Além disso, a espera roda com o `Mutex` do scanner preso, e `pids()` e `force_close()` (chamados com o `Mutex` da sessão preso, inclusive pela thread da UI no callback da instância única) podem esperar até 500 ms por saída | Não depender de prazo: para cada membro, registrar uma espera no handle (`RegisterWaitForSingleObject`, ou a mesma espera nos handles do modo varredura) que, ao sinalizar, posta um pacote próprio na porta do Job (`PostQueuedCompletionStatus` com uma chave `MEMBER_EXITED`). A `job_loop` reavalia quando o processo **de fato** saiu. Nenhuma espera com o `Mutex` do scanner preso. Teste: membro cujo handle sinaliza 2 s depois do `EXIT_PROCESS`, com e sem acompanhante vivo; a sessão tem de terminar |
+| ARQ-BUG-16 | médio | dev-backend (a segurança confere) | `src-tauri/windows/installer.nsi:402-403` (`MUI_PAGE_DIRECTORY`), `:520-540` (pasta padrão só quando não há `/D=`), `:372` (`ExecWait "$INSTDIR\uninstall.exe"`); `uninstall-hooks.nsh:386` (purge por `$INSTDIR\sofa.exe`) | O cabeçalho do fork e o ADR-0006 dizem "só `perMachine` em `%ProgramFiles%\Sofa`", mas o instalador mantém a página de pasta e aceita `/D=`. Instalado numa pasta criada fora de `Program Files` (ex.: `C:\Sofa`, em que "Usuários autenticados" podem modificar), o SEC-20 cai: qualquer processo do usuário troca o `sofa.exe`. E a exceção de `$INSTDIR` do SEC-32 vira caminho de elevação: o próximo instalador ou desinstalador, elevado, executa o `$INSTDIR\uninstall.exe` plantado. O `--purge-user-data` também roda o `sofa.exe` dessa pasta. O DR-04 já recusa autostart fora de `Program Files`, ou seja, essa instalação nem é suportada | Tirar a `MUI_PAGE_DIRECTORY`. Fixar `$INSTDIR = $PROGRAMFILES64\Sofa` em `.onInit` e `un.onInit`, ignorando ou recusando `/D=` diferente (com mensagem e saída). Se a chave do HKLM apontar para outra pasta, tratar como instalação anterior inválida (já é o que o `$4 != $INSTDIR` faz). Teste em `scripts/test-installer.ps1`: o script gerado não tem página de pasta, e `/D=C:\X` não muda o destino |
+
+### Veredito sobre os desvios da rodada 3 (dev-backend.md e `docs/api` §11)
+
+| # | Desvio | Veredito | Registro |
+|---|---|---|---|
+| a | Guard de SEC-32 aceita executável por `$PLUGINSDIR\` e `$INSTDIR\`, além de `$SYSDIR\` | **Aceito, condicionado ao ARQ-BUG-16.** `$PLUGINSDIR` é a pasta temporária privada que o NSIS cria para a conta que instala; `$TEMP\`, nome relativo e variável continuam proibidos. `$INSTDIR` só é seguro com a pasta fixa em `Program Files` | ADR-0006 rev. 7 §1 |
+| b | Autostart de todos os perfis por `$SYSDIR\schtasks.exe` com SID validado, e não por COM com prefixo | **Aceito.** O ADR-0006 já admitia as duas formas; o COM exigiria `VARIANT` por valor pelo plugin `System`. A validação caractere a caractere e a tabela de 18 SIDs (inclusive `"/F`, `&calc`, `$(x)`) cobrem o risco de injeção | ADR-0006 rev. 7 §1 |
+| c | Usuário interativo por duas fontes (token do Explorer e usuário da sessão), e fallback só sem junção no caminho do perfil | **Aceito.** Mais restritivo que o ADR; a divergência cai em "nada apagado" | ADR-0006 rev. 7 §1 |
+| d | Saíram do template a migração de WiX, o WebView2 por download ou offline e a remoção recursiva de dados | **Aceito.** O Sofá nunca foi MSI; P-01 é bootstrapper embutido; a remoção recursiva fere SEC-31. Custo registrado: manter o fork a cada atualização do Tauri | ADR-0006 rev. 7 §1 |
+| e | Template próprio (fork) no lugar de só hooks | **Aceito.** Os hooks não removem o `RmDir /r` elevado nem a gravação em `HKCU` do template original | ADR-0006 rev. 7 §1 |
+| f | Desinstalador anterior só se estiver em `$INSTDIR` | **Aceito** (mais restritivo), junto com o ARQ-BUG-16 | ADR-0006 rev. 7 §1 |
+| g | `CreateProcessW` com o Explorer como pai pelo plugin `System`; se falhar, `RunAsUser` sem ler o código de saída | **Aceito.** É o caminho do ADR-0006 rev. 6, e "código não lido" já está na tabela de decisão (fallback restrito). A conferência elevada (integridade Medium do filho, UAC de outra conta) é QA-17 | — |
+| h | CI de dev segue no `-gnu`; MSVC só em `ci.ps1 -Release` | **Aceito.** O release reprova antes de publicar | ADR-0001 rev. 6 |
+| i | Primeiro release sem tag (`-AllowUntagged`) | **Aceito só para build de teste.** A entrega ao usuário (QA-17 e depois) sai de tag `v<versão>` e árvore limpa; o `BUILD-INFO.txt` marca o build sem tag | ADR-0001 rev. 6 |
+| j | `icon.ico` mantido o da marca, não o gerado pelo `tauri icon` | **Aceito.** É a fonte única da marca (arquitetura 3.5), e o gerado perde detalhe nos tamanhos pequenos | — |
+| k | `@tauri-apps/cli` 2.12.4 fixo como devDependency (`ignore-scripts`) | **Aceito.** Fixa o bundler na mesma versão do fork do template | — |
+
+Nenhum desvio muda RN ou CA. Os textos novos das telas do instalador ainda não estão no `microcopy.md` (revisão do designer pendente, já anotada no contrato §11).
+
+### Pendências novas
+
+- **BE-51 (testes intermitentes em `session_runtime.rs`):** aceito como tarefa. A causa provável está nos testes: o acompanhante vive só 6 s, e o Defender atrasa a primeira execução de cada cópia. Mas esses testes são a prova de SEC-BUG-01 e SEC-BUG-04, então têm de fechar (50 rodadas sem falha) **antes do QA-13**. Se a falha voltar com o acompanhante vivendo bem mais que o teste, deixa de ser folga de tempo e vira bug de sessão.
+- **BE-52 (Defender barra o `sofa-test-game.exe` no MSVC):** aceito. Enquanto estiver aberto, as provas de sessão rodam só no `-gnu` (ADR-0001 rev. 6), e tem de fechar antes do QA-13. Recomendação: pôr a varredura do Defender (`MpCmdRun -Scan -ScanType 3 -File`) no instalador e no `sofa.exe` como passo do `-Release`. Hoje ela foi feita à mão; um falso positivo no artefato entregue é o RR-02 acontecendo.
+
+### Reaproveitamento e performance (rodada 3)
+
+- Bem reaproveitado: `domain/path.rs` no `GameScope`; `check_install_dir` (SEC-16) reutilizado para decidir o escopo da sessão; `SettingsService` como port único para monitor e autostart; o próprio `sofa.exe --purge-user-data` como removedor do desinstalador; ícone e licenças OFL lidos de `docs/brand/sofa/` sem cópia (`bundle.resources`).
+- Performance: o modo Job voltou a não tirar snapshot. Fica o risco do ARQ-BUG-15 (espera de até 500 ms com `Mutex` preso). O `AsyncLog` tira o disco do caminho quente.
+
+### Pendente para fechar o ARQ-05
+
+BE-43 com o padrão final dos degraus no ADR-0003; QA-13; ARQ-BUG-15 e 16; BE-51 e BE-52 antes do QA-13 (rodada 4). Instalar e desinstalar de verdade, integridade Medium, DLL plantada e Windows 10 limpo seguem no QA-17.

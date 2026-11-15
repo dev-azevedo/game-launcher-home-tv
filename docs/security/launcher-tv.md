@@ -4,9 +4,9 @@
 |---|---|
 | Feature | launcher-tv (MVP do Game Launcher) |
 | Branch | `feature/launcher-tv-20261113` (base `main`) |
-| Modo | Design (threat model); rev. 7 e 8: verificação, rodadas 1 e 2 (seção 14) |
+| Modo | Design (threat model); rev. 7 a 9: verificação, rodadas 1 a 3 (seção 14) |
 | Entradas | `docs/specs/launcher-tv.md` (seção 14 = decisões); rev. 2: `docs/arch/launcher-tv.md` (rev. 2) e `docs/adr/0003` a `0006` |
-| Revisões | rev. 1: threat model inicial. rev. 2 (2026-11-13): AF-01 a AF-10 aprovados pelo usuário; P-03 (tarefa agendada por usuário); emendas em SEC-08, SEC-10, SEC-21, SEC-22, SEC-25, SEC-28, SEC-29; novos SEC-31 e SEC-32; revisão da baseline da arquitetura (seção 10). rev. 4 (2026-11-13): arquitetura rev. 4 (D-32 Win10, D-35 teste só no fim); C-04 avaliado; emendas em SEC-18, SEC-22 e SEC-28 (seção 11). rev. 5 (2026-11-13): SG-02 (SP-01: degraus 2 e 3 ligados por padrão, ordem 1 → 3 → 2 → 4) e SG-03 parcial (SP-07); emendas em SEC-19, SEC-22 e SEC-28 (seção 12). rev. 6 (2026-11-13): SG-01, revisão de contrato e de `tauri.conf.json` (seção 13). rev. 7 (2026-11-14): verificação rodada 1 (SG-04, SG-05, SG-06, SG-09; SG-07 e SG-08 parciais); SEC-BUG-01 a SEC-BUG-03; DR-06; emendas em SEC-19, SEC-22, SEC-28 e SEC-31 (seção 14). rev. 8 (2026-11-14): verificação rodada 2; SEC-BUG-01 a 03 e DR-06 fechados; SEC-BUG-04 novo; AF-11 decidido (D-43); emenda em SEC-28 (escada em `NotConfirmed`) (seção 14, "Rodada 2") |
+| Revisões | rev. 1: threat model inicial. rev. 2 (2026-11-13): AF-01 a AF-10 aprovados pelo usuário; P-03 (tarefa agendada por usuário); emendas em SEC-08, SEC-10, SEC-21, SEC-22, SEC-25, SEC-28, SEC-29; novos SEC-31 e SEC-32; revisão da baseline da arquitetura (seção 10). rev. 4 (2026-11-13): arquitetura rev. 4 (D-32 Win10, D-35 teste só no fim); C-04 avaliado; emendas em SEC-18, SEC-22 e SEC-28 (seção 11). rev. 5 (2026-11-13): SG-02 (SP-01: degraus 2 e 3 ligados por padrão, ordem 1 → 3 → 2 → 4) e SG-03 parcial (SP-07); emendas em SEC-19, SEC-22 e SEC-28 (seção 12). rev. 6 (2026-11-13): SG-01, revisão de contrato e de `tauri.conf.json` (seção 13). rev. 7 (2026-11-14): verificação rodada 1 (SG-04, SG-05, SG-06, SG-09; SG-07 e SG-08 parciais); SEC-BUG-01 a SEC-BUG-03; DR-06; emendas em SEC-19, SEC-22, SEC-28 e SEC-31 (seção 14). rev. 8 (2026-11-14): verificação rodada 2; SEC-BUG-01 a 03 e DR-06 fechados; SEC-BUG-04 novo; AF-11 decidido (D-43); emenda em SEC-28 (escada em `NotConfirmed`) (seção 14, "Rodada 2"). rev. 9 (2026-11-15): verificação rodada 3 (instalador, desinstalador e release, sem VM); SEC-BUG-04 fechado; DR-06 fechado na implementação; SEC-BUG-05 e SEC-BUG-06 novos (seção 14, "Rodada 3") |
 | Stack considerada | Tauri 2: núcleo Rust + UI web em WebView2. Se o arquiteto escolher outra stack, os SEC-xx de IPC/CSP valem para o equivalente (ex.: Electron `contextIsolation`/preload) |
 | Data | 2026-11-13 |
 
@@ -733,3 +733,88 @@ AF-11: **decidido pelo usuário (D-43)**, fallback restrito aos dois arquivos, n
 - **SEC-BUG-04 (baixo, back):** pasta do jogo manual com SEC-16, ou associação pelo exe exato.
 - **Guard `System::Call` (baixo, back, BE-38/BE-42):** ver a linha "Guards".
 - Fechados: SEC-BUG-01, SEC-BUG-02, SEC-BUG-03 e DR-06 (desenho).
+
+### Rodada 3 (2026-11-15): instalador, desinstalador e release (SG-07 sem VM)
+
+Escopo: commits `8604e44..0ebe81e` (BE-46, BE-42, BE-38, BE-37, BE-39), com `src-tauri/windows/` (`installer.nsi`, `hooks.nsh`, `install-hooks.nsh`, `uninstall-hooks.nsh`, `PortugueseBR.nsh`, `tests/`), `scripts/ci-release.ps1`, `scripts/test-installer.ps1`, `scripts/ci-guards.ps1`, `src-tauri/tests/manifest_resource.rs` e `tauri.conf.json`. Conferi também a correção do SEC-BUG-04 (`7433138`, `0aa484f`). Nada foi instalado e o desinstalador real não rodou neste PC.
+
+**Veredito da rodada 3: aprovado com ressalvas.** Não há crítico nem alto. Abriram dois achados: SEC-BUG-05 (médio), que deve ser corrigido antes do instalador ir para o PC da sala, e SEC-BUG-06 (baixo).
+
+#### Evidência executada
+
+| Item | Resultado |
+|---|---|
+| `Sofa_0.1.0_x64-setup.exe` | O SHA-256 bate com `SHA256SUMS.txt`, com o README e com o `BUILD-INFO.txt` (`c7938345…a413af`). Build MSVC do commit `a1acfe0`, árvore limpa, NSIS v3.13, Rust 1.100.0. Ainda **sem tag** (`-AllowUntagged`) |
+| Conteúdo do instalador (7-Zip, só listagem e extração para a pasta de rascunho) | `sofa.exe`, `uninstall.exe`, as licenças OFL e, em `$PLUGINSDIR`, `System.dll`, `nsDialogs.dll`, `StartMenu.dll`, `nsis_tauri_utils.dll` e `MicrosoftEdgeWebview2Setup.exe`. **Sem** `WebView2Loader.dll` (carregador estático) e **sem** o `sofa-test-game.exe` (o falso positivo do Defender, BE-52, não chega ao usuário) |
+| `sofa.exe` do release (leitura do PE) | Um único manifesto, com `asInvoker` e `uiAccess="false"` (SEC-20, BE-46); ASLR, ASLR de alta entropia e DEP ligados; **CFG desligado** (SEC-BUG-06) |
+| Assinaturas Authenticode | `MicrosoftEdgeWebview2Setup.exe`: válida, Microsoft Corporation. `sofa.exe`, `nsis_tauri_utils.dll` e o instalador: sem assinatura (D-11, AF-09, Q-11) |
+| `scripts/test-installer.ps1` (harness sem elevação, só em `%LOCALAPPDATA%\Temp`, com stub no lugar do `sofa.exe` e SID fictício) | **54 passaram, 0 falharam, 2 pulados**: symlink de arquivo (exige privilégio; o caso do ponto de reanálise de arquivo cobre a mesma regra) e `HKU\<SID>\...\Run` de outro perfil (exige admin). Cobre a validação de SID, a tabela de códigos 0 a 4, o código não lido, o purge com o Explorer como pai (filho com integridade Medium, dono = usuário, linha de comando constante), o fallback com junction estática e em laço, os dois arquivos como ponto de reanálise e "nada além dos dois" |
+| `npm audit signatures` | 371 pacotes com assinatura verificada (inclui o `@tauri-apps/cli` 2.12.4 novo, de dev, sem script de instalação) |
+| Relatórios do release (`relatorios/`) | `cargo deny`: advisories, bans, licenses e sources ok. `npm audit`: 0 vulnerabilidades |
+
+#### DR-06: as cinco condições (rodada 2)
+
+| # | Condição | Situação |
+|---|---|---|
+| 1 | `CreateProcessW` sem herança | Atendida: `bInheritHandles = 0`, `EXTENDED_STARTUPINFO_PRESENT`, linha de comando constante `"$INSTDIR\sofa.exe" --purge-user-data` (`uninstall-hooks.nsh:330-375`) |
+| 2 | Sem `SeDebugPrivilege`; falha no `OpenProcess` → caminho alternativo, código não lido | Atendida: `OpenProcess(0x1080)` sem privilégio; com handle 0 vai para `RunAsUser` + `FindProcess`, e o código conta como não lido, o que leva ao fallback restrito. Se um `sofa.exe` ainda roda depois de 60 s, nada é apagado |
+| 3 | `%LOCALAPPDATA%` do usuário interativo | Atendida: o SID vem do token do Explorer e da sessão do processo (`WTSUserName`/`WTSDomainName` → `LookupAccountNameW`); se as fontes divergirem, nada é apagado. O perfil vem de `ProfileImagePath` (HKLM). O fallback exige que o caminho final do `AppData\Local` seja igual ao texto do perfil (ponto (c)) |
+| 4 | Testes de junction, symlink e código não lido | Atendida sem elevação (54/54). O caso com symlink de arquivo e o fluxo elevado real ficam para o QA-17 |
+| 5 | Guard de `System::Call` | Atendida: só `uninstall-hooks.nsh` pode chamar `System::Call` de API que cria processo ou apaga; `Delete`/`RMDir` do NSIS sobre a pasta de dados é proibido; o guard roda também no `installer.nsi` gerado (`ci-release.ps1`) |
+
+O fallback (`SofaFallbackDelete`/`SofaFallbackDeleteOne`) segue o ADR §6b: a raiz é aberta com `OPEN_REPARSE_POINT` e sem `FILE_SHARE_DELETE`; os atributos vêm do handle; o caminho final é conferido como filho direto do `AppData\Local` final; cada arquivo é aberto com `OPEN_REPARSE_POINT`, conferido (não é link nem pasta, caminho final = raiz + nome, raiz inalterada) e apagado **pelo handle** (`FileDispositionInfoEx`, com fallback). **DR-06 fica fechado também na implementação**; o comportamento elevado real fica para o QA-17. Observação sem efeito: `GetFinalPathNameByHandleW` recebe `2048` como tamanho para um buffer `w` do plugin `System`, que tem `NSIS_MAX_STRLEN` (1024) caracteres. Os caminhos comparados são fixos e curtos (perfil + identificador), então não há como estourar; sugerido passar `${NSIS_MAX_STRLEN}`.
+
+#### Status por SEC (instalador)
+
+| SEC | Status | Evidência |
+|---|---|---|
+| SEC-20 | **Parcial: SEC-BUG-05** | Manifesto único `asInvoker` (`tests/manifest_resource.rs`, conferido no exe do release); nenhuma alteração de ACL. Mas a página de pasta (`MUI_PAGE_DIRECTORY`, `installer.nsi:402-403`) e o `/D=` deixam instalar fora de `Program Files` |
+| SEC-21 | Atendido no código; UAC de outra conta no QA-17 | O app abre ao terminar por `nsis_tauri_utils::RunAsUser` (`installer.nsi:437-439`, e `/R` em `.onInstSuccess`); o instalador não grava HKCU nem cria autostart, só `InstallDefaults` e `InstallLocation` em `HKLM\Software\app.sofa.launcher` (`install-hooks.nsh`) |
+| SEC-22 | Sem mudança (runtime atendido) | O instalador não registra autostart |
+| SEC-23 | **Parcial: SEC-BUG-06**; DLL plantada no QA-17 | NSIS 3.13 (stub com `SetDefaultDllDirectories`); bootstrapper e plugins em `$PLUGINSDIR`; build MSVC sem `WebView2Loader.dll`; ASLR e DEP ligados; CFG desligado |
+| SEC-24 | Atendido | Relatórios de `cargo deny` e de `npm audit` anexados ao release; audits e assinaturas acima |
+| SEC-25 | Atendido (código e harness); fluxo elevado no QA-17 | Alvo do usuário interativo, identificador fixo, conferências de um nível abaixo e de reparse point no purge e no fallback; sem perfil resolvido, nada é apagado |
+| SEC-26 | Atendido para build de teste; no release final, com tag | `SHA256SUMS.txt` de uma linha, README com `Get-FileHash`, `BUILD-INFO.txt` com o commit. O release que vai para a sala precisa sair de tag (BE-39). O instalador só baixa o runtime do WebView2 pelo bootstrapper da Microsoft (assinatura válida) |
+| SEC-29 | Atendido, salvo o SEC-BUG-05 | O instalador grava só a pasta de instalação, `HKLM\Software\app.sofa.launcher`, a chave de desinstalação e os atalhos. O desinstalador remove o autostart de todos os perfis (DR-03) e apaga dados só pelo purge do usuário ou pelo fallback de dois arquivos. Saíram do template o `RmDir /r` de dados e a escrita em HKCU (ponto (d)) |
+| SEC-31 | Atendido (código e harness) | Ver DR-06 acima |
+| SEC-32 | Atendido, com o ponto (a) condicionado ao SEC-BUG-05 | `"$SYSDIR\schtasks.exe" /Delete /TN "Sofa Autostart (<SID>)" /F`, com o SID validado caractere a caractere e o nome montado de constante + SID; executáveis externos só por `$SYSDIR\`, `$PLUGINSDIR\` ou `$INSTDIR\`; guard aplicado também ao script gerado |
+| AF-07 | Atendido | WebView2 Evergreen por bootstrapper embutido |
+| AF-09 | Atendido | Sem assinatura, compensado por SEC-26 |
+| AF-10 | Atendido no código | Purge sem elevação + fallback de dois arquivos (D-43) |
+
+#### Pareceres sobre os pontos (a) a (g)
+
+- **(a) Guard aceita `$PLUGINSDIR\` e `$INSTDIR\` como executável.** Aceito com uma condição. `$PLUGINSDIR` é a pasta temporária exclusiva e aleatória do instalador elevado: ok. `$INSTDIR` só é seguro se a pasta for gravável apenas por administradores, o que hoje não é garantido (SEC-BUG-05). Depois do SEC-BUG-05, aceito sem ressalva.
+- **(b) `schtasks` por `$SYSDIR` com SID validado; o stub de 32 bits usa SysWOW64.** Aceito. `SysWOW64\schtasks.exe` também é pasta só de administradores, e o executável de 32 bits fala com o mesmo serviço do Agendador. A validação reproduz `^S-1-5-21(-[0-9]{1,10}){4}$` (testada com SIDs ruins: aspas, espaço, `&`, grupos a mais e a menos). `DeleteRegValue HKU\<SID>` usa o mesmo SID validado.
+- **(c) SID por duas fontes e fallback exigindo `LocalAppData` sem junction.** Aceito: divergência entre as fontes ou `AppData\Local` redirecionado por junction resultam em "nada apagado" (falha fechada).
+- **(d) Saíram do template a migração de WiX, o WebView2 por download e offline, e o `RmDir /r` de dados.** Aceito e recomendado: menos superfície elevada. Conferido no template e na listagem do instalador.
+- **(e) O desinstalador anterior só roda se estiver em `$INSTDIR`.** Aceito, mas a checagem compara o valor de `HKLM\Software\app.sofa.launcher` com o próprio `$INSTDIR`, que vem desse mesmo valor: ela não protege contra uma pasta gravável pelo usuário. Quem protege é a pasta estar em `Program Files` (SEC-BUG-05).
+- **(f) Purge por `CreateProcessW` com o Explorer como pai; se falhar, `RunAsUser` + `FindProcess`.** Aceito. O filho herda o token do Explorer (o harness confirmou integridade Medium e o SID do usuário). Sem herança de handles. A alternativa não lê o código e cai no fallback restrito, que é seguro.
+- **(g) Release sem assinatura (Q-11) e falso positivo do Defender no jogo de teste MSVC (BE-52).** Aceito. Assinatura: RR-02/AF-09, com SEC-26 atendido. O `sofa-test-game.exe` não está no instalador e só serve aos testes; excluí-lo dos testes MSVC do release (com `-FullMsvcTests` para rodar tudo) não afeta segurança. Recomendado: o QA-17 confirmar que o Defender não acusa o `Sofa_0.1.0_x64-setup.exe` nem o `sofa.exe` instalado.
+
+#### Achados
+
+| ID | Sev. | Onde | Cenário | Correção sugerida | Responsável |
+|---|---|---|---|---|---|
+| SEC-BUG-05 | **Médio** | `src-tauri/windows/installer.nsi:402-403` (`MUI_PAGE_DIRECTORY`), `:500-541` (`.onInit` aceita `/D=` e a pasta anterior sem conferir), `:362-372` (`ExecWait "$INSTDIR\uninstall.exe"` elevado) | O instalador por máquina deixa escolher qualquer pasta. Fora de `Program Files` (ex.: `C:\Sofa`, `D:\Jogos\Sofa`), a pasta nova herda a ACL da raiz da unidade, que em geral dá **Modificar** a Usuários autenticados nas subpastas. Um processo de um usuário comum troca o `uninstall.exe` ou planta uma DLL na pasta; na próxima atualização ou reinstalação, o instalador elevado executa `"$INSTDIR\uninstall.exe"` (com `_?=$INSTDIR`, de dentro da pasta), e a desinstalação pelo "Aplicativos instalados" eleva o mesmo arquivo: elevação usuário → admin. O `sofa.exe` trocado também rodaria no logon de todos os usuários se o autostart estivesse ligado, mas o app recusa ligar o autostart fora de `Program Files` (DR-04); o risco fica no instalador e no desinstalador. Exige que o admin escolha uma pasta fora de `Program Files`, o que é comum em PC de jogos com disco `D:` | Remover a página de pasta e forçar `$PROGRAMFILES64\Sofa` (CA-50 e o ADR-0006 já fixam essa pasta). Em `.onInit`, depois de `RestorePreviousInstallLocation` e de `/D=`, se `$INSTDIR` não for `$PROGRAMFILES64\Sofa`, voltar para ela ou abortar; antes do `ExecWait` do desinstalador anterior, recusar se `$INSTDIR` estiver fora de `$PROGRAMFILES64`. Teste no `test-installer.ps1` (script gerado) e no QA-17: `/D=C:\SofaTeste` não instala fora de `Program Files` | back |
+| SEC-BUG-06 | Baixo | Build de release MSVC (`scripts/ci-release.ps1` e a configuração do `cargo`) | SEC-23 e ADR-0006 contam com CFG "no padrão do toolchain MSVC", mas o Rust não liga o Control Flow Guard por padrão. O `sofa.exe` do release está sem a flag `IMAGE_DLLCHARACTERISTICS_GUARD_CF`. Defesa em profundidade: dificulta explorar uma corrupção de memória (código `unsafe` de FFI, WebView2) | `RUSTFLAGS`/`.cargo/config.toml` com `-C control-flow-guard` para `x86_64-pc-windows-msvc` no release, e um teste no `manifest_resource.rs` (ou no `ci-release.ps1`) que confere a flag no PE. Corrigir o texto de SEC-23/ADR-0006 se o arquiteto preferir não ligar | back |
+
+SEC-BUG-04 (rodada 2): **fechado** (`7433138`). A pasta do `.exe` manual passa pela mesma `InstallPathPolicy` das lojas (`StoreEnv::system().policy`); se reprovar (`D:\jogo.exe`), a sessão associa só pelo caminho exato do exe, no modo Job e na varredura do jogo elevado (`GameScope`). Resíduo aceito: uma pasta comum do perfil que passa em SEC-16 (ex.: `Downloads`) continua valendo como pasta do jogo; o efeito fica nos processos com imagem nessa pasta.
+
+#### Obrigatório no QA-17 (QF-05 e QF-06; não dá sem VM, UAC ou instalar)
+
+1. Instalar com conta padrão + UAC de **outra** conta admin: o Sofá abre ao final como o usuário da sessão, com integridade Medium (SEC-21); `HKCU` e `%LOCALAPPDATA%` da conta admin não são tocados.
+2. `icacls "C:\Program Files\Sofa"` sem `Users:(M)`/`(F)`/`Everyone` (SEC-20); depois do SEC-BUG-05, `/D=C:\SofaTeste` não instala fora de `Program Files`.
+3. DLL plantada (`version.dll`, `uxtheme.dll`, `userenv.dll`, `cryptbase.dll`) ao lado do instalador em Downloads e na pasta do `sofa.exe`: nenhuma carregada (Process Monitor, SEC-23).
+4. Desinstalar **sem** manter dados, com o UAC da mesma conta e de outra conta: o purge roda como o usuário interativo (Medium); com a junction-isca dentro da pasta de dados e com a raiz ou os dois arquivos trocados por junction ou symlink, a isca fica intacta; o Sofá aberto dá o código 4 e nada é apagado; dados de outro usuário logado ficam intactos (SEC-25, SEC-31, DR-03, DR-06).
+5. Desinstalar **mantendo** dados e reinstalar: biblioteca e configurações voltam; atualizar por cima (`/UPDATE`) não apaga dados nem o autostart (CA-53).
+6. Autostart de dois perfis (um com hive carregado e outro sem): as tarefas `Sofa Autostart (<SID>)` saem; o `Run` sai do perfil com hive carregado; Process Monitor mostra só `C:\Windows\SysWOW64\schtasks.exe` (SEC-32).
+7. Windows 10 22H2 sem WebView2: o bootstrapper instala ou mostra a mensagem de CA-50 (AF-07).
+8. Defender não acusa o instalador nem o `sofa.exe` instalado; o hash publicado confere (SEC-26). O release para a sala sai de tag.
+9. Os itens anteriores do QA-17 seguem valendo: SEC-01/SEC-02 no build de release, o teste de rede de 10 minutos (SEC-30), energia real com CA-49 e os degraus 2 e 3 com jogos reais (SG-10).
+
+#### Para o PO
+
+- **SEC-BUG-05 (médio, back):** pasta de instalação travada em `Program Files`. Bloqueia a entrega do instalador ao PC da sala, não o restante do QA.
+- **SEC-BUG-06 (baixo, back):** CFG no release MSVC.
+- Fechados nesta rodada: SEC-BUG-04 e DR-06 (implementação).
