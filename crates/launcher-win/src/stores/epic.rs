@@ -280,6 +280,12 @@ mod tests {
         let dir = fixtures().join(r"epic\malicious\Manifests");
         for e in fs::read_dir(dir).unwrap().flatten() {
             let n = e.file_name().into_string().unwrap();
+            // m11 aponta para `C:\Program Files\Sofa\sofa.exe`: so e recusado porque o exe nao
+            // existe. Num PC com o Sofa instalado ele passa a ser um jogo valido, e o teste nao
+            // pode depender do que esta instalado na maquina.
+            if n == "m11.item" && Path::new(r"C:\Program Files\Sofa\sofa.exe").exists() {
+                continue;
+            }
             write(&m.join(&n), &fs::read(e.path()).unwrap());
         }
         let games = scan_dir(&m).unwrap();
