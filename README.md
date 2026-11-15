@@ -1,110 +1,133 @@
-# Game Launcher (Sofá)
+<p align="center"><img src="docs/brand/sofa/assets/logo-horizontal.svg" alt="Sofá" height="72"></p>
 
-Launcher de jogos para TV (Tauri 2 + Rust, UI em React). Documentação da feature em `docs/`
-(spec, arquitetura, ADRs, segurança, contrato de API em `docs/api/launcher-tv.md`).
+**English** | [Português (Brasil)](README.pt-BR.md)
 
-## Estrutura
+# Sofá
 
-| Pasta | Conteúdo |
+Sofá is a game launcher for Windows, made to be used on a TV with an Xbox controller. It shows your Steam, Epic Games and GOG games, plus any `.exe` you add, in one library. You open a game, play, and come back to the launcher without a keyboard or mouse.
+
+> Status: pre-release `v0.1.0`. The installer is not code-signed (see [Download and install](#download-and-install)).
+
+## Requirements
+
+- Windows 10 or 11, 64-bit.
+- An Xbox controller (wired or wireless). The keyboard works only as an emergency fallback.
+- WebView2 runtime. If it is missing (more common on Windows 10), the installer downloads it from Microsoft, so that PC needs internet during installation.
+
+## Download and install
+
+1. Download `Sofa_0.1.0_x64-setup.exe` and `SHA256SUMS.txt` from the [v0.1.0 release](https://github.com/dev-azevedo/game-launcher-home-tv/releases/tag/v0.1.0). The release also has `README.txt`, `BUILD-INFO.txt` and `coletar-logs.ps1`.
+2. Check the hash in PowerShell, in the folder of the file:
+
+   ```powershell
+   Get-FileHash .\Sofa_0.1.0_x64-setup.exe -Algorithm SHA256
+   ```
+
+   The value must match the one in `SHA256SUMS.txt`. If it differs, do not install.
+3. Run the installer. It is **not signed**, so Windows SmartScreen may warn you. Continue only after the hash matched.
+4. The installer asks for administrator permission (UAC) and installs for the whole PC.
+5. The folder is fixed: `C:\Program Files\Sofa`. There is no folder page, and the `/D=` option with another folder is refused. An older installation outside Program Files is also refused: uninstall it first.
+6. The "Start with Windows" page comes checked. Each Windows user can change it later in Settings.
+
+To play without a keyboard right after turning the PC on, set up automatic sign-in or Windows Hello in Windows. Sofá starts on the desktop, and the installer does not change your sign-in.
+
+## Using it with the controller
+
+| Button | What it does |
 |---|---|
-| `crates/launcher-core` | Domínio e aplicação. Sem Tauri, sem Windows, sem I/O (INV-01) |
-| `crates/launcher-win` | Adapters Windows (persistência, log, hardening, e os próximos BE-xx) |
-| `src-tauri` | Apresentação e composition root: comandos, DTOs, capability, janela |
-| `ui` | Front-end (Vite + React + TS) |
-| `scripts` | `ci.ps1` e guards |
+| D-pad | Move focus, change tab, adjust volume in the quick menu |
+| A | Play, choose, confirm, go back to the running game |
+| B | Back, cancel, close |
+| View | Game options (in the library) |
+| Menu | Quick menu |
+| LB / RB | Jump rows |
+| LT / RT | Volume down / up (in the library) |
+| View + Menu | Return combination: back to Sofá while a game is running |
 
-## CI local (D-34)
+**Adding games.** Installed Steam, Epic and GOG games are detected on their own. To add something else, go to Settings, Library, Add game, and pick a `.exe` on a local disk. Network paths, command-line arguments and files that are not `.exe` are not accepted. Each card shows its origin (Steam, Epic, GOG or Manual). "Update library" looks for new games.
 
-Não há servidor de CI: o `scripts/ci.ps1` roda tudo que precisa passar antes de commitar e antes
-de gerar um release.
+**Playing.** Move to a card and press A. While the game runs, its card shows "In progress" and A returns to it. When the game closes, Sofá comes back to the front.
+
+**Back to Sofá during a game.** Press View + Menu together. A panel offers: back to the game, close game, go to the library (the game stays open) and quick menu. "Close game" asks the game to close; if it does not answer, "Force close" appears (unsaved progress is lost).
+
+**Quick menu (Menu).** Volume, Mute, Shut down, Restart, Suspend, Settings and Exit launcher. Shut down, Restart and Suspend ask for confirmation, with Cancel in focus. The Windows shutdown is the normal one: if another app has unsaved work, Windows warns. Suspend shows as unavailable on PCs that do not support it.
+
+**Volume.** LT and RT in the library, or the D-pad in the quick menu.
+
+**Game options (View on a card).** Play (or Back to game), Rename, Restore original name, Hide. Renaming uses the PC keyboard. Hiding removes the game from the library and from updates and deletes no file. Hidden items come back in Settings, Hidden items.
+
+**Settings.** Tabs: Display (which monitor Sofá opens on), Library (summary, update, add game), General (Start with Windows) and Hidden items.
+
+**Start with Windows.** Opens Sofá when you sign in. It applies to your Windows user only.
+
+### Emergency keyboard
+
+| Key | Controller equivalent |
+|---|---|
+| Arrow keys | D-pad |
+| Enter | A |
+| Esc or Backspace | B |
+| F1 or Menu key (ContextMenu) | Menu: opens the quick menu |
+| F2 | View: game options in the library |
+| PgUp / PgDn | LB / RB |
+| `[` / `]` | LT / RT: volume down / up (library only) |
+
+Inside a text field only Enter, Esc and Up/Down leave the field. There is no key for the return combination.
+
+## Data and logs
+
+Sofá keeps your library, hidden items, custom names, last-played dates and settings in `%LOCALAPPDATA%\app.sofa.launcher`. Logs are in `%LOCALAPPDATA%\app.sofa.launcher\logs`. Nothing leaves the PC on its own.
+
+**Reporting a problem.** Download `coletar-logs.ps1` from the release and run it:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/ci.ps1               # tudo
-powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 -SkipAudit    # sem rede (registre o motivo)
-powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 -SkipUi       # só o back
-powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 -SelfTestOnly # só o autoteste dos guards
-powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 -Release      # CI + release MSVC (instalador e SHA256SUMS)
+powershell -ExecutionPolicy Bypass -File .\coletar-logs.ps1
 ```
 
-Passos, nesta ordem (para no fim com código 1 se qualquer um falhar):
+It reads the data folder (and never changes it) and creates a zip on your desktop with the logs, `settings.json`, Windows, graphics and WebView2 information, and where Sofá is installed. It leaves out `library.json`, covers, your user name and your computer name. Send that zip with your report. Use `-IncluirBiblioteca` only if asked: it adds the list of games.
 
-1. **Autoteste dos guards**: uma violação plantada de cada regra precisa ser detectada, e uma
-   árvore limpa não pode acusar nada. Garante que o guard não "passa" por estar quebrado.
-2. **Guards por grep** (`scripts/ci-guards.ps1`): chamadas de INV-03, INV-05, INV-08 e INV-09 fora
-   dos arquivos donos (`XInputGetState`, `SetForegroundWindow`, `SendInput`, `AttachThreadInput`,
-   `EWX_FORCE*`, `SeDebugPrivilege`, `PROCESS_ALL_ACCESS`, `shutdown.exe`, `SetWindowsHookEx`,
-   `CreateRemoteThread`, `ReadProcessMemory`, `WriteProcessMemory`, `LoadLibrary*`, `remove_file`,
-   `remove_dir_all`, `DeleteFileW`, `fs::rename`, `MoveFileExW`); `WINEVENT_INCONTEXT`,
-   `SPI_SETFOREGROUNDLOCKTIMEOUT`, `uiAccess="true"` em qualquer lugar e `SetWinEventHook` fora de
-   `foreground.rs`/`system_events.rs`; `nsExec`/`ExecWait` sem `$SYSDIR\` nos scripts NSIS (SEC-32).
-   Varre `crates/**/src` e `src-tauri/src`; não varre `tests/` nem comentários.
-3. `cargo fmt --check` e `cargo clippy --workspace --all-targets -- -D warnings`.
-4. `cargo test --workspace`, que inclui os guards escritos como teste: lista de comandos x
-   `capabilities/main.json` x `generate_handler!` x contrato, manifesto `asInvoker` embutido no
-   `sofa.exe`, CSP de release sem `unsafe-inline`/`unsafe-eval`/origem externa, e a regeneração dos
-   tipos TypeScript.
-5. **Bindings TypeScript**: os tipos de `ui/src/shared/ipc/generated/` são gerados por
-   `cargo test -p sofa --test bindings` (ts-rs). O passo falha se o que está no git difere do gerado
-   (faça o commit da pasta junto com a mudança do DTO). Não edite esses arquivos à mão.
-6. `cargo deny check` (SEC-24, SEC-30): sem cliente HTTP no grafo, licenças e advisories.
-7. `npm audit --omit=dev --audit-level=high` em `ui/` (precisa de rede).
-8. `npm run check` em `ui/` (typecheck, lint, testes).
+## Uninstall
 
-Para adicionar uma regra de guard, edite `$GuardRules` em `scripts/ci-guards.ps1` e acrescente o
-token ao autoteste.
+Windows Settings, Apps, Installed apps, Sofá. The uninstaller asks whether to keep data, and **Keep data (library and settings)** comes checked. Checked, a later reinstall finds your library again. Unchecked, the data of your user is deleted. Updating over an existing install does not delete data.
 
-## Release e instalador (BE-37 a BE-39, BE-42, BE-46)
+## Common problems
 
-O CI de dev continua no `-gnu` e **não** ganhou passo MSVC por padrão: o `-gnu` é rápido, e o MSVC
-só é necessário para o que é distribuído (loader do WebView2 estático, CFG, um único `RT_MANIFEST`;
-ADR-0001). O MSVC entra em `scripts/ci.ps1 -Release`, que depois dos passos acima gera o release em
-`..\sofa-releases\v<versão>` (ao lado do repo, fora do git; troque com `-ReleasesDir`):
+- **SmartScreen warns about the installer.** Expected: it is not signed. Check the SHA-256 and continue only if it matches.
+- **The installer fails on a PC without WebView2.** It downloads the runtime from Microsoft: connect the PC to the internet and try again. There is no offline installer.
+- **The controller does not respond.** Sofá shows "No controller connected". Turn the controller on or plug in the cable. The keyboard works meanwhile.
+- **The game does not come back to the front.** Open the game panel with View + Menu and choose "Back to game". If Windows did not let Sofá take the front, the game was minimized and "Back to game" restores it. A game that runs as administrator may ignore the return combination; use the keyboard (F1) or close the game from its own menu.
+- **The installer refuses to continue.** Remove `/D=` from the command line, or uninstall the earlier copy that lives outside Program Files.
 
-1. `cargo test` no MSVC (`-SkipMsvcTests` pula), na toolchain MSVC **da versão fixada** em
-   `rust-toolchain.toml` (ou `stable-...-msvc` se for a mesma versão; senão o script diz o comando
-   `rustup toolchain install`). Por padrão sem `session_e2e` e `session_runtime`, que sobem o
-   `sofa-test-game.exe`. `-FullMsvcTests` roda tudo. O helper sem metadados era barrado pelo
-   Defender (falso positivo `Trojan:Win32/Bearfoos.A!ml`, erro 225, BE-52); ganhou versão, empresa,
-   descrição e manifesto (`crates/launcher-win/test-game.rc`, `build.rs`) e passa. **Nada de
-   exclusão no Defender**: se o erro 225 voltar, o teste falha e o motivo está aqui.
-2. Relatórios de `cargo deny` e `npm audit` (produção, nível alto) em `relatorios\`.
-3. `tauri build --target x86_64-pc-windows-msvc --bundles nsis` (a CLI vem do `ui/package.json`, sem
-   scripts de instalação): NSIS por máquina, `Program Files\Sofa`, bootstrapper do WebView2 embutido.
-4. **Travas do `sofa.exe` MSVC**: `src-tauri/tests/manifest_resource.rs` lê o diretório de recursos e
-   exige exatamente um `RT_MANIFEST` (`asInvoker`, `uiAccess="false"`, Common Controls v6;
-   ARQ-BUG-08), e `src-tauri/tests/pe_hardening.rs` exige Control Flow Guard (`GUARD_CF`), ASLR de
-   64 bits e DEP no cabeçalho do PE (SEC-BUG-06). O CFG vem de `.cargo/config.toml`
-   (`-C control-flow-guard` no alvo MSVC; a variável `RUSTFLAGS`, se existir, o substituiria, e o
-   teste reprova). No `-gnu` os dois testes só avisam.
-5. **Varredura do Defender** (BE-52, RR-02): `MpCmdRun -Scan -ScanType 3 -File` no instalador e no
-   `sofa.exe`; se acusar (ou não concluir), o build falha. O resultado vai para `relatorios\defender.txt`
-   e para o `BUILD-INFO.txt`. Não muda configuração nem exclusão do Defender.
-6. Guards de NSIS (SEC-31, SEC-32) e do BOM no `installer.nsi` gerado.
-7. `scripts/test-installer.ps1`: testes do instalador e do desinstalador **sem instalar nada**, sem
-   elevação, em pastas temporárias (veja abaixo).
-8. Copia o instalador, gera `SHA256SUMS.txt` (formato do `sha256sum -c`), `README.txt` com o
-   `Get-FileHash` e `BUILD-INFO.txt`, e confere o hash recalculando.
+## For developers
 
-Release oficial sai **de uma tag** `v<versão>` com a árvore limpa (RN-30); `-AllowUntagged` permite um
-build de teste, marcado como tal em `BUILD-INFO.txt`. O instalador não é assinado (D-11): quem recebe
-confere o SHA-256. O `target\`, `*-setup.exe` e `SHA256SUMS.txt` estão no `.gitignore`; binário nunca
-entra no git.
+Tauri 2 + Rust, with a React UI. Feature documentation is in `docs/` (spec, architecture, ADRs, security, API contract in `docs/api/launcher-tv.md`).
 
-`scripts/test-installer.ps1` (também roda sozinho, depois de um `tauri build`, que baixa o NSIS):
-compila com o `makensis` do Tauri o harness `src-tauri/windows/tests/harness.nsi`, que roda as mesmas
-funções de `uninstall-hooks.nsh`, e um stub de `sofa.exe`. Cobre: SID, decisão por código de saída
-do purge (0 a 4, não lido, ainda rodando), purge de ponta a ponta (filho do Explorer, integridade
-Medium, mesmo usuário), caminho alternativo com o `CreateProcessW` forçado a falhar, fallback restrito
-(só `library.json` e `settings.json`; raiz e arquivos como junction, ponto de reanálise, pasta, hard
-link, somente leitura, em uso; junction trocada em laço), a remoção da tarefa de autostart por SID,
-a **pasta fixa em `Program Files\Sofa`** (`/D=` diferente e instalação anterior fora dela recusados,
-sem página de pasta; SEC-BUG-05) e os acentos ("Sofá" no instalador compilado, um BOM no `.nsi` gerado).
-Symlink de verdade exige privilégio: num PowerShell elevado o script o inclui sozinho. O que só vale
-instalando (UAC de outra conta, ACL, `HKU` de outros perfis, DLL plantada) fica no QA-17.
+| Folder | Content |
+|---|---|
+| `crates/launcher-core` | Domain and application. No Tauri, no Windows, no I/O |
+| `crates/launcher-win` | Windows adapters (persistence, logging, hardening, process probe, Job Object, controller, volume, power) |
+| `src-tauri` | Presentation and composition root: commands, DTOs, capability, window, NSIS installer files in `windows/` |
+| `ui` | Front end (Vite + React + TypeScript) |
+| `scripts` | `ci.ps1`, guards, release and installer test scripts |
 
-## Toolchain
+**Local CI.** There is no CI server. `scripts/ci.ps1` runs everything that must pass before a commit or a release:
 
-`rust-toolchain.toml` fixa o toolchain estável (piso 1.77.2, SEC-24). Na máquina de desenvolvimento
-atual o alvo é `x86_64-pc-windows-gnu` com `windows` 0.58; o release usa MSVC (ver `Cargo.toml` e a
-seção "Release e instalador"). Com o VS 2022 instalado, o `rustup` acha o linker MSVC sozinho; não
-ponha o MinGW na frente do `PATH` ao compilar para MSVC.
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/ci.ps1               # everything
+powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 -SkipAudit    # offline (record the reason)
+powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 -SkipUi       # back end only
+powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 -SelfTestOnly # guard self-test only
+powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 -Release      # CI + MSVC release (installer and SHA256SUMS)
+```
+
+Steps: guard self-test, grep guards (architecture and security rules), `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --workspace`, up-to-date TypeScript bindings (`ui/src/shared/ipc/generated`, from ts-rs; do not edit by hand), `cargo deny check`, `npm audit` and `npm run check` in `ui/`.
+
+**Release.** `-Release` builds with the MSVC toolchain at the version pinned in `rust-toolchain.toml` and writes to `..\sofa-releases\v<version>` (`-ReleasesDir` changes it). It runs the MSVC tests (`-FullMsvcTests` for the whole workspace), `cargo deny` and `npm audit` reports, `tauri build` (NSIS, per-machine, embedded WebView2 bootstrapper), PE checks on `sofa.exe` (a single `RT_MANIFEST`, Control Flow Guard, ASLR, DEP), a Microsoft Defender scan of the installer and `sofa.exe` (the build fails on any detection), NSIS guards on the generated script, `scripts/test-installer.ps1` (installer and uninstaller tests that install nothing) and `SHA256SUMS.txt`. An official release comes from a `v<version>` tag on a clean tree; `-AllowUntagged` is for test builds.
+
+**Toolchain.** Day-to-day development uses `x86_64-pc-windows-gnu`. Only the MSVC build is distributed (static WebView2 loader, Control Flow Guard, a single manifest). Do not put MinGW first in `PATH` when building for MSVC. `.cargo/config.toml` turns on `-C control-flow-guard` for the MSVC target.
+
+The full technical notes, in Portuguese (guard list, installer tests, release steps), are in the developer section of [README.pt-BR.md](README.pt-BR.md#para-desenvolvedores).
+
+## License
+
+To be defined. There is no `LICENSE` file in this repository yet. The Sora and Figtree fonts keep their own OFL licenses (`docs/brand/sofa/assets/fonts`).
