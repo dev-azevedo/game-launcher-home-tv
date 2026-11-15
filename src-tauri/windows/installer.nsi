@@ -88,7 +88,10 @@ ${StrLoc}
 !define WEBVIEW2BOOTSTRAPPERPATH "{{webview2_bootstrapper_path}}"
 !define WEBVIEW2INSTALLERPATH "{{webview2_installer_path}}"
 !define MINIMUMWEBVIEW2VERSION "{{minimum_webview2_version}}"
-!define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCTNAME}"
+; Sofa (ADR-0007, R-11): chave de desinstalacao FIXA no literal `Uninstall\Sofa`, a mesma da 0.1.0.
+; Nao derivar de ${PRODUCTNAME}: com o nome novo a chave mudaria, a 0.2.0 nao acharia a 0.1.0 (duas
+; entradas em "Aplicativos instalados") e o PageReinstall perderia a conferencia do SEC-BUG-05.
+!define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Sofa"
 ; Sofa: a chave do produto e HKLM\Software\app.sofa.launcher (SEC-29), a mesma que o app le.
 !define MANUKEY "Software\${BUNDLEID}"
 !define MANUPRODUCTKEY "Software\${BUNDLEID}"

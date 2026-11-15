@@ -94,6 +94,21 @@ function Skip-Case([string]$Name, [string]$Why) {
     Write-Host ("  pulou {0}: {1}" -f $Name, $Why) -ForegroundColor Yellow
 }
 function Assert-True($Cond, [string]$Msg) { if (-not $Cond) { throw $Msg } }
+# R-11 / ADR-0007: o nome visivel muda, as chaves tecnicas NAO. Com `UNINSTKEY` derivada de ${PRODUCTNAME}, a 0.2.0
+# gravaria `Uninstall\SofaLauncher`, nao acharia a 0.1.0 e o PageReinstall perderia a conferencia do SEC-BUG-05.
+function Assert-SofaTechnicalKeys([string]$Code, [string]$Where) {
+    $lit = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\Sofa'
+    $m = [regex]::Matches($Code, '(?m)^\s*!define UNINSTKEY\s+"([^"]*)"')
+    Assert-Eq $m.Count 1 "definicoes de UNINSTKEY no $Where"
+    Assert-Eq $m[0].Groups[1].Value $lit "UNINSTKEY no $Where"
+    Assert-True (-not $m[0].Groups[1].Value.Contains('PRODUCTNAME')) "UNINSTKEY no $Where nao pode derivar de PRODUCTNAME"
+    foreach ($kv in @(@('MANUKEY', 'Software\${BUNDLEID}'), @('MANUPRODUCTKEY', 'Software\${BUNDLEID}'), @('INSTALLDIRNAME', 'Sofa'))) {
+        $mm = [regex]::Matches($Code, ('(?m)^\s*!define ' + $kv[0] + '\s+"([^"]*)"'))
+        Assert-Eq $mm.Count 1 "definicoes de $($kv[0]) no $Where"
+        Assert-Eq $mm[0].Groups[1].Value $kv[1] "$($kv[0]) no $Where"
+    }
+}
+
 function Assert-Eq($Got, $Want, [string]$Msg) { if ("$Got" -ne "$Want") { throw ("{0}: obtido '{1}', esperado '{2}'" -f $Msg, $Got, $Want) } }
 
 # --- compilacao
@@ -662,6 +677,12 @@ public static class SofaReparse {
         }
     }
 
+    Test-Case 'chaves tecnicas do template: UNINSTKEY fixa em Uninstall\Sofa e as demais iguais as da 0.1.0 (R-11, ADR-0007)' {
+        $tpl = Join-Path $winDir 'installer.nsi'
+        $code = ((Get-Content -LiteralPath $tpl -Encoding UTF8) | Where-Object { $_.TrimStart() -notmatch '^[;#]' }) -join "`n"
+        Assert-SofaTechnicalKeys $code 'template'
+    }
+
     # =============================================================== o instalador gerado
     Write-Host "`n== Instalador gerado (se existir)" -ForegroundColor Cyan
     $gen = Get-ChildItem -LiteralPath (Join-Path $root 'target') -Recurse -Filter installer.nsi -ErrorAction SilentlyContinue |
@@ -698,6 +719,10 @@ public static class SofaReparse {
             Assert-True ($t.Contains('!define MANUFACTURER "Sof' + $a + '"')) 'publisher com acento ausente'
             Assert-True ($t.Contains('!define COPYRIGHT "Copyright (c) Sof' + $a + '"')) 'copyright com acento ausente'
             Assert-True ($t.Contains('!define DISPLAYNAME "Sof' + $a + '"')) 'nome exibido com acento ausente'
+        }
+        Test-Case 'script gerado: chaves tecnicas iguais as da 0.1.0 (UNINSTKEY literal Uninstall\Sofa, R-11)' {
+            $t = ((Get-Content -LiteralPath $gen.FullName -Encoding UTF8) | Where-Object { $_.TrimStart() -notmatch '^[;#]' }) -join "`n"
+            Assert-SofaTechnicalKeys $t 'script gerado'
         }
         Test-Case 'script gerado: sem pagina de pasta e com a pasta fixa' {
             $t = ((Get-Content -LiteralPath $gen.FullName -Encoding UTF8) | Where-Object { $_.TrimStart() -notmatch '^[;#]' }) -join "`n"
