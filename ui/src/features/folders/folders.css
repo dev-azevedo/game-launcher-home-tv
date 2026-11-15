@@ -1,10 +1,10 @@
 /* Navegador de pastas (chunk proprio). Referencia: mockups/_tv.css (.fb, .crumb). Medidas em --u. */
 .crumb{display:flex;align-items:center;gap:var(--space-2);font:600 var(--text-label)/1.2 var(--font-text);color:var(--brand-text);background:var(--brand-surface);padding:var(--space-2) var(--space-3);border-radius:var(--radius-button);margin-top:var(--space-2);overflow-wrap:anywhere;position:relative;z-index:1}
 .fb .callout{margin-top:var(--space-2);font-size:var(--text-caption)}
-.fb-list{flex:1;min-height:0;overflow:hidden;position:relative;padding:var(--pad-focus);margin:var(--space-1) calc(-1*var(--pad-focus)) 0}
+.fb-list{flex:1;min-height:0;overflow:hidden;position:relative;padding:var(--pad-focus);margin:var(--space-1) 0 0}
 .fb-inner{position:relative;width:100%}
 .fb-row-pos{position:absolute;left:0;right:0;top:0}
-.fb-row{height:calc(80*var(--u));box-shadow:none}
+.fb-row{--focus-scale:1;height:calc(80*var(--u));box-shadow:none}
 .fb .mi:not([data-focused="true"]){background:var(--brand-surface-raised)}
 .fb .fb-row[data-focused="true"]{box-shadow:var(--focus-ring)}
 .fb .layer-root{display:contents}
