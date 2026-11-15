@@ -1,4 +1,4 @@
-import { destroy, init, setKeyMap, navigateByDirection } from '@noriginmedia/norigin-spatial-navigation';
+import { destroy, GetBoundingClientRectAdapter, init, setKeyMap, navigateByDirection } from '@noriginmedia/norigin-spatial-navigation';
 import type { Direction } from '@/shared/input/intents';
 
 let started = false;
@@ -14,7 +14,9 @@ const NO_KEY = [-1];
 export function startSpatialNavigation(): void {
   if (started) return;
   started = true;
-  init({ throttle: 0, shouldFocusDOMNode: false });
+  // `GetBoundingClientRectAdapter`: a grade virtualizada posiciona as linhas com `transform` (offsetTop = 0 para todas),
+  // e o padrao do norigin mede por offsetTop/offsetLeft, entao "Baixo" nunca achava a linha de baixo.
+  init({ throttle: 0, shouldFocusDOMNode: false, layoutAdapter: GetBoundingClientRectAdapter });
   setKeyMap({ left: NO_KEY, up: NO_KEY, right: NO_KEY, down: NO_KEY, enter: NO_KEY });
 }
 
