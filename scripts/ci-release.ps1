@@ -63,7 +63,9 @@ function Invoke-Release {
     $installerName = "Sofa_${version}_x64-setup.exe"
 
     # build a partir de tag (RN-30): HEAD exatamente numa tag v<versao> e arvore limpa.
-    $tag = (git describe --exact-match --tags HEAD 2>$null)
+    # via cmd: no PowerShell 5.1 o stderr de um nativo vira erro terminante com `Stop`, e "sem tag" e um caso normal
+    $tag = (cmd /c "git describe --exact-match --tags HEAD 2>nul")
+    $global:LASTEXITCODE = 0
     # so conta o que entra no binario e no instalador (docs e planilhas de tarefas nao mudam o hash)
     $dirty = @(git status --porcelain --untracked-files=no -- crates src-tauri ui scripts Cargo.toml Cargo.lock rust-toolchain.toml deny.toml)
     $commit = (git rev-parse HEAD).Trim()
