@@ -80,20 +80,8 @@ fn manifesto_do_repo_e_as_invoker_sem_ui_access() {
     );
 }
 
-/// O manifesto esta de fato dentro do `sofa.exe` (recurso `RT_MANIFEST` em texto UTF-8).
-#[test]
-fn manifesto_embutido_no_exe_e_as_invoker() {
-    let exe = fs::read(env!("CARGO_BIN_EXE_sofa")).unwrap();
-    // Busca de substring do `str` (rapida); o recurso do manifesto e ASCII/UTF-8.
-    let text = String::from_utf8_lossy(&exe);
-    let find = |needle: &str| text.contains(needle);
-    assert!(
-        find(r#"requestedExecutionLevel level="asInvoker" uiAccess="false""#),
-        "manifesto asInvoker nao encontrado no sofa.exe (SEC-20, INV-06)"
-    );
-    assert!(!find("requireAdministrator"));
-    assert!(!find(r#"uiAccess="true""#));
-}
+// O manifesto embutido no exe (exatamente um RT_MANIFEST, ARQ-BUG-08) e conferido em
+// `tests/manifest_resource.rs`, lendo o diretorio de recursos do PE.
 
 #[test]
 fn set_default_dll_directories_e_a_primeira_instrucao_do_main() {
