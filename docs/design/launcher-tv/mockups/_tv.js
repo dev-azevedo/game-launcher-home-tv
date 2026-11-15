@@ -401,7 +401,7 @@ function home(o){
     var el=L.el; if(!el)return; var hero=el.querySelector('.hero'); if(!hero)return;
     var x=fid&&fid.indexOf(':')>0?gameById(fid.slice(2)):null, eb=hero.querySelector('.eyebrow'),nm=hero.querySelector('.name-big'),bg=el.querySelector('.bg');
     if(x){ var run=S.session&&S.session.id===x.id;
-      eb.replaceChildren(h('span.pill',{text:x.origin}),h('span',{text:run?'Em andamento. A volta ao jogo.':lastText(x)}));
+      eb.replaceChildren(h('span.pill',{text:x.origin}),h('span',{text:run?'Em andamento. Aperte A para voltar ao jogo.':lastText(x)}));
       nm.textContent=x.name; bg.style.backgroundImage=x.cover==='art'?artUrl(x.hue,x.seed):'none'; bg.style.opacity=x.cover==='art'?'.26':'0';
     } else if(fid==='all'){ eb.replaceChildren(h('span',{text:'Biblioteca'})); nm.textContent='Todos os jogos'; bg.style.opacity='0' }
   };
@@ -467,7 +467,7 @@ function hideConfirm(x){
     },{kind:'danger',icon:'eyeoff'})]});
 }
 function rename(x){
-  var L={name:'Renomear jogo',kind:'overlay',focus:'input',value:x.name,error:'',rows:function(){return [['input'],['save','cancel']]}};
+  var L={name:'Renomear jogo',kind:'overlay',focus:'input',value:x.name,error:'',rows:function(){return [['input'],['cancel','save']]}};
   function save(){
     var v=(L.value||'').replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g,'').replace(/\s+/g,' ').trim();
     if(!v){ L.error='O nome não pode ficar vazio.'; rerender(L); L.focus='input'; applyFocus(true); return }
@@ -483,7 +483,7 @@ function rename(x){
       h('div.dc',{},h('h2',{id:'dt',text:'Renomear jogo'}),h('p.body',{text:'Nome original: '+(x.orig||x.name)}),wrap,
         L.error?h('div.warnline',{role:'alert'},ic('alert','s'),h('span',{text:L.error})):null,
         h('p.body',{text:'Digite no teclado do PC. Enter salva, Esc cancela.'}),
-        h('div.btnrow',{},btn('save','Salvar','primary','check'),btn('cancel','Cancelar'))))));
+        h('div.btnrow',{},btn('cancel','Cancelar'),btn('save','Salvar','primary','check'))))));
   };
   L.onFocus=function(fid){ var inp=L.el&&L.el.querySelector('input'); if(!inp)return; if(fid==='input'){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length)} else inp.blur() };
   L.on={Confirm:function(id){ if(id==='cancel')pop(); else save() },Back:function(){pop()}};
@@ -570,7 +570,7 @@ function closingSwap(old,nw){
 }
 function adminDlg(x){
   return dlg({name:'Pede administrador',icon:'shield',tone:'warn',title:x.name,body:[x.name+' precisa de permissão de administrador para abrir. O Windows vai pedir a sua confirmação.'],focus:'go',
-    buttons:[B('go','Continuar',function(){ replaceTop(adminWait(x)) },{kind:'primary'}),B('back','Voltar',function(){ S.session=null; pop() },{back:true})]});
+    buttons:[B('back','Voltar',function(){ S.session=null; pop() },{back:true}),B('go','Continuar',function(){ replaceTop(adminWait(x)) },{kind:'primary'})]});
 }
 function adminWait(x){
   var d=dlg({name:'AdminWait',icon:'shield',tone:'warn',title:x.name,
@@ -586,15 +586,15 @@ function errDlg(code,x){
   var nm=x?x.name:'', V=B('back','Voltar',function(){pop()},{back:true});
   var map={
     GameFileMissing:function(){ return {icon:'alert',cover:x,title:nm,body:['Não encontramos o arquivo do jogo em '+'D:\\Jogos\\'+nm+'\\'+nm+'.exe'],focus:'back',
-      buttons:[B('hide','Ocultar',function(){ pop(); push(hideConfirm(x)) },{icon:'eyeoff'}),V]} },
+      buttons:[V,B('hide','Ocultar',function(){ pop(); push(hideConfirm(x)) },{icon:'eyeoff'})]} },
     PathNetwork:function(){ return {icon:'alert',cover:x,title:nm,body:['Jogos em pastas de rede não são aceitos. Copie o jogo para um disco deste PC.'],focus:'back',
-      buttons:[B('hide','Ocultar',function(){ pop(); push(hideConfirm(x)) },{icon:'eyeoff'}),V]} },
+      buttons:[V,B('hide','Ocultar',function(){ pop(); push(hideConfirm(x)) },{icon:'eyeoff'})]} },
     NotConfirmed:function(){ return {icon:'alert',cover:x,title:nm,body:['Não foi possível confirmar que '+nm+' abriu'],focus:'retry',
-      buttons:[B('retry','Tentar de novo',function(){ pop(); startLaunch(x) },{kind:'primary',icon:'restart'}),B('back','Voltar',function(){ S.session=null; pop() },{back:true})]} },
+      buttons:[B('back','Voltar',function(){ S.session=null; pop() },{back:true}),B('retry','Tentar de novo',function(){ pop(); startLaunch(x) },{kind:'primary',icon:'restart'})]} },
     UacDenied:function(){ return {icon:'shield',tone:'danger',cover:x,title:nm,body:['O Windows não deu permissão para abrir '+nm],focus:'back',buttons:[B('back','Voltar',function(){pop()},{back:true})]} },
     StoreNotInstalled:function(){ return {icon:'alert',cover:x,title:nm,body:['Não encontramos a '+(x&&x.origin||'loja')+' neste PC. Instale a loja para abrir este jogo.'],focus:'back',buttons:[V]} },
     ForegroundDenied:function(){ return {icon:'alert',cover:x,title:nm,body:['O Windows não deixou voltar ao jogo. Tente de novo.'],focus:'retry',
-      buttons:[B('retry','Tentar de novo',function(){ pop(); C.fgDenied='no'; returnToGame() },{kind:'primary'}),B('back','Ir para a biblioteca',function(){ toHome(x.id) },{back:true})]} },
+      buttons:[B('back','Ir para a biblioteca',function(){ toHome(x.id) },{back:true}),B('retry','Tentar de novo',function(){ pop(); C.fgDenied='no'; returnToGame() },{kind:'primary'})]} },
     ForceDenied:function(){ return {icon:'shield',tone:'danger',cover:x,title:nm,body:['Não foi possível fechar '+nm+'. O jogo roda como administrador. Feche pelo menu do próprio jogo.'],focus:'back',
       buttons:[B('back','Voltar',function(){ S.session.state='running'; pop() },{back:true})]} },
     Busy:function(){ return {icon:'alert',title:'Um momento',body:['O Sofá ainda está terminando outra ação. Tente de novo em instantes.'],focus:'back',buttons:[V]} }
@@ -687,7 +687,7 @@ function settings(o){
       var M=monitors(); S.monitor=M.sel;
       p.append(h('h3',{text:'Monitor do launcher'}),h('div.lead',{text:'O Sofá abre em tela cheia no monitor escolhido.'}));
       if(M.missing)p.append(h('div.callout',{role:'status'},ic('alert'),h('span',{text:'O monitor escolhido não está conectado. O Sofá está no monitor principal e volta ao monitor escolhido quando ele reconectar.'})));
-      p.append(h('div.list',{'data-scroll':''},M.list.map(function(m){ return mi('p:'+m.id,'monitor',m.n,m.res+(m.main?' · Principal':''),m.id===M.sel?h('span.tagsm',{},h('span',{text:'Em uso '}),ic('check','s')):null) })));
+      p.append(h('div.list',{'data-scroll':''},M.list.map(function(m){ return mi('p:'+m.id,'monitor',m.n,(m.main?'Principal':null),m.id===M.sel?h('span.tagsm',{},h('span',{text:'Em uso '}),ic('check','s')):null) })));
       if(M.list.length===1)p.append(h('div.sub',{text:'Só há um monitor conectado.'}));
     } else if(L.tab==='biblioteca'){
       var n=S.games.length,cnt={};S.games.forEach(function(x){cnt[x.origin]=(cnt[x.origin]||0)+1});
@@ -744,7 +744,7 @@ function settings(o){
 }
 function restoreDlg(x){
   return dlg({name:'Restaurar item',icon:'undo',tone:'ok',title:'Restaurar '+x.name+'?',body:['O jogo volta para a biblioteca com o nome e a data de último jogo que tinha.'],focus:'ok',
-    buttons:[B('ok','Restaurar',function(){ S.hidden=S.hidden.filter(function(y){return y!==x}); S.games.push(x); pop(); var T=top(); if(T.name==='Configurações'){ rerender(T); T.zone='pane'; T.focus=T.paneIds[0]||'t:ocultos'; if(!T.paneIds.length){T.zone='tabs'} applyFocus(true) } toast(x.name+' voltou para a biblioteca.') },{kind:'primary',icon:'undo'}),B('cancel','Cancelar',function(){pop()},{back:true})]});
+    buttons:[B('cancel','Cancelar',function(){pop()},{back:true}),B('ok','Restaurar',function(){ S.hidden=S.hidden.filter(function(y){return y!==x}); S.games.push(x); pop(); var T=top(); if(T.name==='Configurações'){ rerender(T); T.zone='pane'; T.focus=T.paneIds[0]||'t:ocultos'; if(!T.paneIds.length){T.zone='tabs'} applyFocus(true) } toast(x.name+' voltou para a biblioteca.') },{kind:'primary',icon:'undo'})]});
 }
 
 /* ---------- navegador de pastas ---------- */
@@ -794,11 +794,11 @@ function folder(path0){
 function addConfirm(e,fl){
   var name=e.n.replace(/\.exe$/i,''), full=(fl.path?fl.path+'\\':'')+e.n;
   return dlg({name:'Adicionar jogo?',icon:'plus',tone:'ok',title:'Adicionar este jogo?',body:['O jogo entra na biblioteca como '+name+'. Dá para renomear depois.'],path:full,focus:'ok',
-    buttons:[B('ok','Adicionar',function(){
+    buttons:[B('cancel','Voltar',function(){pop()},{back:true}),B('ok','Adicionar',function(){
       if(e.n==='Bruma.exe'){ replaceTop(dlg({name:'Duplicado',icon:'alert',title:'Este jogo já está na biblioteca',body:['Não criamos uma segunda cópia.'],focus:'back',buttons:[B('back','Voltar',function(){pop()},{back:true})]})); return }
       if(e.n==='leiame.exe'){ replaceTop(dlg({name:'Executável inválido',icon:'alert',tone:'danger',title:'Este arquivo não é um executável válido',body:['O arquivo tem a extensão .exe, mas o Windows não o reconhece como programa. Escolha outro arquivo.'],focus:'back',buttons:[B('back','Voltar',function(){pop()},{back:true})]})); return }
       S.games.push(G('manual:'+full,name,'Manual',{cover:'icon'})); pop(); pop(); toast(name+' adicionado.');
-    },{kind:'primary',icon:'plus'}),B('cancel','Voltar',function(){pop()},{back:true})]});
+    },{kind:'primary',icon:'plus'})]});
 }
 
 /* ---------- folha de componentes ---------- */

@@ -17,7 +17,7 @@ Frases marcadas com (spec) são literais da spec e não mudam sem mudar a spec.
 | Origem no card | Steam, Epic, GOG, Manual |
 | Selo no card | Em andamento |
 | Último jogado | Jogado hoje / Jogado ontem / Jogado há N dias / Nunca jogado |
-| Herói com jogo em andamento | Em andamento. A volta ao jogo. |
+| Herói com jogo em andamento | Em andamento. Aperte A para voltar ao jogo. |
 
 ### Abertura
 | Elemento | Texto |
@@ -57,7 +57,7 @@ Frases marcadas com (spec) são literais da spec e não mudam sem mudar a spec.
 | Renomear, título | Renomear jogo |
 | Renomear, linha de apoio | Nome original: <nome> |
 | Renomear, instrução | Digite no teclado do PC. Enter salva, Esc cancela. |
-| Renomear, botões | Salvar · Cancelar |
+| Renomear, botões | Cancelar · Salvar |
 | Nome vazio | O nome não pode ficar vazio. |
 | Nome salvo | Nome salvo. |
 | Nome restaurado | Nome original restaurado. |
@@ -120,7 +120,7 @@ Frases marcadas com (spec) são literais da spec e não mudam sem mudar a spec.
 | Rodapé | Sofá 1.0.0 · Fontes Sora e Figtree sob licença OFL |
 | Itens ocultos | Escolha um item para voltar à biblioteca. |
 | Itens ocultos vazio (spec) | Nenhum item oculto / Os jogos que você ocultar aparecem aqui. |
-| Restaurar | Restaurar <nome>? / O jogo volta para a biblioteca com o nome e a data de último jogo que tinha. / Restaurar (em foco) · Cancelar |
+| Restaurar | Restaurar <nome>? / O jogo volta para a biblioteca com o nome e a data de último jogo que tinha. / Cancelar · Restaurar (em foco) |
 | Restaurado | <nome> voltou para a biblioteca. |
 
 ### Navegador de pastas
@@ -133,34 +133,34 @@ Frases marcadas com (spec) são literais da spec e não mudam sem mudar a spec.
 | Pasta vazia | Nenhuma pasta ou .exe aqui / Esta pasta não tem pastas nem arquivos .exe. / Voltar |
 | Sem permissão | Sem permissão para abrir esta pasta / O Windows não deixa o Sofá ver o que há aqui. / Voltar |
 | Pasta não existe | Não encontramos esta pasta / Ela pode ter sido removida, ou o disco foi desconectado. / Voltar |
-| Confirmar | Adicionar este jogo? / O jogo entra na biblioteca como <nome>. Dá para renomear depois. / <caminho> / Adicionar (em foco) · Voltar |
+| Confirmar | Adicionar este jogo? / O jogo entra na biblioteca como <nome>. Dá para renomear depois. / <caminho> / Voltar · Adicionar (em foco) |
 | Adicionado | <nome> adicionado. |
 
 ## 2. Erros e avisos por código
 
-A UI traduz o `code` do `ErrorDto`. Nenhuma mensagem mostra detalhe técnico, caminho do sistema do Sofá nem texto vindo do núcleo (SEC-06). O contrato final (`docs/api/`, BE-07) ainda não existe; a lista abaixo parte dos comandos da arquitetura (seção 4.1). Código que o contrato trouxer a mais cai em "Desconhecido" até entrar aqui.
+A UI traduz o `code` do `ErrorDto`. Nenhuma mensagem mostra detalhe técnico, caminho do sistema do Sofá nem texto vindo do núcleo (SEC-06). Catálogo fechado contra o contrato rev. 2 (`docs/api/launcher-tv.md`, seção 5): os 26 códigos têm texto aqui e em `ui/src/shared/domain/errors.ts`. Código fora da tabela cai em "Algo deu errado no Sofá."
 
 | Código | Comando | Onde aparece | Texto | Botões (foco em negrito) |
 |---|---|---|---|---|
 | `Busy` | `library_refresh`, `session_launch` | Diálogo | Um momento. O Sofá ainda está terminando outra ação. Tente de novo em instantes. | **Voltar** |
 | `Duplicate` | `library_add_manual` | Diálogo | Este jogo já está na biblioteca (spec). Apoio: Não criamos uma segunda cópia. | **Voltar** |
 | `NotAnExecutable` | `library_add_manual` | Diálogo | Este arquivo não é um executável válido (spec). Apoio: O arquivo tem a extensão .exe, mas o Windows não o reconhece como programa. Escolha outro arquivo. | **Voltar** |
-| `PathNotAllowed` (cadastro e navegador) | `library_add_manual`, `fs_list_dir` | Diálogo | Este local não é aceito. O Sofá só abre jogos de discos deste PC. | **Voltar** |
-| `PathNotAllowed` (ao iniciar) | `session_launch` | Diálogo | Jogos em pastas de rede não são aceitos. Copie o jogo para um disco deste PC. (spec, CA-71) | Ocultar · **Voltar** |
+| `PathNotAllowed` | `library_add_manual`, `fs_list_dir` | Diálogo | Este local não é aceito. O Sofá só abre jogos de discos deste PC. | **Voltar** |
+| `NetworkPathBlocked` | `session_launch` | Diálogo | Jogos em pastas de rede não são aceitos. Copie o jogo para um disco deste PC. (spec, CA-71) | **Voltar** · Ocultar |
 | `NotFound` (pasta) | `fs_list_dir` | Estado da lista | Não encontramos esta pasta. Ela pode ter sido removida, ou o disco foi desconectado. | **Voltar** |
 | `AccessDenied` (pasta) | `fs_list_dir` | Estado da lista | Sem permissão para abrir esta pasta. O Windows não deixa o Sofá ver o que há aqui. | **Voltar** |
 | `EmptyName` | `game_rename` | Linha no diálogo | O nome não pode ficar vazio. | (campo em foco) |
 | `UnknownGame` | `game_rename`, `game_hide`, `game_unhide`, `game_restore_name` | Diálogo | Este jogo não está mais na biblioteca. | **Voltar** |
 | `SessionAlreadyActive` | `session_launch` | Diálogo | <atual> está aberto. Fechar e abrir <novo>? (spec) | **Cancelar** · Fechar e abrir |
-| `GameFileMissing` | `session_launch` | Diálogo | Não encontramos o arquivo do jogo em <caminho> (spec) | Ocultar · **Voltar** |
-| (estado) sem processo em 60 s | `SessionDto` | Diálogo | Não foi possível confirmar que <nome> abriu (spec) | **Tentar de novo** · Voltar |
+| `GameFileMissing` | `session_launch` | Diálogo | Título: <nome>. Texto: Não encontramos o arquivo do jogo. O caminho não cruza a IPC (contrato, SEC-03), então a frase da spec (CA-28) perde o "em <caminho>". Pendência de spec para o PO | **Voltar** · Ocultar |
+| (estado) sem processo em 60 s | `SessionDto` | Diálogo | Não foi possível confirmar que <nome> abriu (spec) | Voltar · **Tentar de novo** |
 | `StoreNotInstalled` | `session_launch` | Diálogo | Não encontramos a <loja> neste PC. Instale a loja para abrir este jogo. | **Voltar** |
-| `NeedsElevation` | `session_launch` | Diálogo, 1ª etapa | <nome> precisa de permissão de administrador para abrir. O Windows vai pedir a sua confirmação. | **Continuar** · Voltar |
+| `NeedsElevation` | `session_launch` | Diálogo, 1ª etapa | <nome> precisa de permissão de administrador para abrir. O Windows vai pedir a sua confirmação. | Voltar · **Continuar** |
 | (estado) esperando o UAC | `session_launch_with_uac` | Diálogo | <nome> pede permissão de administrador. Confirme no Windows com teclado ou mouse. A combinação de retorno pode não funcionar neste jogo. (spec) | **Voltar** |
-| (estado) UAC recusado | `session_launch_with_uac` | Diálogo | O Windows não deu permissão para abrir <nome> (spec) | **Voltar** |
+| `ElevationDenied` (e `launchFailure` do `SessionDto`) | `session_launch_with_uac` | Diálogo | O Windows não deu permissão para abrir <nome>. (spec) | **Voltar** |
 | `InvalidState` | vários | Diálogo | Isso não pode ser feito agora. Volte e tente de novo. | **Voltar** |
 | `NoActiveSession` | `session_return_to_game`, `session_close` | Diálogo | Nenhum jogo está aberto. | **Voltar** (leva à biblioteca) |
-| `ForegroundDenied` | `session_return_to_game` | Diálogo | O Windows não deixou voltar ao jogo. Tente de novo. | **Tentar de novo** · Ir para a biblioteca |
+| `ForegroundDenied` | `session_return_to_game` | Diálogo | O Windows não deixou voltar ao jogo. Tente de novo. | Ir para a biblioteca · **Tentar de novo** |
 | `NotOverdue` | `session_force_close` | Diálogo | O jogo ainda está fechando. Espere alguns segundos. | **Voltar** |
 | `AccessDenied` (forçar) | `session_force_close` | Diálogo | Não foi possível fechar <nome>. O jogo roda como administrador. Feche pelo menu do próprio jogo. | **Voltar** |
 | `NoAudioDevice` | `volume_step`, `volume_toggle_mute` | Indicador e menu | Nenhum dispositivo de áudio encontrado (spec). No indicador: "Sem áudio". | (item desabilitado) |
@@ -169,11 +169,25 @@ A UI traduz o `code` do `ErrorDto`. Nenhuma mensagem mostra detalhe técnico, ca
 | `Rejected` | `power_execute` | Diálogo | O Windows não aceitou o pedido. Tente de novo. | **Voltar** |
 | `AutostartFailed` | `settings_set_autostart` | Linha na configuração | Não foi possível alterar a inicialização com o Windows. Tente de novo. | (item em foco) |
 | `UnknownMonitor` | `settings_set_monitor` | Toast | Esse monitor não está mais conectado. Escolha outro. | (lista em foco) |
-| Desconhecido ou interno | qualquer | Diálogo | Algo deu errado no Sofá. Tente de novo. | **Voltar** |
+| `InvalidRequest` | todos | Diálogo | Algo deu errado no Sofá. Tente de novo. (mesmo texto de `Internal`) | **Voltar** |
+| `Internal` | todos | Diálogo | Algo deu errado no Sofá. Tente de novo. | **Voltar** |
+| Código fora da tabela | qualquer | Diálogo | Algo deu errado no Sofá. Tente de novo. | **Voltar** |
 
 Fora do app (instalador, CA-50): "Não foi possível baixar o WebView2. Conecte o PC à internet e tente de novo." (spec)
 
 Regras de texto:
+- Ordem dos botões (RN-34, CA-81, D-47): "Cancelar" ou "Voltar" sempre à esquerda, a ação principal à direita. A ordem nesta tabela é a da tela, da esquerda para a direita. O foco padrão não muda com a posição.
 - Erro que o usuário não consegue resolver pelo controle diz o que fazer em outro lugar (Windows, teclado, mouse).
 - Se o código trouxer parâmetros (`GameFileMissing{path}`, `SessionAlreadyActive{gameId}`), a UI resolve o nome do jogo pela biblioteca, nunca por texto do núcleo.
 - Nome longo no texto de diálogo quebra linha (sem truncar). Nome de jogo que parece HTML aparece literal.
+
+## 3. Textos acrescentados na implementação (validados)
+
+| Onde | Texto final | Observação |
+|---|---|---|
+| Navegador de pastas, lista cortada (`truncated`) | A lista foi cortada. Mostrando só as primeiras 2.000 entradas desta pasta. | Linha de aviso acima da lista, sem tirar o foco. Aprovado como veio. |
+| Configurações > Geral, rótulo | Inicialização | Linha de estado abaixo de "Iniciar com o Windows". |
+| Valores de Inicialização | Tarefa agendada do Windows · Entrada de inicialização do seu usuário · Desligada | Ajuste: "Chave Run do seu usuário" é jargão e foge da voz da marca. |
+| Configurações > Geral, rótulo | Pasta de logs | Mostra o caminho como texto puro. |
+| Configurações > Tela, monitor | <nome> · Principal · Em uso | Sem resolução (o `MonitorDto` não traz e não é necessária). |
+| Card "Em andamento" durante Fechando ou fechamento atrasado | A reabre "Fechando <nome>…" ou a oferta de "Forçar fechamento" | Mesmos textos de antes. Mesma trava de 600 ms. |

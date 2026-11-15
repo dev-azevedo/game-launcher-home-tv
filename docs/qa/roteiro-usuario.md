@@ -2,7 +2,7 @@
 
 Este roteiro é só seu e roda no PC da sala, com Windows 10, na TV. Você não precisa consertar nada nem entender o porquê de cada passo: faça, anote o que viu e mande o zip de logs no fim. Caso que você não consegue fazer (falta o hardware, o jogo não está instalado) vale como "não deu": anote assim, sem tentar compensar.
 
-**Estado do esboço.** Faltam duas coisas que chegam depois: o instalador de teste (BE-39, marcado "depende do BE-39" onde entra) e a sua lista de jogos (D-29, no bloco 5). O resto já pode ser lido e ajustado.
+**Estado do esboço (rodada 2 do QA).** Faltam duas coisas que chegam depois: o instalador de teste (BE-39, marcado "depende do BE-39" onde entra) e a sua lista de jogos (D-29, no bloco 5). A rodada 2 acrescentou o desligamento com inicialização rápida (bloco 7), o teclado completo (bloco 9), o jogo manual com processo fora da pasta (5.14) e o código 4 da remoção de dados (bloco 13). O resto já pode ser lido e ajustado.
 
 **Tempo total estimado:** 3 a 4 horas, em blocos que podem ser feitos em dias diferentes. Os blocos 1 a 3 são o mínimo para o Sofá servir no dia a dia.
 
@@ -85,7 +85,7 @@ Repita com cada forma de conexão que você tiver. Anote qual.
 | 4.7 | Veja o card do jogo manual | Mostra o **ícone do executável** como capa, não só o nome em texto. Esta é a correção do commit 10ed47c, nunca vista no app real. Anote se aparece ou se fica o texto | |
 | 4.8 | Confira se jogos da Steam/Epic/GOG mostram a **capa** (arte) e não o placeholder | Capa aparece quando a loja tem arte local. Print do que ficou como texto | |
 | 4.9 | Tente adicionar o mesmo `.exe` de novo | "Este jogo já está na biblioteca" (CA-20) | |
-| 4.10 | Renomeie um jogo com o teclado (View > Renomear). Atualize a biblioteca | O nome novo se mantém (CA-61, CA-62). "Restaurar nome original" existe e funciona | |
+| 4.10 | Renomeie um jogo com o teclado (View, ou F2 no teclado, depois Renomear). Atualize a biblioteca | O nome novo se mantém (CA-61, CA-62). "Restaurar nome original" existe e funciona | |
 | 4.11 | Oculte um jogo. Atualize. Restaure em Configurações > Itens ocultos | Some, não volta sozinho, e volta com nome e data de último jogado (CA-21, CA-70) | |
 | 4.12 | Feche o Sofá (Menu > Sair do launcher) e abra de novo | Manuais, ocultos, nomes e ordem de recentes iguais (CA-25) | |
 | 4.13 | Se tiver HD externo com jogos cadastrados: desconecte | O jogo avisa só o nome ao tentar abrir (CA-28), sem mostrar caminho. Conectando, volta (E-10, E-18) | |
@@ -124,6 +124,7 @@ Mais casos de sessão, com **um** jogo qualquer da lista:
 | 5.11 | Abra um jogo pela Steam/atalho, fora do Sofá | Não conta como sessão e a combinação não funciona (E-07). Só para confirmar | |
 | 5.12 | Veja o Gerenciador de Tarefas com um jogo aberto e o Sofá em segundo plano por 5 min | CPU do Sofá abaixo de 1% (RN-21). Anote o maior valor visto | |
 | 5.13 | Quantos cliques para abrir o último jogo jogado, a partir da tela inicial? | 1 (A) (M-03) | |
+| 5.14 | Cadastre como jogo manual um `.exe` que abre o jogo de **outra pasta** (um atalho-lançador, por exemplo). Abra pelo Sofá, volte ao painel e use **Fechar jogo** | O Sofá só fecha o que ele iniciou e o que pertence ao jogo. Nenhum outro programa seu é fechado (SEC-15, SEC-17). Se o jogo real ficar aberto porque está fora da pasta do lançador, anote: é limitação conhecida da regra de sessão | |
 
 ## Bloco 6. Volume (15 min)
 
@@ -149,7 +150,9 @@ Salve seu trabalho antes. Os testes desligam e reiniciam o PC de verdade.
 | 7.4 | Reiniciar > confirmar (com o Bloco de Notas fechado) | Reinicia em até ~3 s. Com "Iniciar com o Windows" ligado, o Sofá abre depois do login (CA-45) | |
 | 7.5 | Se o bloco 0 mostrou que existe S3: Suspender > confirmar. Acorde pelo teclado ou controle | Suspende. Ao acordar, o Sofá está na mesma tela. O controle Bluetooth volta a funcionar sozinho, ou anote o que precisou fazer (CA-46) | |
 | 7.6 | Se o bloco 0 mostrou que **não** existe suspensão | "Suspender" não aparece ou aparece desabilitado com "Suspensão indisponível neste PC" (CA-47) | |
-| 7.7 | Desligar > confirmar (por último) | O Windows desliga em até 3 s, sem forçar (CA-44) | |
+| 7.7 | Antes de desligar, veja Opções de energia > "Ativar inicialização rápida" e anote se ela está **ligada**. Desligar > confirmar (por último) | O Windows desliga em até 3 s, sem forçar, igual ao Desligar do menu Iniciar. Com a inicialização rápida ligada, ela é usada (CA-44, RN-15) | |
+| 7.8 | Ligue o PC pelo botão. Depois de entrar na área de trabalho, não toque no controle por 10 s. Se ele for Bluetooth, anote se reconecta sozinho | O controle reconecta sem parear de novo e o Sofá responde (D-44). Se não reconectar só depois do desligamento com inicialização rápida, anote: é o ponto que a D-44 quer observar. Compare com 7.4 (Reiniciar é completo) | |
+| 7.9 | Repita 7.7 e 7.8 com a inicialização rápida **desligada**, se quiser | Desligamento completo, sem diferença visível para você. Anote o tempo do boot | |
 
 Anote também: **"Suspender" existe no PC da sala?** (sim/não, e o que o `powercfg /a` disse).
 
@@ -167,12 +170,18 @@ Anote também: **"Suspender" existe no PC da sala?** (sim/não, e o que o `power
 | 8.8 | Religue a tela e reabra o Sofá | Abre de novo na tela escolhida (CA-67) | |
 | 8.9 | Desligue a TV com o PC ligado e ligue de novo | O Sofá continua em tela cheia na mesma tela (E-09) | |
 
-## Bloco 9. Teclado e mouse de emergência (5 min)
+## Bloco 9. Teclado e mouse (10 min)
+
+O teclado cobre todas as ações do controle, menos a combinação de retorno. Teclas: setas = direcional, Enter = A, Esc ou Backspace = B, F1 ou tecla de aplicativo = Menu, F2 = View (opções do jogo), PgUp e PgDn = LB e RB, `[` e `]` = LT e RT (volume na biblioteca).
 
 | # | O que fazer | Esperado | Resultado |
 |---|---|---|---|
-| 9.1 | Sem controle: setas, Enter, Esc, F1 | Navega, abre, volta e abre o Menu (RN-07) | |
-| 9.2 | Tente abrir as Opções do jogo (View) só pelo teclado | Anote o que precisou. O teclado de emergência não tem tecla de View, só F1 para o Menu (ponto para o PO) | |
+| 9.1 | Sem controle: setas, Enter, Esc, Backspace, F1 | Navega, abre, volta e abre o Menu (RN-07, CA-80) | |
+| 9.2 | Abra as Opções do jogo com **F2**, renomeie, oculte e restaure só pelo teclado | Funciona. Dentro do campo de nome, Backspace apaga letras e não sai da tela (CA-61, CA-80) | |
+| 9.3 | PgDn e PgUp na biblioteca e na tela "Todos os jogos"; setas para cima e para baixo na grade longa | Pula linhas e a grade acompanha o foco, sem travar numa linha | |
+| 9.4 | `]` e `[` na biblioteca; dentro do menu rápido e de um diálogo | Sobe e desce o volume na biblioteca; nos outros lugares, nada (CA-64, CA-65) | |
+| 9.5 | Com um jogo aberto, aperte F1 e F2 juntas, e várias outras teclas | O Sofá **não** vem à frente: a combinação de retorno só existe no controle (CA-80, RN-07). Anote se alguma tecla trouxe o Sofá | |
+| 9.6 | Em todo diálogo com dois botões (Desligar, Ocultar, Fechar jogo) | Cancelar fica à esquerda e a ação principal à direita; o foco começa em Cancelar (CA-81, RN-34) | |
 
 ## Bloco 10. Jogo com anti-cheat, offline (20 min)
 
@@ -225,8 +234,9 @@ A escada de retorno tenta 4 jeitos para trazer o Sofá à frente, na ordem **1, 
 | 13.1 | Atualize: rode um instalador mais novo por cima, com a biblioteca já montada | Mantém biblioteca, configurações e "Iniciar com o Windows" (CA-53) | |
 | 13.2 | Desinstale por "Aplicativos instalados", **mantendo** os dados | Remove o app, atalhos e o início automático da sua conta. Jogos no disco intactos. A pasta `%LOCALAPPDATA%\app.sofa.launcher` continua (CA-52, CA-68) | |
 | 13.3 | Reinstale | Biblioteca e configurações voltam (CA-68) | |
-| 13.4 | Desinstale **desmarcando "Manter dados"**, com o Sofá **aberto** (ele usa a pasta `EBWebView`) | Pode sobrar algo da pasta `EBWebView` em uso e o desinstalador conta isso, mas a biblioteca e as configurações somem. Os jogos e outras pastas não são tocados (CA-68, SEC-25). Anote o que sobrou | |
-| 13.5 | Confira se a entrada de início automático e a tarefa agendada sumiram | Sumiram (CA-52) | |
+| 13.4 | Desinstale **desmarcando "Manter dados"** com o Sofá **aberto** | A remoção de dados se recusa com o Sofá aberto (código 4) e **nada é apagado**; o desinstalador deve pedir para fechar o Sofá. Anote o texto exato. Nunca rode `sofa.exe --purge-user-data` à mão contra a pasta de uso real (CA-68, SEC-25) | |
+| 13.5 | Feche o Sofá (o `EBWebView` ainda pode ficar em uso por uns segundos) e desinstale de novo, sem manter os dados | Biblioteca e configurações somem; se algo da pasta `EBWebView` sobrar, a pasta é mostrada para você. Os jogos e outras pastas não são tocados. A remoção roda sem administrador (a única exceção é `library.json` e `settings.json`, RN-18). Anote o que sobrou (CA-68, SEC-25, SEC-31) | |
+| 13.6 | Confira se a entrada de início automático e a tarefa agendada sumiram | Sumiram (CA-52) | |
 
 ## Bloco 14. Coletar os logs e devolver (5 min)
 

@@ -753,4 +753,6 @@ Pendência técnica: o usuário instalar o VS Build Tools antes do primeiro buil
 - **DR-06 (alto, desenho):** ADR-0006 §6b rev. 6 fecha o achado antes do BE-38. Fallback elevado só para dois arquivos, por handle; código de saída lido por `CreateProcessW` com processo pai = Explorer (plugin `System`); código não lido = falha; desinstalador fecha o Sofá antes; purge sai com 4 com o Sofá aberto (SEC-BUG-03).
 - A rodada 2 do ARQ-05 confere as três correções.
 
-Falta para fechar: instalador e release (BE-37 a BE-39, primeiro build MSVC com o ARQ-BUG-08 como trava), BE-43 com o padrão final dos degraus no ADR-0003, QA-13 e a rodada 2 sobre as correções.
+**Rodada 2 (2026-11-14), parcial**: ciclo de correção 1 (`85b3174..HEAD`). Fecharam os ARQ-BUG-01 a 06 e 09 a 12. O D-44 e o modo Job do ADR-0005 rev. 6 (SEC-BUG-01) foram conferidos no código. Abertos, todos baixos: ARQ-BUG-07 (BE-44), 08 (BE-46), 13 (BE-45) e o novo ARQ-BUG-14. O modo Job tira um snapshot ToolHelp do sistema a cada mensagem do Job e a cada `pids()`, este último com o `Mutex` da sessão preso, e o ADR-0005 rev. 6 cita uma releitura "a cada varredura de `Running`" que o modo Job não tem. Nenhum alto ou médio aberto. DR-06 (desinstalador) entra na conferência do BE-38. Detalhes em `docs/arch/launcher-tv-revisao.md`, seção "Rodada 2".
+
+Falta para fechar: instalador e release (BE-37 a BE-39, primeiro build MSVC com o ARQ-BUG-08/BE-46 como trava; DR-06 no BE-38), BE-43 com o padrão final dos degraus no ADR-0003, QA-13, BE-44, BE-45 e o ARQ-BUG-14 (rodada 3).

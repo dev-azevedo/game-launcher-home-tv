@@ -5,7 +5,7 @@
 | Feature | launcher-tv (Sofá) |
 | Branch | `feature/launcher-tv-20261113` |
 | Referências | `docs/design/launcher-tv.md` (seções 13 e 16), `microcopy.md`, `mockups/tv.html` e `mockups/prototipo.html`, `docs/brand/sofa/` |
-| Veredito | **Aprovado com ajustes.** Nenhum bug alto. Dois médios e cinco baixos. |
+| Veredito | Rodada 1: aprovado com ajustes. **Rodada 2: aprovado, DES-BUG-01 a 07 fechados, sem bug novo.** |
 
 Pasta dos screenshots (1920×1080 salvo indicação): `C:\Users\JHONAT~1.AZE\AppData\Local\Temp\claude\17d258b0d4ac8099\f8d80d67-1d19-4574-8bf0-c4b10e3a96b2\scratchpad\des09\`. Nos nomes, `u-` é a UI (Vite, porta 5181) e `m-` é o mockup (`tv.html?scenario=...`).
 
@@ -108,3 +108,26 @@ Pasta dos screenshots (1920×1080 salvo indicação): `C:\Users\JHONAT~1.AZE\App
 ## 6. Tarefas
 
 DES-09: revisão feita. Lista entregue acima. Fechar quando o front resolver DES-BUG-01 e DES-BUG-02 ou registrar a recusa.
+
+## 7. Rodada 2: reconferência (commits 5e1a7ea, 1c0052e, b6d9e64)
+
+Mesmo método: Edge headless por CDP, UI na porta 5181, cenários dos bugs reexecutados em 1080p e comparados com o mockup. Screenshots com prefixo `r2-` na mesma pasta. O devCore abre o painel com F9 e F2 abre as opções do jogo.
+
+| Bug | Estado | Evidência |
+|---|---|---|
+| DES-BUG-01 | **Fechado** | Título curto (nome do jogo) e mensagem em corpo. `GameFileMissing` tem capa à esquerda, o administrador tem ícone de escudo, Abrindo mostra capa e "Iniciando", o UAC mostra "Esperando o Windows" (`r2-notfound.png`, `r2-admin.png`, `r2-admin-wait.png`, `r2-launching.png`). |
+| DES-BUG-02 | **Fechado** | "Ocultar" é neutro com ícone e só "Voltar" é âmbar (`r2-notfound.png`). "Voltar" fica neutro quando "Continuar" tem foco (`r2-admin.png`). |
+| DES-BUG-03 | **Fechado** | Cabeçalho com miniatura, nome e "Steam · Jogado hoje", e dicas "A Escolher · B Voltar" (`r2-options.png`). |
+| DES-BUG-04 | **Fechado** | D-47: cancelar ou voltar à esquerda, ação principal à direita nos diálogos vistos (`r2-admin.png`, `r2-hide.png`, `r2-rename.png`). O foco padrão não depende da posição. O handoff seção 8 já registra RN-34 e CA-81. |
+| DES-BUG-05 | **Fechado** | Dois parágrafos como no microcopy (`r2-hide.png`). |
+| DES-BUG-06 | **Fechado** | A miniatura mostra o nome em letra pequena e legível, ou a inicial nas menores (`r2-launching.png`, `r2-f9.png`, `r2-options.png`). |
+| DES-BUG-07 | **Fechado** | Lápis no cabeçalho e check no "Salvar" (`r2-rename.png`). |
+
+Outras conferências:
+- O painel aberto por F9 no devCore está igual ao da rodada 1 (`r2-f9.png`). O herói com jogo em andamento diz "Em andamento. Aperte A para voltar ao jogo.", o texto atual do microcopy.
+- Movimento reduzido segue sem escala nem halo (`r2-home-reduced.png`).
+- A tabela tecla → ação da seção 8 do handoff foi atualizada com o mapa final de `keyboard.ts` (D-45), sem o "a confirmar".
+
+Não verificado, como na rodada 1: capas reais e fundo desfocado, controle Xbox, TV real, e as telas "pasta sem permissão", "pasta de rede" e "forçar sem permissão" (o devCore não as alcança por intenção).
+
+Bugs abertos: nenhum. Bugs novos: nenhum.

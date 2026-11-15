@@ -1,4 +1,6 @@
-# Revisão de arquitetura: launcher-tv (ARQ-05, rodada 1)
+# Revisão de arquitetura: launcher-tv (ARQ-05, rodadas 1 e 2)
+
+> **Rodada 2 (2026-11-14):** conferência do ciclo de correção 1 (`git diff 85b3174..HEAD`). Fecharam os ARQ-BUG-01 a 06 e 09 a 12. Os ARQ-BUG-07, 08 e 13 seguem abertos como BE-44, BE-46 e BE-45. Há um novo, o ARQ-BUG-14 (baixo). Ver a seção "Rodada 2" no fim deste documento.
 
 | Campo | Valor |
 |---|---|
@@ -72,4 +74,50 @@ Nenhum desvio muda RN ou CA da spec. Sugestão ao PO (opcional, sem mudar compor
 - Instalador e release (BE-37 a BE-39), incluindo o primeiro build MSVC e o ARQ-BUG-08 como trava.
 - BE-43 e o padrão final dos degraus no ADR-0003 (SG-10).
 - QA-13.
-- Reconferir os ARQ-BUG-01 a 13 corrigidos (rodada 2).
+- ~~Reconferir os ARQ-BUG-01 a 13 corrigidos (rodada 2).~~ Feito; ver abaixo.
+
+---
+
+## Rodada 2 (2026-11-14): ciclo de correção 1
+
+| Campo | Valor |
+|---|---|
+| Diff | `git diff 85b3174..HEAD`. Back: 4368015, db4e841, cf0c3cb, b899b2d, a82ec86, 2315f50, de004ea, ce8f9ba, fea6d0f, 3c9eaed. Front: 7e6650f, 5e1a7ea, 1c0052e, 5b50391, f2f0435, b6d9e64 |
+| Verificação executada | `cargo test -p launcher-core`: 303 testes passam. UI: `vitest`, 209 testes em 19 arquivos, e `tsc --noEmit` sem erro. `scripts/ci-guards.ps1`: 0 violações e autoteste com 50 violações plantadas, todas detectadas |
+| Veredito | **aprovado com ressalvas** (continua parcial). Nenhum ARQ-BUG alto ou médio aberto. Abertos: 07, 08 e 13 (viraram BE-44, BE-46 e BE-45) e o 14, novo. Todos baixos |
+
+### Situação dos ARQ-BUGs
+
+| ID | Sev. | Situação | Como foi conferido |
+|---|---|---|---|
+| ARQ-BUG-01 | médio | **fechado** (4368015) | `tick` em `Launching → NotConfirmed` devolve `BringLauncherFront { focus: None }` (`machine.rs:345-351`). `on_front` mostra a janela, devolve a entrada ao Sofá e roda a escada sem `game_ended` (`session_service.rs:546-571`). Coberto pelos testes de domínio e de aplicação (`ca29_not_confirmed_traz_o_sofa_a_frente...`) |
+| ARQ-BUG-02 | médio | **fechado** (4368015) | `apply` só traduz para `Action` (`MarkPlayed`, `Running`, `Front`), e `run_actions` roda depois do guard sair de escopo em `tick`, `dismiss`, `process_seen` e `processes_gone`. Não sobrou chamada a `apply` sem `run_actions`. `DisplayService` guarda `visible` (`on_launcher_hidden`/`on_launcher_shown`) e `TauriLauncherPlacement` não chama mais `is_visible()`. O teste `efeitos_da_sessao_rodam_fora_do_mutex` reproduz o cenário do callback da instância única. Também ficou bom: a escada que falha desfaz o `TOPMOST` e não entrega a entrada ao Sofá. O que ainda roda com o `Mutex` preso é não bloqueante (`PostMessageW` de `WM_CLOSE`, `TerminateProcess` por handle, `emit`). Restou só o custo do `pids()` no modo Job, que é o ARQ-BUG-14 |
+| ARQ-BUG-03 | baixo | **fechado** (cf0c3cb) | `write: Mutex<StoredLibrary>` é a cópia do dono único. `with_overlay` e `add_manual` partem dela, e `commit` só troca a memória depois de gravar. Teste `alteracao_usa_a_copia_em_memoria_e_nao_rele_o_disco` |
+| ARQ-BUG-04 | baixo | **fechado** (fea6d0f) | `domain/path.rs` (`path_key`, `path_is_within`, `path_is_strictly_within`, `is_direct_child`) é usado por `process_policy`, `detect`, `install_path_policy`, `autostart` e `data_dir_policy`. `library` não depende mais de `session`. Ignorar `\\?\` e aspas nas pontas é seguro: o `"` não existe em nome de arquivo do Windows; `\\?\UNC\...` vira um caminho sem unidade, que nenhuma raiz confina; `\\.\` cai na regra de `.` e falha fechado. Tudo isso está na tabela de teste |
+| ARQ-BUG-05 | baixo | **fechado** (ce8f9ba) | `SystemEvents::spawn(..., false)` em `runtime.rs:165`, com o lembrete sobre `SKIPOWNPROCESS` |
+| ARQ-BUG-06 | baixo | **fechado** (3c9eaed) | INV-09 passou a cobrir `fs::write`, `File::create`, `OpenOptions`, `create_dir*`, `fs::copy`, `CreateFileW` e `SetFileInformationByHandle`, cada um com seus donos. `#[cfg(test)]` pula só o item marcado, e quando não acha o fim do item a regra falha fechado (`CFG-TEST`). Entraram donos para `TerminateProcess`, `CreateProcess*`, `ShellExecute*`, `runas`, `Command` e escrita no registro. Rodei o script: árvore limpa e autoteste completo |
+| ARQ-BUG-07 | baixo | **aberto → BE-44** | Sem mudança no código (INV-04, log síncrono na thread de entrada) |
+| ARQ-BUG-08 | baixo | **aberto → BE-46** | Sem mudança. Continua sendo trava do BE-39 (build MSVC) |
+| ARQ-BUG-09 | baixo | **fechado** (7e6650f) | `COMMAND_NAMES` e `CommandName` são reexportados de `generated/commandNames.ts`. A lista de códigos sai de um `Record<ErrorCode, true>`: código novo ou removido no núcleo quebra o typecheck |
+| ARQ-BUG-10 | baixo | **fechado** (7e6650f) | `findGame` e `gameName` ficam em `features/library/domain.ts`, `selectGameById` usa `findGame`, e as nove buscas soltas sumiram |
+| ARQ-BUG-11 | baixo | **fechado** (7e6650f) | "Recentes" só filtra e corta a lista do núcleo, sem reordenar. A fileira A–Z usa `sortKey` (NFD, sem marcas, minúsculas) e compara por ponto de código, como o `String::cmp` do Rust, com desempate pela id. Diferenças residuais, aceitas: o `toLowerCase` do JS trata sigma final por contexto e o Rust não; o desempate compara a id como texto, e o núcleo usa o `Ord` do `GameId`. Só pesam com nomes idênticos depois da normalização |
+| ARQ-BUG-12 | baixo | **fechado** (ce8f9ba) | `library_refresh` chama `spawn_refresh`. `marks::navigable` só registra a primeira vez (`swap`). `Busy` continua com prioridade sobre `Internal` quando a biblioteca não subiu |
+| ARQ-BUG-13 | baixo | **aberto → BE-45** | Sem mudança (`settings_store.rs`) |
+| ARQ-BUG-14 | baixo | **novo** (dev-backend) | Ver abaixo |
+
+### ARQ-BUG novo
+
+| ID | Sev. | Responsável | Arquivo:linha | Problema | Correção sugerida |
+|---|---|---|---|---|---|
+| ARQ-BUG-14 | baixo | dev-backend | `crates/launcher-win/src/process_probe.rs` (`scan_job` → `scan_with` → `Self::snapshot()`; `WinWatch::members_fresh`; `job_loop`); `crates/launcher-core/src/application/session_service.rs:416-430` e `:384-389` (`pids()` com o `Mutex` da sessão preso); `docs/adr/0005-deteccao-de-sessao.md:26` | O modo Job novo (ADR-0005 rev. 6, SEC-BUG-01) está correto quanto à segurança: `classify` em cada PID do Job, `IsProcessInJob` contra reuso de PID, encerramento só dos membros, sem `TerminateJobObject`. Mas perdeu o "custo zero" do Job: **toda** mensagem da porta (processo novo, saída, outras) e **toda** chamada de `pids()`, `request_close()` e `force_close()` tiram um snapshot ToolHelp do sistema inteiro (19 a 28 ms medidos no SP-02). Isso só serve para calcular `own_child_pids`, que no modo Job não serve para nada, porque o WebView2 do Sofá nunca entra no Job do jogo. `pids()` roda com o `Mutex` da sessão preso, em `handle_return_combo` (inclusive na thread da UI, pelo callback da instância única) e em `return_to_game`, o que soma esse tempo ao M-04 e prende `session_get`. Jogo que dispara rajadas de processos (lançador, compilador de shader, crash handler) gera uma rajada de snapshots. Além disso, o ADR diz que a lista do Job é relida "a cada varredura de `Running`", mas o modo Job não tem varredura periódica, só reage às mensagens | No modo Job, não tirar snapshot do sistema: ler só `JobObjectBasicProcessIdList`, abrir cada PID novo, conferir `IsProcessInJob` e chamar `classify` com `own_child_pids` vazio. O pai não entra no `classify`. `pids()` deve devolver os membros já conhecidos (a `job_loop` os mantém em dia pelas mensagens) e, se precisar de frescor, reler só a lista do Job, nunca com o `Mutex` da sessão preso. Ajustar o ADR-0005 rev. 6: ou tirar o "a cada varredura de `Running`", ou implementar a releitura periódica barata da lista do Job. Teste: `pids()` no modo Job não chama `CreateToolhelp32Snapshot` (contador no fake ou medida de tempo) |
+
+### Outros pontos conferidos (sem ARQ-BUG)
+
+- **Navegação espacial com `GetBoundingClientRectAdapter`** (f2f0435): correção certa. A grade virtualizada posiciona as linhas com `transform`, e o adapter padrão do norigin mede por `offsetTop`, que dá 0 em todas as linhas. Custo: um `getBoundingClientRect` por focável a cada passo, com até ~42 cards montados na grade e 8 + 12 na Home, o que é desprezível. Risco a observar no QA-17, sem bug: o card em foco cresce com `transform: scale` e é medido escalado. Como a escala é centrada, o centro não muda, mas na repetição de 100 ms durante a animação a borda medida varia. Se aparecer salto diagonal errado na grade, medir sem a escala (por exemplo, com o retângulo do contêiner do card). O jsdom não mede layout, então o teste é manual ou E2E.
+- **D-44** (de004ea): "Desligar" usa `EWX_HYBRID_SHUTDOWN | EWX_SHUTDOWN | EWX_POWEROFF` com a inicialização rápida ligada (a forma combinada que o RA-05 indicava como alternativa) e "Reiniciar" é completo. Sem bit de forçar; guard de INV-05 limpo. A arquitetura (2.1 Power, RA-05, §13) já reflete isso.
+- **SEC-BUG-03** (b899b2d), **SEC-BUG-02 e QA-BUG-01** (a82ec86) e **QA-BUG-03** (2315f50): nada a apontar do lado da arquitetura. O purge continua fora da IPC e fora da instância única, e a nova saída 4 já está no contrato (§10).
+- Front (5e1a7ea, 1c0052e, 5b50391, b6d9e64): `DialogSide` novo e reaproveitado por `ConfirmDialog` e `WaitScreen`. O teclado de emergência continua traduzindo para as mesmas intenções (`shared/input/keyboard.ts`, RN-07). Nenhum `invoke` fora de `shared/ipc`.
+
+### Pendente para fechar o ARQ-05
+
+Instalador e release (BE-37 a BE-39, com o ARQ-BUG-08/BE-46 como trava do build MSVC), BE-43 com o padrão final dos degraus no ADR-0003, QA-13, BE-44, BE-45 e o ARQ-BUG-14 (rodada 3).
