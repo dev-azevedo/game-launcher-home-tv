@@ -5,7 +5,9 @@
 //! Regras de concorrencia: as acoes serializadas do contrato (`session_launch`,
 //! `session_launch_with_uac`, `session_replace`, `session_retry`) passam pela `SerialGate` na
 //! apresentacao; aqui o estado fica atras de um unico `Mutex` curto. Nenhuma chamada demorada
-//! (`GameStarter::start`, a escada de primeiro plano) roda com o `Mutex` preso.
+//! (`GameStarter::start`, a escada de primeiro plano, gravar `library.json`, esconder ou mostrar
+//! a janela) roda com o `Mutex` preso: `apply` so devolve as `Action`s e quem chamou as executa
+//! depois de soltar o guard (ARQ-BUG-02).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
@@ -58,6 +60,19 @@ struct Inner {
     watch: Option<Box<dyn SessionWatch>>,
     elevation: Option<Elevation>,
     last_emitted: Option<SessionSnapshot>,
+}
+
+/// Consequencia de uma transicao que precisa de I/O ou de chamada a thread da UI: roda fora do
+/// `Mutex` da sessao.
+#[derive(Debug)]
+enum Action {
+    MarkPlayed(GameId),
+    Running,
+    /// Fim de sessao (`Some(focus)`, CA-30) ou inicio nao confirmado (`None`, CA-29).
+    Front {
+        focus: Option<GameId>,
+        pending: Option<GameId>,
+    },
 }
 
 pub struct SessionService {
@@ -388,11 +403,15 @@ impl SessionService {
 
     /// `session_dismiss` (CA-77, CA-78): nunca cancela inicio nem fechamento em andamento.
     pub fn dismiss(&self) {
-        let mut g = self.lock();
-        let now = self.deps.clock.now();
-        let effects = g.session.dismiss(now);
-        self.apply(&mut g, effects, SessionState::Idle);
-        self.emit(&mut g);
+        let actions = {
+            let mut g = self.lock();
+            let now = self.deps.clock.now();
+            let effects = g.session.dismiss(now);
+            let actions = self.apply(&mut g, effects, SessionState::Idle);
+            self.emit(&mut g);
+            actions
+        };
+        self.run_actions(actions);
     }
 
     /// Combinacao de retorno (CA-32, M-04): mostra o Sofa, roda a escada fora da thread de quem
@@ -427,7 +446,13 @@ impl SessionService {
                         .set_minimized(outcome == FrontOutcome::FrontAfterMinimize);
                     me.emit(&mut g);
                 }
-                me.deps.input.set_mode(InputMode::Foreground);
+                // Escada falhou: o Sofa nao esta na frente. Nao entrega o controle a ele (o jogo
+                // segue recebendo o mesmo botao); o usuario repete a combinacao.
+                if outcome != FrontOutcome::Failed {
+                    me.deps.input.set_mode(InputMode::Foreground);
+                } else {
+                    tracing::warn!("combinacao de retorno: Sofa nao veio para a frente; entrada segue em segundo plano");
+                }
                 me.deps.events.panel_opened(outcome);
                 me.return_in_flight.store(false, Ordering::Release);
             }),
@@ -438,25 +463,33 @@ impl SessionService {
 
     /// Avanca os prazos (chamado por um temporizador enquanto `needs_tick`).
     pub fn tick(&self) {
-        let mut g = self.lock();
-        let before = g.session.state();
-        let now = self.deps.clock.now();
-        let effects = g.session.tick(now);
-        self.apply(&mut g, effects, before);
-        self.emit(&mut g);
+        let actions = {
+            let mut g = self.lock();
+            let before = g.session.state();
+            let now = self.deps.clock.now();
+            let effects = g.session.tick(now);
+            let actions = self.apply(&mut g, effects, before);
+            self.emit(&mut g);
+            actions
+        };
+        self.run_actions(actions);
     }
 
-    fn apply(&self, g: &mut Inner, effects: Vec<SessionEffect>, before: SessionState) {
-        let mut focus = None;
+    /// Traduz os efeitos do dominio em `Action`s. Nao faz I/O: o chamador executa com
+    /// `run_actions` depois de soltar o `Mutex`.
+    fn apply(
+        &self,
+        g: &mut Inner,
+        effects: Vec<SessionEffect>,
+        before: SessionState,
+    ) -> Vec<Action> {
+        let mut actions = Vec::new();
+        let mut front = None;
         let mut pending = None;
         for effect in effects {
             match effect {
-                SessionEffect::MarkPlayed(id) => {
-                    self.deps
-                        .recorder
-                        .mark_played(&id, self.deps.clock.unix_ms());
-                }
-                SessionEffect::BringLauncherFront { focus: f } => focus = Some(f),
+                SessionEffect::MarkPlayed(id) => actions.push(Action::MarkPlayed(id)),
+                SessionEffect::BringLauncherFront { focus } => front = Some(focus),
                 SessionEffect::LaunchPending(next) => pending = Some(next),
                 // Executados pelos proprios comandos, fora do `Mutex`.
                 SessionEffect::StartGame(_)
@@ -469,13 +502,28 @@ impl SessionService {
         if matches!(before, SessionState::Launching | SessionState::NotConfirmed)
             && g.session.state() == SessionState::Running
         {
-            self.on_running();
+            actions.push(Action::Running);
         }
-        if let Some(focus) = focus {
-            self.on_ended(focus, pending);
+        if let Some(focus) = front {
+            actions.push(Action::Front { focus, pending });
         }
         if g.session.state() == SessionState::Idle {
             self.cleanup_if_idle(g);
+        }
+        actions
+    }
+
+    fn run_actions(&self, actions: Vec<Action>) {
+        for action in actions {
+            match action {
+                Action::MarkPlayed(id) => {
+                    self.deps
+                        .recorder
+                        .mark_played(&id, self.deps.clock.unix_ms());
+                }
+                Action::Running => self.on_running(),
+                Action::Front { focus, pending } => self.on_front(focus, pending),
+            }
         }
     }
 
@@ -494,9 +542,11 @@ impl SessionService {
         }
     }
 
-    /// A sessao acabou. Troca de jogo (`pending`): abre o novo pelo fluxo normal. Senao, traz o
-    /// Sofa (mesma escada da combinacao, CA-30) e avisa a UI com o jogo em foco.
-    fn on_ended(&self, focus: GameId, pending: Option<GameId>) {
+    /// A sessao acabou (`focus = Some`) ou o inicio nao foi confirmado em 60 s (`focus = None`,
+    /// CA-29). Troca de jogo (`pending`): abre o novo pelo fluxo normal. Senao, traz o Sofa (mesma
+    /// escada da combinacao, CA-30), devolve a entrada ao Sofa e, no fim de sessao, avisa a UI com
+    /// o jogo em foco.
+    fn on_front(&self, focus: Option<GameId>, pending: Option<GameId>) {
         let Some(me) = self.me.upgrade() else { return };
         if let Some(next) = pending {
             self.deps.runner.run(
@@ -515,8 +565,10 @@ impl SessionService {
             "bring-launcher-front",
             Box::new(move || {
                 let outcome = me.deps.foreground.bring_launcher_front(&[]);
-                tracing::info!(resultado = ?outcome, "fim de sessao: Sofa trazido para a frente");
-                me.deps.events.game_ended(&focus);
+                tracing::info!(resultado = ?outcome, fim_de_sessao = focus.is_some(), "Sofa trazido para a frente");
+                if let Some(focus) = focus {
+                    me.deps.events.game_ended(&focus);
+                }
             }),
         );
     }
@@ -531,27 +583,35 @@ impl SessionService {
 
 impl ProbeSink for SessionService {
     fn process_seen(&self, generation: u64) {
-        let mut g = self.lock();
-        if g.generation != generation {
-            return;
-        }
-        let before = g.session.state();
-        let now = self.deps.clock.now();
-        let effects = g.session.process_seen(now);
-        self.apply(&mut g, effects, before);
-        self.emit(&mut g);
+        let actions = {
+            let mut g = self.lock();
+            if g.generation != generation {
+                return;
+            }
+            let before = g.session.state();
+            let now = self.deps.clock.now();
+            let effects = g.session.process_seen(now);
+            let actions = self.apply(&mut g, effects, before);
+            self.emit(&mut g);
+            actions
+        };
+        self.run_actions(actions);
     }
 
     fn processes_gone(&self, generation: u64) {
-        let mut g = self.lock();
-        if g.generation != generation {
-            return;
-        }
-        let before = g.session.state();
-        let now = self.deps.clock.now();
-        let effects = g.session.processes_gone(now);
-        self.apply(&mut g, effects, before);
-        self.emit(&mut g);
+        let actions = {
+            let mut g = self.lock();
+            if g.generation != generation {
+                return;
+            }
+            let before = g.session.state();
+            let now = self.deps.clock.now();
+            let effects = g.session.processes_gone(now);
+            let actions = self.apply(&mut g, effects, before);
+            self.emit(&mut g);
+            actions
+        };
+        self.run_actions(actions);
     }
 }
 
@@ -717,13 +777,21 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct Window(Mutex<Vec<&'static str>>);
+    struct Window(
+        Mutex<Vec<&'static str>>,
+        /// Servico que o `show_and_resume` consulta, como o callback da instancia unica.
+        Mutex<Option<Weak<SessionService>>>,
+    );
     impl LauncherWindow for Window {
         fn hide_and_suspend(&self) {
             self.0.lock().unwrap().push("hide");
         }
         fn show_and_resume(&self) {
             self.0.lock().unwrap().push("show");
+            let svc = self.1.lock().unwrap().clone().and_then(|w| w.upgrade());
+            if let Some(svc) = svc {
+                let _ = svc.get(); // trava o Mutex da sessao se o chamador o estiver segurando
+            }
         }
     }
 
@@ -1206,6 +1274,51 @@ mod tests {
         assert_eq!(r.svc.retry().unwrap_err(), AppError::InvalidState);
     }
 
+    #[test]
+    fn ca29_not_confirmed_traz_o_sofa_a_frente_sem_game_ended_e_devolve_a_entrada() {
+        let r = rig();
+        r.svc.launch(gid("steam:620")).unwrap();
+        r.window.0.lock().unwrap().clear();
+        r.gate.0.lock().unwrap().clear();
+        r.advance(60_000);
+        assert_eq!(r.state(), SessionState::NotConfirmed);
+        assert_eq!(*r.window.0.lock().unwrap(), vec!["show"]);
+        assert_eq!(*r.gate.0.lock().unwrap(), vec![InputMode::Foreground]);
+        assert!(
+            r.ws.log.lock().unwrap().contains(&"step1"),
+            "a escada do fim de sessao rodou"
+        );
+        assert!(
+            r.events.ended.lock().unwrap().is_empty(),
+            "nao e fim de sessao"
+        );
+        assert_eq!(r.svc.get().snapshot.game_id, Some(gid("steam:620")));
+    }
+
+    /// ARQ-BUG-02: os efeitos de `tick`, `process_seen`, `processes_gone` e `dismiss` rodam com o
+    /// `Mutex` solto. Se rodassem presos, o `get()` do `LauncherWindow` (a segunda instancia) travaria.
+    #[test]
+    fn efeitos_da_sessao_rodam_fora_do_mutex() {
+        let r = rig();
+        r.running("steam:620");
+        *r.window.1.lock().unwrap() = Some(Arc::downgrade(&r.svc));
+        let generation = r.generation();
+        r.sink().processes_gone(generation);
+        r.clock.advance_ms(5_000);
+        let svc = r.svc.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            svc.tick(); // fim de sessao: show_and_resume chama svc.get()
+            let _ = tx.send(());
+        });
+        assert!(
+            rx.recv_timeout(std::time::Duration::from_secs(3)).is_ok(),
+            "deadlock: efeito executado com o Mutex da sessao preso"
+        );
+        r.queue.drain();
+        assert_eq!(r.state(), SessionState::Idle);
+    }
+
     // ------------------------------------------------------------ fechar e forcar
 
     #[test]
@@ -1436,6 +1549,11 @@ mod tests {
         r.queue.drain();
         assert_eq!(*r.events.panels.lock().unwrap(), vec![FrontOutcome::Failed]);
         assert!(!r.svc.get().snapshot.minimized);
+        assert_eq!(
+            r.gate.0.lock().unwrap().last(),
+            Some(&InputMode::Background),
+            "escada falhou: a entrada nao vai para o Sofa"
+        );
     }
 
     #[test]

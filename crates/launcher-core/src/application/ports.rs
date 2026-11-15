@@ -394,7 +394,9 @@ pub trait DisplayTopology: Send + Sync {
 }
 
 /// Coloca a janela do launcher em tela cheia sem borda no monitor dado (RN-20). Devolve `false`
-/// quando a janela esta oculta (jogo aberto): o movimento fica para quando ela voltar.
+/// quando nao conseguiu (janela ausente). Quem sabe se a janela esta oculta (jogo aberto) e o
+/// `DisplayService`, que adia o movimento: o adapter nao deve perguntar a visibilidade ao
+/// toolkit (getter bloqueante, ARQ-BUG-02).
 pub trait LauncherPlacement: Send + Sync {
     fn place(&self, monitor: &Monitor) -> bool;
 }

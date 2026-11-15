@@ -132,6 +132,8 @@ impl ForegroundBroker {
             ms = self.clock.now().since(started),
             "primeiro plano: nenhum degrau trouxe o Sofa para a frente"
         );
+        // Sem sucesso o Sofa nao pode ficar por cima do jogo sem foco (gera input e cobre a tela).
+        self.ws.release_topmost();
         FrontOutcome::Failed
     }
 
@@ -355,6 +357,11 @@ mod tests {
         assert_eq!(b.bring_launcher_front(&[7]), FrontOutcome::Failed);
         assert_eq!(steps(&f), ["step1", "step3", "step2", "step4"]);
         assert!(clock.now().since(t0) < 3_000);
+        assert_eq!(
+            f.calls().last().map(String::as_str),
+            Some("release_topmost"),
+            "falhou: o TOPMOST temporario e desfeito"
+        );
     }
 
     #[test]

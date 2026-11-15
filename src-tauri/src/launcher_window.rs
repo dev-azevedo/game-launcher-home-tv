@@ -32,6 +32,9 @@ impl<R: Runtime> LauncherWindow for TauriLauncherWindow<R> {
         let Some(window) = self.app.get_webview_window(MAIN_LABEL) else {
             return;
         };
+        if let Some(display) = self.app.state::<AppState>().display.get() {
+            display.on_launcher_hidden();
+        }
         if let Err(error) = window.hide() {
             tracing::warn!(%error, "nao conseguiu esconder a janela");
         }
@@ -118,7 +121,8 @@ impl<R: Runtime> LauncherWindow for TauriLauncherWindow<R> {
 
 /// Tela cheia sem borda no monitor dado (RN-20, CA-66). A janela e tirada da tela cheia, levada
 /// ao centro do monitor de destino com metade do tamanho (assim o Windows a atribui a ele sem
-/// duvida) e posta em tela cheia de novo. Janela oculta (jogo aberto): nao mexe e avisa.
+/// duvida) e posta em tela cheia de novo. Janela oculta (jogo aberto): o `DisplayService` ja nao
+/// chama (guarda a visibilidade em vez de perguntar ao Tauri, ARQ-BUG-02).
 pub struct TauriLauncherPlacement<R: Runtime> {
     app: AppHandle<R>,
 }
@@ -134,9 +138,6 @@ impl<R: Runtime> LauncherPlacement for TauriLauncherPlacement<R> {
         let Some(window) = self.app.get_webview_window(MAIN_LABEL) else {
             return false;
         };
-        if !window.is_visible().unwrap_or(false) {
-            return false;
-        }
         let r = monitor.rect;
         let (w, h) = (r.width / 2, r.height / 2);
         let steps = [

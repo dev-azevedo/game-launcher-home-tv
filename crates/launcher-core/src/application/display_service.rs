@@ -16,15 +16,29 @@ pub struct MonitorView {
     pub current: bool,
 }
 
-#[derive(Default)]
 struct State {
     /// Monitor onde o launcher esta (nao e a preferencia: pode ser o principal por fallback).
     current: Option<String>,
     /// Retangulos conhecidos, para perceber mudanca de resolucao no monitor atual.
     rects: Vec<(String, Rect)>,
+    /// A janela esta visivel? Guardado aqui (recebe `hide`/`show` do `LauncherWindow`) para nao
+    /// perguntar ao Tauri com getter que bloqueia a thread da UI (ARQ-BUG-02).
+    visible: bool,
     /// A janela estava oculta (jogo aberto) e o movimento ficou para quando ela voltar.
     pending: bool,
     last_emitted: Option<Vec<MonitorView>>,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            current: None,
+            rects: Vec::new(),
+            visible: true, // a janela nasce visivel
+            pending: false,
+            last_emitted: None,
+        }
+    }
 }
 
 pub struct DisplayService {
@@ -70,7 +84,7 @@ impl DisplayService {
 
     /// Move o launcher; se a janela esta oculta, deixa pendente para `on_launcher_shown`.
     fn place(&self, state: &mut State, monitor: &Monitor) {
-        state.pending = !self.placement.place(monitor);
+        state.pending = !state.visible || !self.placement.place(monitor);
     }
 
     /// Publica a lista so quando ela mudou (nova ligacao, novo monitor atual).
@@ -158,9 +172,15 @@ impl DisplayService {
         self.emit_if_changed(&mut state, &list);
     }
 
+    /// A janela foi escondida (jogo aberto): movimentos passam a ficar pendentes.
+    pub fn on_launcher_hidden(&self) {
+        self.lock().visible = false;
+    }
+
     /// A janela voltou a aparecer (fim do jogo ou retorno): cumpre o movimento que ficou pendente.
     pub fn on_launcher_shown(&self) {
         let mut state = self.lock();
+        state.visible = true;
         if !state.pending {
             return;
         }
@@ -206,13 +226,9 @@ mod tests {
     #[derive(Default)]
     struct Placement {
         placed: Mutex<Vec<String>>,
-        visible: Mutex<bool>,
     }
     impl LauncherPlacement for Placement {
         fn place(&self, monitor: &Monitor) -> bool {
-            if !*self.visible.lock().unwrap() {
-                return false;
-            }
             self.placed.lock().unwrap().push(monitor.id.clone());
             true
         }
@@ -261,7 +277,6 @@ mod tests {
     fn rig(list: Vec<Monitor>, preferred: Option<&str>) -> Rig {
         let topology = Arc::new(Topology(Mutex::new(list)));
         let placement = Arc::new(Placement::default());
-        *placement.visible.lock().unwrap() = true;
         let store = Arc::new(Store::default());
         *store.monitor.lock().unwrap() = preferred.map(str::to_owned);
         let events = Arc::new(Events::default());
@@ -420,11 +435,10 @@ mod tests {
     fn janela_oculta_deixa_o_movimento_pendente_ate_voltar() {
         let r = rig(two(), None);
         r.svc.start();
-        *r.placement.visible.lock().unwrap() = false; // jogo aberto
+        r.svc.on_launcher_hidden(); // jogo aberto
         r.svc.set_monitor(Some("TV".into())).unwrap();
         assert!(r.placement.placed.lock().unwrap().is_empty());
-        *r.placement.visible.lock().unwrap() = true; // sessao acabou
-        r.svc.on_launcher_shown();
+        r.svc.on_launcher_shown(); // sessao acabou
         assert_eq!(*r.placement.placed.lock().unwrap(), vec!["TV"]);
         // Nao repete.
         r.svc.on_launcher_shown();

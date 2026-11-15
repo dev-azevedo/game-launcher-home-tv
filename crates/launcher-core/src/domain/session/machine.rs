@@ -78,8 +78,9 @@ pub enum SessionEffect {
     ForceClose,
     /// Traz o jogo da sessao para a frente ("Voltar ao jogo").
     FrontGame,
-    /// Sessao acabou: traz o Sofa (escada de primeiro plano) com o jogo em foco (CA-30).
-    BringLauncherFront { focus: GameId },
+    /// Traz o Sofa (escada de primeiro plano). Fim de sessao: `focus` = jogo em foco (CA-30).
+    /// Inicio nao confirmado em 60 s: `focus = None`, so mostra a mensagem (CA-29, ARQ-BUG-01).
+    BringLauncherFront { focus: Option<GameId> },
     /// Fechamento do `session_replace` terminou: abrir este jogo pelo fluxo normal de lancamento.
     LaunchPending(GameId),
 }
@@ -344,7 +345,9 @@ impl Session {
         match self.state {
             SessionState::Launching if elapsed >= self.cfg.start_timeout_ms => {
                 self.enter(SessionState::NotConfirmed, now);
-                Vec::new()
+                // CA-29: a mensagem "Nao foi possivel confirmar" nao pode ficar atras da tela da
+                // loja (login, atualizacao). Sem `focus`: nao e fim de sessao.
+                vec![SessionEffect::BringLauncherFront { focus: None }]
             }
             SessionState::Ending if elapsed >= self.cfg.end_grace_ms => self.finish(now),
             SessionState::Closing if elapsed >= self.cfg.close_timeout_ms => {
@@ -363,7 +366,7 @@ impl Session {
         let game = self.current();
         let pending = self.pending.take();
         self.reset_to_idle(now);
-        let mut effects = vec![SessionEffect::BringLauncherFront { focus: game }];
+        let mut effects = vec![SessionEffect::BringLauncherFront { focus: Some(game) }];
         if let Some(next) = pending {
             effects.push(SessionEffect::LaunchPending(next));
         }
@@ -518,8 +521,13 @@ mod tests {
         r.launch("steam:620");
         assert!(r.advance(59_999).is_empty());
         assert_eq!(r.s.state(), S::Launching);
-        r.advance(1);
+        let fx = r.advance(1);
         assert_eq!(r.s.state(), S::NotConfirmed);
+        assert_eq!(
+            fx,
+            vec![E::BringLauncherFront { focus: None }],
+            "ARQ-BUG-01: traz o Sofa, sem jogo em foco"
+        );
         assert_eq!(
             r.s.game(),
             Some(&portal()),
@@ -623,7 +631,12 @@ mod tests {
         assert_eq!(r.s.state(), S::Ending);
         assert!(r.advance(4_999).is_empty());
         let fx = r.advance(1);
-        assert_eq!(fx, vec![E::BringLauncherFront { focus: portal() }]);
+        assert_eq!(
+            fx,
+            vec![E::BringLauncherFront {
+                focus: Some(portal())
+            }]
+        );
         assert_eq!(r.s.state(), S::Idle);
         assert_eq!(r.s.snapshot().game_id, None);
         assert_eq!(r.s.snapshot().since, None);
@@ -684,7 +697,12 @@ mod tests {
     fn processos_terminam_em_closing_volta_a_idle_na_hora_sem_tolerancia() {
         let mut r = rig_in(S::Closing);
         let fx = r.s.processes_gone(r.now());
-        assert_eq!(fx, vec![E::BringLauncherFront { focus: portal() }]);
+        assert_eq!(
+            fx,
+            vec![E::BringLauncherFront {
+                focus: Some(portal())
+            }]
+        );
         assert_eq!(r.s.state(), S::Idle);
     }
 
@@ -701,7 +719,12 @@ mod tests {
     fn close_overdue_termina_sozinho_se_os_processos_acabarem() {
         let mut r = rig_in(S::CloseOverdue);
         let fx = r.s.processes_gone(r.now());
-        assert_eq!(fx, vec![E::BringLauncherFront { focus: portal() }]);
+        assert_eq!(
+            fx,
+            vec![E::BringLauncherFront {
+                focus: Some(portal())
+            }]
+        );
         assert_eq!(r.s.state(), S::Idle);
     }
 
@@ -837,7 +860,9 @@ mod tests {
         assert_eq!(
             fx,
             vec![
-                E::BringLauncherFront { focus: portal() },
+                E::BringLauncherFront {
+                    focus: Some(portal())
+                },
                 E::LaunchPending(novo)
             ]
         );
@@ -868,7 +893,12 @@ mod tests {
         );
         // Quando o jogo enfim fechar, o novo jogo NAO abre sozinho.
         let fx = r.s.processes_gone(r.now());
-        assert_eq!(fx, vec![E::BringLauncherFront { focus: portal() }]);
+        assert_eq!(
+            fx,
+            vec![E::BringLauncherFront {
+                focus: Some(portal())
+            }]
+        );
     }
 
     #[test]
@@ -894,7 +924,12 @@ mod tests {
         r.s.dismiss(r.now()); // Cancelar -> Running
         r.s.request_close(r.now()).unwrap();
         let fx = r.s.processes_gone(r.now());
-        assert_eq!(fx, vec![E::BringLauncherFront { focus: portal() }]);
+        assert_eq!(
+            fx,
+            vec![E::BringLauncherFront {
+                focus: Some(portal())
+            }]
+        );
     }
 
     #[test]
