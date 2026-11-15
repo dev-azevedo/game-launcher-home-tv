@@ -5,7 +5,7 @@
 ;
 ; Defines de compilacao (makensis /D...): SOFADIR, PLUGINDIR, OUT_EXE; opcional SOFA_TEST_FORCE_CREATE_FAIL.
 ;
-; Uso do exe: harness.exe /S /SCENARIO=<nome> /OUT=<arquivo> [/ROOT= /LOCALAPP= /INSTDIR= /SIDFILE=
+; Uso do exe: harness.exe /S /SCENARIO=<nome> /OUT=<arquivo> [/ROOT= /LOCALAPP= /INSTDIR= /SIDFILE= /PREV=
 ;             /READ=0|1 /CODE=n /RUNNING=0|1]. O resultado e escrito em /OUT (uma linha por chave).
 Unicode true
 RequestExecutionLevel user
@@ -21,6 +21,11 @@ OutFile "${OUT_EXE}"
 !define VERSION "0.0.0"
 !define BUNDLEID "app.sofa.launcher"
 !define MAINBINARYNAME "sofa"
+!define DISPLAYNAME "Sofa"
+; mesmas constantes do installer.nsi, para o install-dir.nsh (SEC-BUG-05) rodar aqui como la
+!define INSTALLDIRNAME "Sofa"
+!define PLACEHOLDER_INSTALL_DIR "placeholder\${INSTALLDIRNAME}"
+InstallDir "${PLACEHOLDER_INSTALL_DIR}"
 !define SOFA_HARNESS
 !define SOFA_NO_AUTOINSERT
 
@@ -29,6 +34,7 @@ OutFile "${OUT_EXE}"
 Var UpdateMode
 Var KeepDataCheckboxState
 
+!include "${SOFADIR}\install-dir.nsh"
 !include "${SOFADIR}\uninstall-hooks.nsh"
 !include "${SOFADIR}\PortugueseBR.nsh"
 !insertmacro SOFA_UNINSTALL_FUNCS ""
@@ -123,6 +129,17 @@ Section
     Call ReadSid
     Push $Arg
     Call SofaRemoveAutostartForSid
+  ${ElseIf} $Scenario == "instdir"
+    ; pasta fixa (SEC-BUG-05): $INSTDIR vem do `/D=` com que o harness foi aberto; /PREV= e a
+    ; pasta da instalacao anterior que o instalador leria do HKLM
+    StrCpy $SofaPrevDir ""
+    ${GetOptions} $R9 "/PREV=" $SofaPrevDir
+    Call SofaFixInstallDir
+    StrCpy $0 "result=$SofaDirResult"
+    Call Emit
+    StrCpy $0 "instdir=$INSTDIR"
+    Call Emit
+
     StrCpy $0 "done=1"
     Call Emit
   ${Else}

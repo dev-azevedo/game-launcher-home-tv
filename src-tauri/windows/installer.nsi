@@ -3,8 +3,10 @@
 ; crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi). Escolhido em
 ; `bundle.windows.nsis.template` (src-tauri/tauri.conf.json). Diferencas em relacao ao original,
 ; todas pedidas pelo ADR-0006 rev. 6 e pelos SEC-20 a SEC-32:
-;   1. So `perMachine` em `%ProgramFiles%\Sofa` (pasta ASCII); o nome com acento ("Sofá") fica em
-;      DISPLAYNAME (atalho, "Aplicativos instalados", mensagens).
+;   1. So `perMachine` em `$PROGRAMFILES64\Sofa` (pasta ASCII), FIXA: sem pagina de pasta, `/D=`
+;      diferente e instalacao anterior em outra pasta sao recusados (install-dir.nsh, SEC-BUG-05,
+;      ARQ-BUG-16). O nome com acento ("Sofá") fica em DISPLAYNAME (atalho, "Aplicativos
+;      instalados", mensagens).
 ;   2. "Remover dados do programa" (RmDir /r elevado em $APPDATA e $LOCALAPPDATA) SAIU (SEC-31,
 ;      DR-06). No lugar: "Manter dados", marcada. Quem apaga e o `sofa.exe --purge-user-data`,
 ;      como o usuario interativo, com fallback restrito por handle (uninstall-hooks.nsh).
@@ -131,6 +133,7 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 !addplugindir "${ADDITIONALPLUGINSPATH}"
 
 ; Sofa: depois das variaveis e do diretorio de plugins (o desinstalador chama nsis_tauri_utils).
+!include "${SOFADIR}\install-dir.nsh"
 !include "${SOFADIR}\install-hooks.nsh"
 !include "${SOFADIR}\uninstall-hooks.nsh"
 
@@ -356,8 +359,17 @@ Function PageLeaveReinstall
     ClearErrors
 
     ReadRegStr $4 SHCTX "${MANUPRODUCTKEY}" ""
-    ; Sofa (SEC-32): so roda o desinstalador que esta em $INSTDIR, por caminho absoluto. Instalacao
-    ; anterior em outra pasta (ex.: /D= diferente) nao e desinstalada daqui.
+    ; Sofa (SEC-BUG-05, SEC-32): antes de QUALQUER ExecWait do desinstalador anterior, recusa pasta
+    ; fora de $PROGRAMFILES64\Sofa (o .onInit ja recusou; esta e a segunda trava). Um uninstall.exe
+    ; numa pasta gravavel pelo usuario seria executado elevado.
+    StrCpy $R8 "$PROGRAMFILES64\${INSTALLDIRNAME}"
+    ${If} $INSTDIR != $R8
+    ${OrIf} $4 != $R8
+      StrCpy $SofaPrevDir $4
+      MessageBox MB_ICONSTOP "$(sofaPreviousInstallElsewhere)" /SD IDOK
+      Quit
+    ${EndIf}
+    ; Sofa (SEC-32): so roda o desinstalador que esta em $INSTDIR, por caminho absoluto.
     ${If} $4 != $INSTDIR
       StrCpy $0 2
       Goto reinst_uninstall_failed
@@ -398,9 +410,7 @@ Function PageLeaveReinstall
   reinst_done:
 FunctionEnd
 
-; 5. Choose install directory page
-!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
-!insertmacro MUI_PAGE_DIRECTORY
+; 5. Sofa: SEM pagina de pasta (SEC-BUG-05, ARQ-BUG-16). A pasta e fixa em $PROGRAMFILES64\Sofa (.onInit).
 
 ; 6. Start menu shortcut page
 Var AppStartMenuFolder
@@ -519,32 +529,23 @@ Function .onInit
 
   !insertmacro SetContext
 
-  ${If} $INSTDIR == "${PLACEHOLDER_INSTALL_DIR}"
-    ; Set default install location
-    !if "${INSTALLMODE}" == "perMachine"
-      ${If} ${RunningX64}
-        !if "${ARCH}" == "x64"
-          StrCpy $INSTDIR "$PROGRAMFILES64\${INSTALLDIRNAME}"
-        !else if "${ARCH}" == "arm64"
-          StrCpy $INSTDIR "$PROGRAMFILES64\${INSTALLDIRNAME}"
-        !else
-          StrCpy $INSTDIR "$PROGRAMFILES\${INSTALLDIRNAME}"
-        !endif
-      ${Else}
-        StrCpy $INSTDIR "$PROGRAMFILES\${INSTALLDIRNAME}"
-      ${EndIf}
-    !else if "${INSTALLMODE}" == "currentUser"
-      StrCpy $INSTDIR "$LOCALAPPDATA\${INSTALLDIRNAME}"
-    !endif
-
-    Call RestorePreviousInstallLocation
+  ; Sofa (SEC-BUG-05, ARQ-BUG-16): a pasta e sempre $PROGRAMFILES64\Sofa. `/D=` diferente e
+  ; instalacao anterior gravada em outra pasta sao recusadas aqui, antes de qualquer pagina e de
+  ; qualquer ExecWait do desinstalador anterior.
+  ReadRegStr $SofaPrevDir SHCTX "${MANUPRODUCTKEY}" ""
+  Call SofaFixInstallDir
+  ${If} $SofaDirResult = 1
+    MessageBox MB_ICONSTOP "$(sofaInstallDirFixed)" /SD IDOK
+    Abort
+  ${ElseIf} $SofaDirResult = 2
+    MessageBox MB_ICONSTOP "$(sofaPreviousInstallElsewhere)" /SD IDOK
+    Abort
   ${EndIf}
 
 
   !if "${INSTALLMODE}" == "both"
     !insertmacro MULTIUSER_INIT
   !endif
-
   ; Abort downgrades if they are disabled, in the modes that skip the reinstall page choice:
   ; silent, passive and update
   !if "${ALLOWDOWNGRADES}" == "false"
@@ -728,6 +729,15 @@ Function un.onInit
   !if "${INSTALLMODE}" == "both"
     !insertmacro MULTIUSER_UNINIT
   !endif
+  ; Sofa (SEC-BUG-05, ARQ-BUG-16): o desinstalador so roda a partir de $PROGRAMFILES64\Sofa. Um
+  ; uninstall.exe copiado para outra pasta (gravavel pelo usuario) nao executa o sofa.exe dali,
+  ; elevado, no purge.
+  StrCpy $SofaPrevDir ""
+  Call un.SofaFixInstallDir
+  ${If} $SofaDirResult <> 0
+    MessageBox MB_ICONSTOP "$(sofaUninstallDirFixed)" /SD IDOK
+    Abort
+  ${EndIf}
 
   ${GetOptions} $CMDLINE "/P" $PassiveMode
   ${IfNot} ${Errors}

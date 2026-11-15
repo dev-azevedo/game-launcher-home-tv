@@ -167,6 +167,7 @@ function Invoke-Release {
                 "O valor tem que ser igual ao de SHA256SUMS.txt (e ao SHA-256 acima). Se for diferente, nao instale.",
                 "",
                 "Instalar pede permissao de administrador (UAC): o Sofa vai para C:\Program Files\Sofa para todo o PC.",
+                "A pasta e fixa: nao ha escolha de pasta e a opcao /D= de outra pasta e recusada.",
                 "Sem o WebView2 (comum so no Windows 10), o instalador baixa da Microsoft e precisa de internet.",
                 "Desinstalar: Configuracoes > Aplicativos instalados > Sofa. A caixa 'Manter dados' vem marcada.",
                 "",

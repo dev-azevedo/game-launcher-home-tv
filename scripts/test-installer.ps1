@@ -586,6 +586,74 @@ public static class SofaReparse {
     }
     Skip-Case 'HKU\<SID>\...\Run de outros perfis' 'precisa de hive carregado de outro usuario (admin); QA-17'
 
+    # =============================================================== pasta fixa (SEC-BUG-05)
+    Write-Host "`n== Pasta de instalacao fixa em Program Files (SEC-BUG-05, ARQ-BUG-16)" -ForegroundColor Cyan
+    $fixed = Join-Path $env:ProgramW6432 'Sofa'
+    # `/D=` tem de ser o ultimo parametro e sem aspas (regra do NSIS); /OUT= vai antes
+    function Run-HarnessDir([string]$DirArg, [string]$Prev) {
+        $out = Join-Path $work ('out-' + [guid]::NewGuid().ToString('N') + '.txt')
+        $argLine = '/S /SCENARIO=instdir /OUT=' + $out
+        if ($Prev) { $argLine += ' /PREV=' + $Prev }
+        if ($DirArg) { $argLine += ' /D=' + $DirArg }
+        $p = Start-Process -FilePath $harness -ArgumentList $argLine -PassThru -WindowStyle Hidden
+        if (-not $p.WaitForExit(60000)) { $p.Kill(); throw 'harness nao terminou' }
+        $res = @{}
+        if (Test-Path -LiteralPath $out) {
+            foreach ($l in Get-Content -LiteralPath $out) { if ($l -match '^([^=]+)=(.*)$') { $res[$Matches[1]] = $Matches[2] } }
+        }
+        return $res
+    }
+    Test-Case 'sem /D= e sem instalacao anterior: a pasta e Program Files\Sofa' {
+        $r = Run-HarnessDir '' ''
+        Assert-Eq $r['result'] '0' 'resultado'
+        Assert-Eq $r['instdir'] $fixed 'pasta'
+    }
+    Test-Case '/D= igual a pasta fixa: aceito' {
+        $r = Run-HarnessDir $fixed ''
+        Assert-Eq $r['result'] '0' 'resultado'
+        Assert-Eq $r['instdir'] $fixed 'pasta'
+    }
+    foreach ($bad in @('C:\X', 'C:\Sofa', 'D:\Jogos\Sofa', 'C:\Program Files\Outra', "$fixed\sub", ($fixed + 'X'))) {
+        $bad = $bad
+        Test-Case "/D=${bad}: recusado, o destino nao muda" {
+            $r = Run-HarnessDir $bad ''
+            Assert-Eq $r['result'] '1' 'resultado (1 = /D= diferente)'
+            Assert-True ($r['instdir'] -ne $fixed) 'a pasta nao pode virar a fixa em silencio'
+        }
+    }
+    foreach ($prev in @('C:\Sofa', 'D:\Jogos\Sofa', 'C:\Users\Publico\Sofa')) {
+        $prev = $prev
+        Test-Case "instalacao anterior em ${prev}: recusada antes de qualquer desinstalador" {
+            $r = Run-HarnessDir '' $prev
+            Assert-Eq $r['result'] '2' 'resultado (2 = instalacao anterior fora da pasta fixa)'
+        }
+    }
+    Test-Case 'instalacao anterior na pasta fixa: aceita' {
+        $r = Run-HarnessDir '' $fixed
+        Assert-Eq $r['result'] '0' 'resultado'
+        Assert-Eq $r['instdir'] $fixed 'pasta'
+    }
+    Test-Case '/D= diferente vence a anterior ok: ainda recusado' {
+        $r = Run-HarnessDir 'C:\X' $fixed
+        Assert-Eq $r['result'] '1' 'resultado'
+    }
+    Test-Case 'script do instalador (template): sem pagina de pasta, pasta fixada em .onInit e un.onInit, trava antes do ExecWait' {
+        $tpl = Join-Path $winDir 'installer.nsi'
+        $code = ((Get-Content -LiteralPath $tpl -Encoding UTF8) | Where-Object { $_.TrimStart() -notmatch '^[;#]' }) -join "`n"
+        Assert-True ($code -notmatch 'MUI_PAGE_DIRECTORY') 'o instalador nao pode ter a pagina de pasta'
+        Assert-True ($code -notmatch 'MUI_UNPAGE_DIRECTORY') 'o desinstalador nao pode ter pagina de pasta'
+        $onInit = [regex]::Match($code, '(?s)Function \.onInit(.*?)\nFunctionEnd').Groups[1].Value
+        Assert-True ($onInit -match 'Call SofaFixInstallDir') '.onInit precisa chamar SofaFixInstallDir'
+        $unInit = [regex]::Match($code, '(?s)Function un\.onInit(.*?)\nFunctionEnd').Groups[1].Value
+        Assert-True ($unInit -match 'Call un\.SofaFixInstallDir') 'un.onInit precisa chamar un.SofaFixInstallDir'
+        # nenhum ExecWait do desinstalador anterior antes da trava de pasta
+        $guardAt = $code.IndexOf('$(sofaPreviousInstallElsewhere)', $code.IndexOf('Function PageLeaveReinstall'))
+        $execAt = $code.IndexOf('ExecWait ''"$INSTDIR\uninstall.exe"')
+        Assert-True ($guardAt -gt 0 -and $execAt -gt 0 -and $guardAt -lt $execAt) 'a trava de pasta tem de vir antes do ExecWait do desinstalador anterior'
+        # o instalador so conhece uma pasta de destino: nada de InstallDir com variavel de usuario
+        Assert-True ($code -notmatch 'StrCpy \$INSTDIR\s+"\$LOCALAPPDATA') 'pasta em LOCALAPPDATA proibida'
+    }
+
     # =============================================================== o instalador gerado
     Write-Host "`n== Instalador gerado (se existir)" -ForegroundColor Cyan
     $gen = Get-ChildItem -LiteralPath (Join-Path $root 'target') -Recurse -Filter installer.nsi -ErrorAction SilentlyContinue |
@@ -595,6 +663,13 @@ public static class SofaReparse {
         Test-Case "guards de NSIS no script gerado ($($gen.Name))" {
             $v = @(Invoke-GeneratedNsisGuard $gen.FullName)
             Assert-True ($v.Count -eq 0) ("violacoes: " + ($v -join '; '))
+        }
+        Test-Case 'script gerado: sem pagina de pasta e com a pasta fixa' {
+            $t = ((Get-Content -LiteralPath $gen.FullName -Encoding UTF8) | Where-Object { $_.TrimStart() -notmatch '^[;#]' }) -join "`n"
+            Assert-True ($t -notmatch 'MUI_PAGE_DIRECTORY') 'pagina de pasta no script gerado'
+            Assert-True ($t -match 'Call SofaFixInstallDir') 'o .onInit gerado nao fixa a pasta'
+            Assert-True ($t -match 'Call un\.SofaFixInstallDir') 'o un.onInit gerado nao fixa a pasta'
+            Assert-True ($t -notmatch '\{\{') 'chaves do template sem renderizar no script gerado'
         }
         Test-Case 'script gerado sem ACL, sem HKCU e sem apagar dados' {
             # sem as linhas de comentario (o cabecalho do template cita o que saiu)

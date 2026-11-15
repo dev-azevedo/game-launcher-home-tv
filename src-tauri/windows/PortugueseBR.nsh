@@ -20,6 +20,11 @@ LangString uninstallApp ${LANG_PORTUGUESEBR} "Desinstalar o Sofá"
 LangString uninstallBeforeInstalling ${LANG_PORTUGUESEBR} "Atualizar a versão instalada"
 LangString unknown ${LANG_PORTUGUESEBR} "desconhecida"
 
+; --- pasta fixa (SEC-BUG-05, ARQ-BUG-16; install-dir.nsh). Textos acrescentados na leva 6.
+LangString sofaInstallDirFixed ${LANG_PORTUGUESEBR} "O Sofá só pode ser instalado em Program Files. Rode o instalador sem a opção /D=."
+LangString sofaPreviousInstallElsewhere ${LANG_PORTUGUESEBR} "Há uma instalação do Sofá fora de Program Files ($SofaPrevDir). Desinstale-a em Aplicativos instalados e rode este instalador de novo."
+LangString sofaUninstallDirFixed ${LANG_PORTUGUESEBR} "O desinstalador do Sofá só roda a partir de Program Files."
+
 ; --- Sofá aberto
 LangString appRunning ${LANG_PORTUGUESEBR} "O {{product_name}} está aberto. Feche o Sofá e tente de novo."
 LangString appRunningOkKill ${LANG_PORTUGUESEBR} "O {{product_name}} está aberto.$\nClique em OK para fechá-lo."
