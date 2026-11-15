@@ -307,10 +307,13 @@ fn job_avisa_inicio_e_fim_do_ultimo_processo_sem_polling() {
         "inicio < 1 s"
     );
     let gone = sink.wait("gone", 1, Duration::from_secs(6)).expect("fim");
-    let alive = gone.duration_since(t0);
+    // Medido a partir do aviso de inicio, nao de antes do `start`: o antivirus varre cada copia nova
+    // do helper e atrasa a criacao do processo (ate ~1 s, medido), o que nao tem a ver com o fim ser
+    // imediato (sem polling, que `modo_job_nao_tira_snapshot...` tambem cobre).
+    let alive = gone.duration_since(seen);
     assert!(
-        alive >= Duration::from_millis(1400) && alive < Duration::from_millis(2300),
-        "fim ~ 1,5 s + ~ms, foi {alive:?}"
+        alive >= Duration::from_millis(1300) && alive < Duration::from_millis(2300),
+        "fim ~ 1,5 s + ~ms depois do inicio, foi {alive:?}"
     );
 }
 
@@ -331,8 +334,8 @@ fn job_inclui_o_filho_e_so_avisa_o_fim_quando_o_ultimo_sai() {
     );
 }
 
-/// `true` se existe processo vivo com esse nome de imagem.
-fn alive_by_name(name: &str) -> bool {
+/// PID do primeiro processo vivo com esse nome de imagem.
+fn pid_by_name(name: &str) -> Option<u32> {
     use windows::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
         TH32CS_SNAPPROCESS,
@@ -344,12 +347,12 @@ fn alive_by_name(name: &str) -> bool {
             dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
             ..Default::default()
         };
-        let mut found = false;
+        let mut found = None;
         let mut ok = Process32FirstW(snap, &mut entry).is_ok();
         while ok {
             let len = entry.szExeFile.iter().position(|c| *c == 0).unwrap();
             if String::from_utf16_lossy(&entry.szExeFile[..len]).eq_ignore_ascii_case(name) {
-                found = true;
+                found = Some(entry.th32ProcessID);
                 break;
             }
             ok = Process32NextW(snap, &mut entry).is_ok();
@@ -358,6 +361,116 @@ fn alive_by_name(name: &str) -> bool {
         found
     }
 }
+
+/// Handle do processo para saber, depois, se ainda vive e com que codigo saiu (BE-51): a
+/// assercao "o acompanhante segue vivo" vem do handle, nao de uma busca por nome.
+struct ProcHandle(windows::Win32::Foundation::HANDLE);
+
+impl ProcHandle {
+    fn open(pid: u32) -> Option<Self> {
+        use windows::Win32::System::Threading::PROCESS_SYNCHRONIZE;
+        // SAFETY: handle proprio, fechado no `Drop`.
+        unsafe {
+            OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
+                false,
+                pid,
+            )
+            .ok()
+            .map(ProcHandle)
+        }
+    }
+
+    /// Ha quantos ms o processo foi criado.
+    fn age_ms(&self) -> u64 {
+        use windows::Win32::System::SystemInformation::GetSystemTimeAsFileTime;
+        let created = creation_time(self.0).unwrap_or(0);
+        // SAFETY: sem argumentos de entrada.
+        let now = unsafe {
+            let ft = GetSystemTimeAsFileTime();
+            (u64::from(ft.dwHighDateTime) << 32) | u64::from(ft.dwLowDateTime)
+        };
+        now.saturating_sub(created) / 10_000
+    }
+
+    /// `None` se ainda vive; `Some(codigo)` se saiu.
+    fn exit_code(&self) -> Option<u32> {
+        use windows::Win32::Foundation::WAIT_OBJECT_0;
+        use windows::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
+        // SAFETY: handle valido com SYNCHRONIZE e QUERY_LIMITED.
+        unsafe {
+            if WaitForSingleObject(self.0, 0) != WAIT_OBJECT_0 {
+                return None;
+            }
+            let mut code = 0u32;
+            let _ = GetExitCodeProcess(self.0, &mut code);
+            Some(code)
+        }
+    }
+}
+
+impl ProcHandle {
+    /// Espera o processo "assentar": vivo ha pelo menos `min_age_ms`. Antes disso o processo e novo
+    /// demais: se o pai e encerrado enquanto ainda esta dentro do `CreateProcessW` do filho (idade de
+    /// poucos ms), o filho sai sozinho com 0xC000010A (`STATUS_PROCESS_IS_TERMINATING`), sem ter sido
+    /// alvo de ninguem. Foi a causa das falhas intermitentes do BE-51 (medido: idade de 3 a 5 ms ao
+    /// forcar, saida 0xC000010A, ~8% das rodadas).
+    fn settle(&self, min_age_ms: u64) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while self.age_ms() < min_age_ms {
+            assert_eq!(
+                self.exit_code(),
+                None,
+                "o acompanhante saiu sozinho antes de Forcar"
+            );
+            assert!(Instant::now() < deadline, "o acompanhante nao assentou");
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert_eq!(
+            self.exit_code(),
+            None,
+            "o acompanhante saiu sozinho antes de Forcar"
+        );
+    }
+}
+
+impl Drop for ProcHandle {
+    fn drop(&mut self) {
+        // SAFETY: handle proprio, fechado uma unica vez.
+        unsafe {
+            let _ = CloseHandle(self.0);
+        }
+    }
+}
+
+/// `true` se existe processo vivo com esse nome de imagem. Para afirmar que um processo **segue
+/// vivo** depois de "Forcar", use `ProcHandle`: ele diz tambem com que codigo o processo saiu.
+fn alive_by_name(name: &str) -> bool {
+    pid_by_name(name).is_some()
+}
+
+/// Encerra todo processo com esse nome de imagem (nomes unicos de teste, `*-sofa-qa.exe`) e espera
+/// a pasta de teste ficar livre. Os acompanhantes vivem bem mais que o teste (BE-51): quem os
+/// derruba e o fim do teste, nao o relogio.
+fn kill_and_wait(name: &str) {
+    let _ = Command::new("taskkill").args(["/F", "/IM", name]).output();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while alive_by_name(name) && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// Vida do acompanhante nos testes de SEC-BUG-01 e SEC-BUG-04 (BE-51): 2 minutos, muito alem do
+/// teste mais lento (antivirus varrendo a primeira execucao de cada copia do helper, CI carregado):
+/// o que derruba o acompanhante e o fim do teste, nunca o relogio. So isso nao bastou: as falhas
+/// intermitentes continuaram (2 em 50 rodadas) porque o teste chamava "Forcar" quando o
+/// acompanhante tinha 3 a 5 ms de vida (ver `ProcHandle::settle`). A assercao final le o handle do
+/// processo (codigo de saida), nao uma busca por nome.
+///
+/// Folga de tempo: as esperas por "inicio", "o acompanhante abriu" e "fim apos Forcar" desses dois
+/// testes sao de 15, 20 e 10 s (eram 3, 4 e 3 s): o Defender varre cada copia nova do helper na
+/// primeira execucao e, em 1 de 60 rodadas, passou de 4 s com os dois testes ao mesmo tempo.
+const COMPANION_MS: &str = "120000";
 
 /// SEC-BUG-01: um `steam.exe` que nasce filho do jogo, dentro do Job, nao e membro: nao segura a
 /// sessao aberta e nao e encerrado por "Forcar".
@@ -400,25 +513,34 @@ fn forcar_no_job_so_encerra_membros_e_poupa_o_que_esta_fora_da_pasta() {
     let outside = sb.game("Fora/acompanhante-sofa-qa.exe");
     let t = target(
         &exe,
-        &["spawn", &outside.to_string_lossy(), "6000", "30000"],
+        &["spawn", &outside.to_string_lossy(), COMPANION_MS, "30000"],
     );
     let sink = Arc::new(Sink::default());
     let (watch, _) = watch_job(&t, &sink);
-    sink.wait("seen", 1, Duration::from_secs(3))
+    sink.wait("seen", 1, Duration::from_secs(15))
         .expect("inicio");
     // O filho nasce (o antivirus pode demorar na primeira execucao do arquivo novo).
-    let deadline = Instant::now() + Duration::from_secs(4);
-    while !alive_by_name("acompanhante-sofa-qa.exe") {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let companion = loop {
+        if let Some(h) = pid_by_name("acompanhante-sofa-qa.exe").and_then(ProcHandle::open) {
+            break h;
+        }
         assert!(Instant::now() < deadline, "o acompanhante nao abriu");
         std::thread::sleep(Duration::from_millis(50));
-    }
+    };
+    companion.settle(1000);
+    let age = companion.age_ms();
     watch.force_close().expect("encerra o membro");
-    sink.wait("gone", 1, Duration::from_secs(3))
+    sink.wait("gone", 1, Duration::from_secs(10))
         .expect("fim apos forcar");
-    assert!(
-        alive_by_name("acompanhante-sofa-qa.exe"),
-        "fora da pasta do jogo: nao e membro, nao e encerrado"
+    assert_eq!(
+        companion.exit_code(),
+        None,
+        "fora da pasta do jogo: nao e membro, nao e encerrado (idade ao forcar: {age} ms)"
     );
+    // O acompanhante vive 2 min: o fim do teste o derruba, para a pasta de teste poder ser apagada.
+    drop(watch);
+    kill_and_wait("acompanhante-sofa-qa.exe");
 }
 
 /// ARQ-BUG-14: no modo Job nada tira snapshot ToolHelp. Nem a thread da sonda (rajada de processos
@@ -496,7 +618,7 @@ fn job_com_exe_exato_poupa_o_processo_vizinho_na_mesma_pasta() {
     let vizinho = sb.game(r"Raiz\vizinho-sofa-qa.exe");
     let t = target(
         &exe,
-        &["spawn", &vizinho.to_string_lossy(), "20000", "60000"],
+        &["spawn", &vizinho.to_string_lossy(), COMPANION_MS, "60000"],
     );
     let started = WinGameStarter
         .start(&t, StartVerb::Normal)
@@ -513,29 +635,29 @@ fn job_com_exe_exato_poupa_o_processo_vizinho_na_mesma_pasta() {
     let watch = WinSessionProbe::with_store_dirs(vec![])
         .watch(plan, 1, s, cfg())
         .unwrap();
-    sink.wait("seen", 1, Duration::from_secs(3))
+    sink.wait("seen", 1, Duration::from_secs(15))
         .expect("inicio");
-    let deadline = Instant::now() + Duration::from_secs(4);
+    let deadline = Instant::now() + Duration::from_secs(20);
     while !alive_by_name("vizinho-sofa-qa.exe") {
         assert!(Instant::now() < deadline, "o vizinho nao abriu");
         std::thread::sleep(Duration::from_millis(50));
     }
     assert_eq!(watch.pids().len(), 1, "so o exe do jogo e membro");
+    let vizinho_pid = pid_by_name("vizinho-sofa-qa.exe").expect("pid do vizinho");
+    let vizinho = ProcHandle::open(vizinho_pid).expect("handle do vizinho");
+    vizinho.settle(1000);
+    let age = vizinho.age_ms();
     watch.force_close().expect("encerra so o membro");
-    sink.wait("gone", 1, Duration::from_secs(3))
+    sink.wait("gone", 1, Duration::from_secs(10))
         .expect("fim apos forcar");
-    assert!(
-        alive_by_name("vizinho-sofa-qa.exe"),
-        "outra imagem na mesma pasta nao e membro, nao e encerrada"
+    assert_eq!(
+        vizinho.exit_code(),
+        None,
+        "outra imagem na mesma pasta nao e membro, nao e encerrada (pid {vizinho_pid}, idade ao forcar: {age} ms)"
     );
     // Encerra o vizinho (nome unico de teste) para a pasta de teste poder ser apagada.
-    let _ = Command::new("taskkill")
-        .args(["/F", "/IM", "vizinho-sofa-qa.exe"])
-        .output();
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while alive_by_name("vizinho-sofa-qa.exe") && Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    drop(watch);
+    kill_and_wait("vizinho-sofa-qa.exe");
 }
 
 /// SEC-BUG-04, varredura (jogo manual elevado): outro processo do usuario na mesma pasta do exe
@@ -1063,11 +1185,5 @@ fn job_com_acompanhante_termina_quando_o_handle_do_membro_sinaliza_2s_depois() {
         "o acompanhante nao e membro nem e encerrado"
     );
     drop(watch);
-    let _ = Command::new("taskkill")
-        .args(["/F", "/IM", "acompanhante-saida-lenta.exe"])
-        .output();
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while alive_by_name("acompanhante-saida-lenta.exe") && Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    kill_and_wait("acompanhante-saida-lenta.exe");
 }
