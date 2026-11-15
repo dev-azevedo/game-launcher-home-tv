@@ -5,7 +5,7 @@
 | Feature | launcher-tv (MVP do Sofá) |
 | Produto | Sofá (identificadores técnicos: `sofa`; identificador do app e pasta de dados: `app.sofa.launcher`) |
 | Branch | `feature/launcher-tv-20261113` |
-| Status | Revisada com as decisões do usuário, da arquitetura e de segurança (seção 14) |
+| Status | Revisada com as decisões do usuário, da arquitetura, de segurança e da rodada 1 de QA e design (seção 14) |
 | Plataforma | Windows 10 e Windows 11, app desktop instalado |
 | Stack provável | Tauri (Rust + UI web), repo único. Decisão final do arquiteto |
 | Data | 2026-11-13 |
@@ -128,6 +128,7 @@ Definidas pelo usuário. A spec não fixa identidade visual; logo, cores e tipog
 - **Público:** só o usuário. Não há onboarding de marketing nem textos para terceiros.
 - **Nome do produto:** Sofá. Identificadores técnicos usam `sofa`; identificador do app e pasta de dados, `app.sofa.launcher`.
 - **Marca:** direção A, "Palco", em `docs/brand/sofa/`.
+- **Mockups:** aprovados pelo usuário, em `docs/design/launcher-tv/mockups/`, com handoff em `docs/design/launcher-tv.md`. Microcopy em `docs/design/launcher-tv/microcopy.md`.
 - **Linguagem visual:** "console moderno", na linha do dashboard do Xbox e do PS5. Cards grandes, capas em destaque, o jogo em foco ampliado ou realçado, pouca informação por tela.
 - **Leitura a distância:** valem CA-54 e CA-55.
 
@@ -161,14 +162,14 @@ Fixo no MVP. Referência para CA e QA.
 | A | Inicia o jogo em foco | Confirma a opção em foco | Ignorado |
 | B | Sem efeito na tela inicial; volta um nível nas outras | Cancela / fecha | Ignorado |
 | Menu (≡) | Abre o menu rápido | Fecha o menu rápido | Ignorado (salvo na combinação de retorno) |
-| View (⧉) | Abre opções do jogo em foco (renomear, ocultar) | Sem efeito | Ignorado (salvo na combinação de retorno) |
+| View (⧉) | Abre opções do jogo em foco (Jogar, Renomear, Restaurar nome original, Ocultar; CA-79) | Sem efeito | Ignorado (salvo na combinação de retorno) |
 | LB / RB | Pula uma página/linha para trás / para frente | Sem efeito | Ignorado |
 | LT / RT | Diminui / aumenta o volume em 5 pontos | Sem efeito (no menu rápido o volume usa esquerda/direita) | Ignorado |
 | View + Menu segurados 1,5 s | Sem efeito | Sem efeito | Traz o launcher para a frente (combinação de retorno) |
 
 LT/RT não tinham outro uso no mapeamento; não há conflito. LB/RB continuam com a paginação.
 
-Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de aplicativo ou F1 = Menu.
+Teclado de emergência (RN-07, CA-80): cada ação desta tabela tem uma tecla equivalente, salvo a combinação de retorno, que só existe no controle. As teclas ficam no handoff de design ou no front, não nesta spec.
 
 ## 9. Critérios de aceite
 
@@ -232,15 +233,15 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 
 ### Iniciar jogo e sessão
 
-**CA-26**: Dado um jogo em foco e nenhuma sessão ativa, quando o usuário aperta A, então o launcher mostra "Abrindo <nome do jogo>…" e inicia o jogo. Jogos Steam e Epic iniciam pela loja, que é aberta antes se estiver fechada. Jogos GOG (inclusive os instalados pelo Galaxy) iniciam direto pelo executável do jogo, sem abrir o Galaxy.
+**CA-26**: Dado um jogo em foco e nenhuma sessão ativa, quando o usuário aperta A, então o launcher mostra a tela "Abrindo <nome do jogo>…" (com o botão "Voltar", CA-77) e inicia o jogo. Jogos Steam e Epic iniciam pela loja, que é aberta antes se estiver fechada. Jogos GOG (inclusive os instalados pelo Galaxy) iniciam direto pelo executável do jogo, sem abrir o Galaxy.
 
 **CA-27**: Dado que o jogo abriu, quando a janela do jogo aparece, então o launcher sai da frente e deixa o jogo em primeiro plano.
 
-**CA-28**: Dado um jogo manual cujo executável não existe mais, quando o usuário tenta iniciá-lo, então aparece "Não encontramos o arquivo do jogo em <caminho>" com as opções "Ocultar" e "Voltar".
+**CA-28**: Dado um jogo manual cujo executável não existe mais, quando o usuário tenta iniciá-lo, então aparece "Não encontramos o arquivo de <nome do jogo>" com as opções "Ocultar" e "Voltar". A mensagem não mostra o caminho do arquivo (D-42).
 
-**CA-29**: Dado que o jogo foi iniciado, quando nenhum processo do jogo é detectado em até 60 s, então o launcher volta ao primeiro plano com "Não foi possível confirmar que <nome> abriu" e as opções "Tentar de novo" e "Voltar".
+**CA-29**: Dado que o jogo foi iniciado, quando nenhum processo do jogo é detectado em até 60 s, então o launcher volta ao primeiro plano com "Não foi possível confirmar que <nome> abriu" e as opções "Tentar de novo" e "Voltar". Se o jogo abrir depois dessa mensagem (por exemplo, após login na loja, E-03), a sessão segue normal: o launcher sai da frente (CA-27), grava o último jogado (RN-05) e a combinação de retorno funciona.
 
-**CA-30**: Dado uma sessão de jogo ativa, quando o jogo é fechado pelo próprio menu do jogo, então o launcher volta ao primeiro plano em até 3 s, na biblioteca, com o jogo que acabou de fechar em foco e no topo dos recentes.
+**CA-30**: Dado uma sessão de jogo ativa, quando o jogo é fechado pelo próprio menu do jogo, então o launcher volta ao primeiro plano em até 3 s, na biblioteca, com o jogo que acabou de fechar em foco e no topo dos recentes. Para vir à frente, usa a mesma sequência de tentativas do retorno pela combinação (RN-24); o Windows não devolve o foco sozinho quando o jogo fecha.
 
 **CA-31**: Dado uma sessão de jogo ativa, quando o usuário volta à biblioteca e aperta A em outro jogo, então o launcher pergunta "<jogo atual> está aberto. Fechar e abrir <novo jogo>?" com "Cancelar" em foco por padrão.
 
@@ -252,7 +253,7 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 
 **CA-34**: Dado o painel do jogo em andamento, quando o usuário escolhe "Voltar ao jogo" ou aperta B, então o jogo volta ao primeiro plano no estado em que estava.
 
-**CA-35**: Dado o painel do jogo em andamento, quando o usuário escolhe "Fechar jogo" e confirma, então o launcher pede ao jogo para fechar normalmente; se o jogo continuar aberto após 10 s, oferece "Forçar fechamento (o progresso não salvo será perdido)" com "Cancelar" em foco por padrão.
+**CA-35**: Dado o painel do jogo em andamento, quando o usuário escolhe "Fechar jogo" e confirma, então o launcher mostra a tela "Fechando <nome>…" (CA-78) e pede ao jogo para fechar normalmente; se o jogo continuar aberto após 10 s, oferece "Forçar fechamento (o progresso não salvo será perdido)" com "Cancelar" em foco por padrão.
 
 **CA-36**: Dado o painel do jogo em andamento, quando o usuário escolhe "Ir para a biblioteca", então a biblioteca aparece com o jogo ainda aberto em segundo plano, sem minimizar o jogo, e um indicador "Em andamento" no card do jogo; apertar A nesse card volta ao jogo.
 
@@ -274,9 +275,9 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 
 **CA-43**: Dado o menu rápido, quando o usuário escolhe "Desligar", "Reiniciar" ou "Suspender", então aparece um diálogo de confirmação com o nome da ação e "Cancelar" em foco por padrão; B cancela.
 
-**CA-44**: Dado o diálogo de confirmação de "Desligar", quando o usuário confirma, então o Windows inicia o desligamento normal (não forçado) em até 3 s.
+**CA-44**: Dado o diálogo de confirmação de "Desligar", quando o usuário confirma, então em até 3 s o Windows inicia o mesmo desligamento do Desligar do menu Iniciar, normal (não forçado): com a inicialização rápida do Windows ligada, ela é usada; com ela desligada, o desligamento é completo (RN-15).
 
-**CA-45**: Dado o diálogo de confirmação de "Reiniciar", quando o usuário confirma, então o Windows reinicia, e com "Iniciar com o Windows" ligado o launcher abre de novo após o login (CA-01).
+**CA-45**: Dado o diálogo de confirmação de "Reiniciar", quando o usuário confirma, então o Windows faz um reinício completo, sem inicialização rápida (RN-15), e com "Iniciar com o Windows" ligado o launcher abre de novo após o login (CA-01).
 
 **CA-46**: Dado o diálogo de confirmação de "Suspender", quando o usuário confirma, então o PC entra em suspensão; ao acordar, o launcher está na mesma tela em que estava e responde ao controle assim que o controle reconectar.
 
@@ -298,7 +299,7 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 
 ### Interface de 10 pés
 
-**CA-54**: Dado a TV em 1080p ou 4K, quando qualquer tela é exibida, então todo texto e elemento interativo fica dentro da área segura (margem de 5% em cada borda) e o texto do corpo tem pelo menos 24 px equivalentes a 1080p, escalando em 4K.
+**CA-54**: Dado a TV em 1080p ou 4K, quando qualquer tela é exibida, então todo texto e elemento interativo fica dentro da área segura (margem de 5% em cada borda) e o texto do corpo tem pelo menos 24 px equivalentes a 1080p, escalando em 4K. Única exceção: card de capa parcialmente cortado na borda lateral da tela, para indicar que a fileira continua, ou embaixo, quando a fileira seguinte aparece sob o rodapé de dicas. O texto e o destaque de foco do item em foco continuam dentro da área segura (RN-32).
 
 **CA-55**: Dado qualquer tela, quando o usuário olha a 3 m, então sempre existe exatamente um item em foco, visível e com contraste suficiente em relação ao fundo.
 
@@ -316,13 +317,13 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 
 ### Renomear jogo
 
-**CA-61**: Dado um jogo em foco, quando o usuário aperta View, escolhe "Renomear", digita o novo nome no teclado físico e confirma com Enter, então o card passa a mostrar o novo nome. Esc ou B cancelam sem alterar. Nome vazio não é aceito.
+**CA-61**: Dado um jogo em foco, quando o usuário aperta View (ou a tecla equivalente, RN-07), escolhe "Renomear", digita o novo nome no teclado físico e confirma com Enter, então o card passa a mostrar o novo nome. Esc ou B cancelam sem alterar. Nome vazio não é aceito.
 
 **CA-62**: Dado um jogo de loja renomeado, quando a biblioteca é atualizada, então o nome personalizado é mantido (RN-22). Nas opções do jogo existe "Restaurar nome original".
 
 ### Retorno com fallback
 
-**CA-63**: Dado que o usuário segurou a combinação de retorno e o Windows não deixou o launcher vir para a frente, quando isso é detectado, então o launcher minimiza o jogo e mostra o painel do jogo em andamento, ainda dentro de 3 s (M-04). "Voltar ao jogo" restaura o jogo minimizado.
+**CA-63**: Dado que o usuário segurou a combinação de retorno e o pedido simples para vir à frente falhou, quando isso é detectado, então o launcher segue as próximas tentativas da sequência de RN-24 e mostra o painel do jogo em andamento assim que uma delas funcionar, tudo dentro de 3 s (M-04). Minimizar o jogo é a última tentativa e não garante o retorno sozinho. Se o jogo foi minimizado, "Voltar ao jogo" o restaura. O jogo nunca é pausado.
 
 ### Volume pelos gatilhos
 
@@ -338,7 +339,9 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 
 ### Desinstalador
 
-**CA-68**: Dado o desinstalador, quando ele roda, então pergunta se o usuário quer manter biblioteca e configurações, com "Manter dados" marcado por padrão. Marcado, os dados ficam e uma reinstalação os recupera. Desmarcado, o desinstalador apaga só os arquivos do Sofá na pasta de dados `app.sofa.launcher` do usuário (biblioteca, configurações, logs, cache) e nada fora dela, nem por atalhos ou links dentro da pasta.
+**CA-68**: Dado o desinstalador, quando ele roda, então pergunta se o usuário quer manter biblioteca e configurações, com "Manter dados" marcado por padrão. Marcado, os dados ficam e uma reinstalação os recupera. Desmarcado, o desinstalador apaga só os arquivos do Sofá na pasta de dados `app.sofa.launcher` do usuário (biblioteca, configurações, logs, cache) e nada fora dela, nem por atalhos ou links dentro da pasta. Essa remoção roda sem privilégio de administrador.
+
+Se a remoção sem administrador falhar (ou não confirmar que terminou com sucesso), o desinstalador apaga como administrador só `library.json` e `settings.json` na raiz da pasta de dados, pelo nome exato, sem curinga e sem entrar em subpastas. Capas, logs e o resto ficam, e o desinstalador mostra a pasta ao usuário.
 
 ### Itens que não são jogos e ocultos
 
@@ -348,13 +351,19 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 
 ### Cadastro manual: bloqueios
 
-**CA-71**: Dado o navegador de pastas de "Adicionar jogo", quando o usuário procura uma pasta de rede ou unidade de rede mapeada, então ela não aparece na lista. Se um caminho de rede chegar por outro meio (ex.: biblioteca editada à mão), o jogo não inicia e aparece "Jogos em pastas de rede não são aceitos. Copie o jogo para um disco deste PC."
+**CA-71**: Dado o navegador de pastas de "Adicionar jogo", quando o usuário procura uma pasta de rede ou unidade de rede mapeada, então ela não aparece na lista. Cada momento tem mensagem própria:
+- no cadastro, se chegar um local fora dos discos deste PC: "Este local não é aceito. O Sofá só abre jogos de discos deste PC.", com "Voltar";
+- ao iniciar um jogo cujo caminho é de rede (ex.: biblioteca editada à mão): o jogo não inicia e aparece "Jogos em pastas de rede não são aceitos. Copie o jogo para um disco deste PC.", com "Ocultar" e "Voltar" (foco em "Voltar").
 
 **CA-72**: Dado que o usuário seleciona um arquivo com extensão `.exe` que não é um executável válido do Windows, quando confirma, então aparece "Este arquivo não é um executável válido" e o jogo não é cadastrado.
 
 ### Jogo que exige administrador
 
-**CA-73**: Dado um jogo que exige permissão de administrador, quando o usuário o inicia, então o launcher continua sem privilégio de administrador, o Windows mostra a própria confirmação (UAC) e o launcher exibe por trás dela: "<nome> pede permissão de administrador. Confirme no Windows com teclado ou mouse. A combinação de retorno pode não funcionar neste jogo." Se o usuário recusar no UAC, aparece "O Windows não deu permissão para abrir <nome>" com "Voltar".
+**CA-73**: Dado um jogo que exige permissão de administrador, quando o usuário o inicia, então acontece em duas etapas, e o launcher continua sem privilégio de administrador:
+1. Antes de qualquer UAC, o Sofá mostra "<nome> precisa de permissão de administrador para abrir. O Windows vai pedir a sua confirmação.", com "Continuar" (em foco) e "Voltar". "Voltar" ou B cancelam sem abrir o UAC.
+2. Com "Continuar", o Windows mostra a própria confirmação (UAC) do jogo e o Sofá exibe por trás dela: "<nome> pede permissão de administrador. Confirme no Windows com teclado ou mouse. A combinação de retorno pode não funcionar neste jogo."
+
+Se o usuário recusar no UAC, aparece "O Windows não deu permissão para abrir <nome>" com "Voltar".
 
 **CA-74**: Dado o uso diário (abrir o launcher, navegar, iniciar jogo, volume, energia, ligar ou desligar "Iniciar com o Windows"), quando qualquer dessas ações acontece, então o Windows não pede permissão de administrador por causa do launcher. Únicas exceções: jogo que exige administrador (CA-73) e instalar, atualizar ou desinstalar (RN-26).
 
@@ -365,6 +374,24 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 ### Verificação do instalador
 
 **CA-76**: Dado um instalador publicado, quando o usuário confere o arquivo, então o SHA-256 do instalador está publicado junto dele e bate com o arquivo baixado (RN-30).
+
+### Telas de espera
+
+**CA-77**: Dado a tela "Abrindo <nome>…", quando ela aparece, então tem o botão "Voltar" em foco e ignora A nos primeiros 600 ms. Ao apertar "Voltar" (A no botão ou B), o Sofá para de esperar e volta à biblioteca, mas não cancela o início: o jogo ainda pode abrir depois. Se abrir, vale o comportamento normal de sessão (CA-27, CA-30).
+
+**CA-78**: Dado a tela "Fechando <nome>…" (após confirmar "Fechar jogo"), quando ela aparece, então tem o botão "Ir para a biblioteca" em foco e ignora A nos primeiros 600 ms. Ao apertar o botão (A ou B), a biblioteca aparece; o pedido de fechamento continua e o card mostra "Em andamento" até o jogo fechar. Se o jogo não fechar, o usuário volta ao painel pelo card (CA-36) e chega ao "Forçar fechamento" (CA-35).
+
+### Opções do jogo
+
+**CA-79**: Dado um jogo em foco, quando o usuário aperta View, então abre a lista de opções nesta ordem: "Jogar" (primeiro item e em foco), "Renomear", "Restaurar nome original" (só se o nome foi alterado) e "Ocultar". "Jogar" faz o mesmo que A no card. B fecha a lista. Não existe tela de detalhe do jogo.
+
+### Teclado de emergência
+
+**CA-80**: Dado o launcher em primeiro plano, com ou sem controle conectado, quando o usuário usa só o teclado, então consegue mover o foco, confirmar, voltar, abrir e fechar o menu rápido, abrir as opções do jogo, trocar de aba ou página, mudar o volume na biblioteca e usar o painel do jogo em andamento, com o mesmo efeito do botão correspondente do controle (seção 8). Durante a sessão de jogo, nenhuma tecla traz o launcher à frente: a combinação de retorno só existe no controle (RN-07).
+
+### Diálogos
+
+**CA-81**: Dado qualquer diálogo com mais de um botão, quando ele aparece, então "Cancelar" ou "Voltar" fica à esquerda e a ação principal à direita, com o foco padrão definido no CA do diálogo (RN-34).
 
 ## 10. Regras de negócio
 
@@ -380,7 +407,7 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 
 **RN-06**: Entrada do analógico só conta acima de uma zona morta (referência inicial: 25% do curso). Valor final ajustável pelo dev após teste com controle real.
 
-**RN-07**: Teclado e mouse funcionam sempre como alternativa de emergência (mapeamento na seção 8), mas nenhum fluxo do MVP pode depender deles, salvo renomear jogo (CA-61).
+**RN-07**: Teclado e mouse funcionam sempre como alternativa de emergência, mas nenhum fluxo do MVP pode depender deles, salvo renomear jogo (CA-61). O teclado cobre todas as ações do controle da seção 8 (navegar, confirmar, voltar, abas, opções do jogo, volume, menu rápido e painel do jogo em andamento), nos mesmos contextos em que o botão vale. A combinação de retorno (View + Menu) é a única exceção: existe só no controle, e apertar juntas as teclas de View e Menu não a substitui. As teclas são definidas no handoff de design ou no front (CA-80).
 
 **RN-08**: Todo controle XInput conectado (até 4) é tratado como o mesmo usuário. Não há "controle principal".
 
@@ -396,13 +423,13 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 
 **RN-14**: Toda ação de energia (desligar, reiniciar, suspender) e toda ação destrutiva (fechar jogo, forçar fechamento, ocultar item, sair do launcher) exige confirmação com "Cancelar" em foco por padrão.
 
-**RN-15**: Ações de energia usam o caminho normal do Windows, sem forçar o encerramento de outros apps.
+**RN-15**: Ações de energia usam o caminho normal do Windows, sem forçar o encerramento de outros apps. "Desligar" funciona igual ao Desligar do menu Iniciar: usa a inicialização rápida do Windows quando ela está ligada. "Reiniciar" é sempre um reinício completo (CA-44, CA-45).
 
 **RN-16**: Só uma instância do launcher roda por usuário do Windows.
 
 **RN-17**: "Iniciar com o Windows" vale só para o usuário atual e ligar ou desligar a opção nas configurações não exige permissão de administrador, mesmo com o app instalado para todo o PC. O registro é sempre por usuário e sem elevação: entrada de inicialização do usuário no Windows ou, se ela atrasar a abertura além de 5 s, tarefa agendada no logon do usuário (só se der para criá-la sem administrador; senão, aceita-se o atraso). Nunca para todos os usuários, como serviço ou como tarefa elevada.
 
-**RN-18**: Biblioteca, lista de ocultos, nomes personalizados, datas de último jogo e configurações ficam salvas localmente na pasta de dados `app.sofa.launcher` do usuário e sobrevivem a atualizações do launcher. Na desinstalação, são mantidas por padrão e só apagadas se o usuário desmarcar "Manter dados" (CA-68).
+**RN-18**: Biblioteca, lista de ocultos, nomes personalizados, datas de último jogo e configurações ficam salvas localmente na pasta de dados `app.sofa.launcher` do usuário e sobrevivem a atualizações do launcher. Na desinstalação, são mantidas por padrão e só apagadas se o usuário desmarcar "Manter dados" (CA-68). A remoção roda sem administrador. Se ela falhar, a única remoção como administrador é a de `library.json` e `settings.json` na raiz da pasta de dados, pelo nome exato, sem curinga nem subpastas; o resto fica e a pasta é mostrada ao usuário.
 
 **RN-19**: O launcher começa a funcionar a partir da área de trabalho do Windows. Entrar no Windows sem teclado (logon automático, Windows Hello, PIN) é configuração do usuário, fora do launcher. A spec e o instalador devem orientar isso.
 
@@ -414,13 +441,13 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 
 **RN-23**: LT/RT controlam o volume só na tela da biblioteca com o launcher em primeiro plano. Cada puxada conta uma vez ao passar do meio do curso do gatilho; segurar não repete.
 
-**RN-24**: Quando o launcher volta pela combinação de retorno, a ordem é: tentar trazer a janela para a frente; se não conseguir, minimizar o jogo e mostrar o launcher (CA-63). O jogo nunca é pausado pelo launcher.
+**RN-24**: Sempre que o launcher precisa vir à frente de um jogo (combinação de retorno, CA-63, ou fim da sessão, CA-30), tenta nesta ordem e para na primeira que funcionar: pedido simples ao Windows (degrau 1 do ADR-0003); vincular-se à entrada da janela do jogo e pedir de novo (degrau 3); enviar uma única tecla F24 sintética e pedir de novo (degrau 2); minimizar o jogo (degrau 4). A ordem padrão pode ser ajustada e cada tentativa pode ser desligada em configuração avançada. O jogo nunca é pausado pelo launcher.
 
 **RN-25**: O mesmo jogo instalado em lojas diferentes aparece como itens separados, cada um com sua origem (consequência de RN-03). O launcher não tenta unificar.
 
 **RN-26**: A instalação é para todo o PC, em `Program Files`, e exige administrador (UAC) para instalar, atualizar e desinstalar. O uso diário roda sem administrador. Os dados (RN-18) e a inicialização automática (RN-17) são por usuário. Se o runtime WebView2 faltar, o instalador o baixa e instala (CA-50).
 
-**RN-27**: O launcher nunca roda como administrador e nunca pede elevação por conta própria. Jogo que exige administrador é aberto do jeito padrão do Windows, que mostra o UAC do próprio jogo, e o usuário é avisado (CA-73).
+**RN-27**: O launcher nunca roda como administrador e nunca pede elevação por conta própria. Jogo que exige administrador só é aberto depois que o usuário confirma o aviso do Sofá; então abre do jeito padrão do Windows, que mostra o UAC do próprio jogo (CA-73).
 
 **RN-28**: Itens da Steam que não são jogos (redistribuíveis, ferramentas, trilhas sonoras) são filtrados por uma lista fixa de identificadores mantida no launcher. O que a lista não cobrir, o usuário oculta pelo controle (RN-04).
 
@@ -428,9 +455,17 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 
 **RN-30**: O instalador não tem assinatura de código no MVP. Cada versão publicada vem com o SHA-256 do instalador, para conferência antes de instalar (CA-76).
 
+**RN-31**: Telas de espera ("Abrindo…", "Fechando…") sempre têm um botão focável e ignoram A nos primeiros 600 ms, para um toque atrasado não acionar nada. Sair delas só interrompe a espera: não cancela o início nem o fechamento do jogo (CA-77, CA-78).
+
+**RN-32**: A área segura de 5% (CA-54) admite uma única exceção visual: card de capa parcialmente cortado, como sinal de que há mais conteúdo. O corte pode ser lateral (borda da fileira) ou inferior (fileira seguinte sob o rodapé de dicas). Texto e destaque de foco do item em foco ficam sempre dentro da área segura.
+
+**RN-33**: Opções do jogo (View) é o único lugar com ações por jogo, e "Jogar" é sempre o primeiro item, seguido de "Renomear", "Restaurar nome original" (se o nome foi alterado) e "Ocultar". Não há tela de detalhe do jogo no MVP (CA-79).
+
+**RN-34**: Em todo diálogo, "Cancelar" ou "Voltar" fica sempre à esquerda e a ação principal à direita. A posição não muda o foco padrão, que segue RN-14 e o CA de cada diálogo (CA-81).
+
 ## 11. Requisitos não funcionais
 
-- **Compatibilidade:** Windows 10 (versões com suporte da Microsoft na data do lançamento) e Windows 11, 64 bits.
+- **Compatibilidade:** Windows 10 (versões com suporte da Microsoft na data do lançamento) e Windows 11, 64 bits. Alvo principal: Windows 10 22H2, o PC da sala (D-32).
 - **Permissões:** instalar, atualizar e desinstalar pedem administrador (UAC). O uso diário, inclusive ações de energia e volume, roda sem administrador.
 - **Desempenho:** M-02, M-04 e M-05; RN-21.
 - **Resolução:** 1920x1080 e 3840x2160 com escala do Windows de 100% a 300% sem cortar conteúdo.
@@ -443,15 +478,15 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 | # | Situação | Comportamento esperado |
 |---|---|---|
 | E-01 | Jogo abre um launcher próprio antes (ex.: launcher da publicadora) | A sessão continua ativa enquanto houver processo associado (RN-10). O usuário pode precisar do controle dentro desse launcher externo; se ele não aceitar controle, é limitação do jogo. Registrar em R-03. |
-| E-02 | Jogo em tela cheia exclusiva não deixa o launcher vir para a frente | O launcher minimiza o jogo e mostra o painel (CA-63, RN-24). Validar em teste com jogos reais (R-01). |
-| E-03 | A loja (Steam, Epic, GOG Galaxy) pede login ou atualização ao iniciar um jogo | A tela da loja aparece; o launcher espera até o tempo de CA-29. Se a tela da loja não aceitar controle, é limitação da loja (R-08). |
+| E-02 | Jogo em tela cheia exclusiva não deixa o launcher vir para a frente | O launcher segue a sequência de tentativas de RN-24 e mostra o painel quando uma funcionar (CA-63). Validar no teste final com jogos reais (R-01). |
+| E-03 | A loja (Steam, Epic, GOG Galaxy) pede login ou atualização ao iniciar um jogo | A tela da loja aparece; o launcher espera até o tempo de CA-29; se o jogo abrir depois dele, a sessão segue normal (CA-29). Se a tela da loja não aceitar controle, é limitação da loja (R-08). |
 | E-04 | Jogo trava e não responde | "Fechar jogo" chega ao "Forçar fechamento" após 10 s (CA-35). |
 | E-05 | Controle desconecta durante o jogo | O launcher não faz nada; ao reconectar, a combinação de retorno volta a funcionar. |
 | E-06 | Usuário segura a combinação de retorno com o launcher já na frente | Sem efeito (RN-11). |
 | E-07 | Jogo é aberto fora do launcher (pela loja, atalho) | Não conta como sessão no MVP; a combinação de retorno não funciona. Candidato para versão seguinte. |
 | E-08 | Monitor e TV ligados ao mesmo tempo | Launcher abre no monitor do launcher (RN-20). |
 | E-09 | TV desligada com o PC ligado e depois religada | Ao voltar a imagem, o launcher continua em tela cheia na mesma tela. Se o Windows tiver desconectado a TV nesse meio-tempo, vale CA-67. |
-| E-10 | Executável cadastrado em unidade externa desconectada | Mesmo comportamento de CA-28, com o caminho exibido. |
+| E-10 | Executável cadastrado em unidade externa desconectada | Mesmo comportamento de CA-28 (só o nome do jogo, sem caminho). |
 | E-11 | Windows abre janela por cima (atualização, UAC, notificação) | Fora do controle do launcher. UAC exige teclado/mouse ou toque; documentar em R-04. |
 | E-12 | Duas pastas de biblioteca Steam (ou Epic/GOG) com o mesmo jogo | Um único item (RN-03). |
 | E-13 | Nome de jogo muito longo | Truncado com reticências no card; nome completo no painel/rodapé quando em foco. |
@@ -470,13 +505,13 @@ Teclado de emergência (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de apli
 
 | ID | Risco | Impacto | Mitigação |
 |---|---|---|---|
-| R-01 | Windows restringe quem pode roubar o primeiro plano; jogos em tela cheia exclusiva podem não ceder a frente ao launcher. | Quebra US-07, que é o diferencial. | Fallback de minimizar (RN-24). Spike técnico antes do resto (arquiteto), com 3 a 5 jogos reais do usuário, em janela, sem borda e tela cheia exclusiva. |
+| R-01 | Windows restringe quem pode roubar o primeiro plano; jogos em tela cheia exclusiva podem não ceder a frente ao launcher. | Quebra US-07, que é o diferencial, e o retorno automático no fim da sessão (CA-30). | Spike técnico SP-01 (`docs/arch/spikes/SP-01.md`): minimizar o jogo trouxe o Sofá à frente em só 1 de 26 tentativas, e fechar o jogo também não devolve o foco. Adotada a sequência de quatro tentativas de RN-24 (D-41), aprovada pela arquitetura (ADR-0003) e pela segurança. Validação com jogos reais no teste final do usuário (QA-17). |
 | R-02 | Detectar fim de sessão para jogos de loja é indireto: o launcher pede à loja para iniciar o jogo e não controla o processo. Na Epic e no GOG Galaxy o jogo pode passar por processos intermediários da loja. | Launcher não volta sozinho (CA-30) ou volta antes da hora. | Regra por pasta de instalação (RN-10) + período de tolerância (E-14). Validar no spike com ao menos um jogo de cada loja. |
 | R-03 | Launchers de publicadoras e anti-cheat abrem processos e janelas próprios. | Sessão mal detectada; janelas que não aceitam controle. | Aceitar como limitação no MVP e listar jogos problemáticos encontrados nos testes. |
 | R-04 | Telas do Windows (UAC, login, atualização) não aceitam controle. | Viola M-01 em casos pontuais. Instalar e atualizar exigem teclado/mouse por causa do UAC (RN-26). | Fora do escopo (RN-19); instalação é rara. Orientar o usuário a configurar logon e janelas de atualização. |
 | R-05 | O botão Guide (Xbox) não é exposto pela API XInput documentada e o Xbox Game Bar o captura por padrão. | Motivo para não usar o Guide como retorno. | Combinação definida como View + Menu (RN-11). Afirmação a confirmar pelo arquiteto. |
 | R-06 | Instalador sem assinatura de código mostra aviso do SmartScreen. | Atrito só na instalação; uso pessoal. | Aceito no MVP (D-11, D-27). SHA-256 publicado com cada versão (RN-30). |
-| R-07 | Anti-cheat de alguns jogos pode desconfiar de processos que leem entrada global ou mexem em janelas. | Risco baixo, mas possível bloqueio. | O launcher só lê o controle via API padrão e não injeta nada no jogo (overlay fora de escopo). Minimizar o jogo (RN-24) é uma ação de janela comum. |
+| R-07 | Anti-cheat de alguns jogos pode desconfiar de processos que leem entrada global ou mexem em janelas. | Risco baixo, mas possível bloqueio. A tecla F24 sintética (degrau 2, terceira tentativa de RN-24) pode ser tratada como macro por algum anti-cheat. | O launcher só lê o controle via API padrão e não injeta nada no jogo (overlay fora de escopo). A tecla F24 é enviada uma vez por retorno e pode ser desligada em configuração avançada. Validação com jogo com anti-cheat no teste final do usuário (QA-17, offline, D-30). |
 | R-08 | Epic e GOG guardam a lista de jogos instalados em arquivos locais sem documentação pública; o formato pode mudar com atualizações das lojas. A Epic costuma exigir o próprio launcher aberto e logado para iniciar jogos. | Jogos somem da biblioteca após atualização da loja; início lento ou bloqueado por login. | Falha de leitura de uma loja não derruba as outras (seção 11). Cadastro manual como alternativa. Arquiteto confirma no spike o que cada loja expõe, incluindo jogos GOG sem Galaxy (E-17). |
 | R-09 | Outro programa rodando com o mesmo usuário do Windows pode alterar a biblioteca salva. | Jogos ou caminhos adulterados na biblioteca. | Risco aceito (D-26). Ao carregar, o launcher reaplica as mesmas validações do cadastro (RN-29), então caminho de rede ou arquivo inválido não inicia. |
 
@@ -514,7 +549,27 @@ Respostas do usuário às perguntas abertas da versão anterior.
 | D-26 | AF-08. Adulteração da biblioteca | Risco aceito para processos do mesmo usuário. | R-09 |
 | D-27 | AF-09. Instalador sem assinatura | Mantido, com SHA-256 publicado. | CA-76, RN-30, R-06 |
 | D-28 | AF-10. Desinstalador apagando dados | Apaga só os arquivos da pasta de dados do Sofá, com travas para não sair dela. | CA-68 |
+| D-29 | Lista de jogos para teste | A lista de jogos reais do usuário vem depois, para o QA final. | Validação (arquitetura §9) |
+| D-30 | Teste de anti-cheat | Feito offline, no QA final. | R-07 |
+| D-31 | Conta do teste final | Conta padrão do Windows + credencial de outro administrador no UAC. | E-19, CA-50 a CA-53 |
+| D-32 | PC da sala | Windows 10 (22H2) é o alvo principal; Windows 11 é secundário. | Seção 11 (compatibilidade) |
+| D-33 | Hardware ausente | O que depender de hardware não disponível no desenvolvimento fica registrado como "não verificado" até o QA final. | Validação |
+| D-34 | CI | Script local mais pasta de releases. | RN-30 (publicação do SHA-256) |
+| D-35 | Testes do usuário | O usuário testa só no fim; não há spike com jogos, controle ou contas reais dele. | Pendências |
+| D-36 | Jogo que exige administrador | Aviso do Sofá antes do UAC ("precisa de permissão… Continuar / Voltar"), depois o UAC do jogo. | CA-73, RN-27 |
+| D-37 | Telas de espera | "Abrindo…" tem "Voltar" e "Fechando…" tem "Ir para a biblioteca". Voltar durante "Abrindo" interrompe a espera, mas o jogo pode abrir depois. | CA-26, CA-35, CA-77, CA-78, RN-31 |
+| D-38 | Cards cortados na borda | Aceitos como sinal de continuidade, exceção visual à área segura; texto e itens focáveis continuam dentro dela. | CA-54, RN-32 |
+| D-39 | Erro de caminho de rede | Mensagem própria no cadastro e outra ao iniciar jogo. | CA-71 |
+| D-40 | Opções do jogo | View traz "Jogar" como primeiro item; sem tela de detalhe. | CA-79, RN-33, seção 8 |
+| D-41 | Resultado do SP-01 e ambiente de teste | (a) Para vir à frente do jogo, sequência padrão: pedido simples → vincular à entrada do jogo → uma tecla F24 sintética → minimizar, configurável. Vale para a combinação de retorno e para o fim da sessão. Substitui o "se falhar, minimiza" de D-04; "nunca pausar" continua. Aprovada pela arquitetura (ADR-0003) e pela segurança (rev. 5, seção 12). (b) O build de release usa o MSVC instalado pelo usuário. (c) A conta de teste não foi criada; os testes com outra conta ficam para o QA final. | RN-24, CA-30, CA-63, E-02, R-01, R-07 |
+| D-42 | Caminho na mensagem de arquivo sumido | A UI mostra só o nome do jogo, porque nenhum caminho passa entre o núcleo e a tela (SEC-03). | CA-28, E-10 |
+| D-43 | AF-11 / DR-06. Falha ao apagar os dados na desinstalação | Se a remoção sem administrador falhar, o desinstalador apaga como administrador só `library.json` e `settings.json` na raiz da pasta de dados, sem curinga. Capas e logs ficam e a pasta é mostrada ao usuário. | CA-68, RN-18 |
+| D-44 | Tipo de desligamento | "Desligar" igual ao Desligar do menu Iniciar, com a inicialização rápida do Windows quando ela estiver ligada. "Reiniciar" é completo. Substitui o desvio 5 aceito na revisão de arquitetura (desligar sem o modo híbrido). | RN-15, CA-44, CA-45 |
+| D-45 | D-QA-02. Cobertura do teclado de emergência | O teclado cobre todas as ações do controle: abas, opções do jogo, volume, voltar, menu rápido e painel. A combinação de retorno (View + Menu) continua só no controle; o teclado usa F1 e F2. As teclas exatas ficam no handoff ou no front. Complementa D-08. | RN-07, CA-61, CA-80, seção 8 |
+| D-46 | D-QA-04. Card cortado embaixo | Permitido, com a mesma lógica de D-38: a fileira seguinte pode aparecer cortada sob o rodapé. Texto e foco do item focado sempre dentro da área segura. | CA-54, RN-32 |
+| D-47 | DES-BUG-04. Ordem dos botões nos diálogos | Cancelar ou Voltar sempre à esquerda, ação principal à direita. Regra única. | RN-34, CA-81 |
+| D-48 | D-QA-01. Ordem das opções do jogo | Jogar, Renomear, Restaurar nome original (se o nome foi alterado) e Ocultar, como nos mockups. | CA-79, RN-33, seção 8 |
 
 ### Pendências
 
-- **Spike técnico (arquiteto):** primeiro plano e fallback de minimizar (R-01), fim de sessão por loja (R-02), formato local de Epic e GOG e jogos GOG sem Galaxy (R-08, E-17), registro de "Iniciar com o Windows" com UAC de outra conta (E-19), tempo da inicialização automática e tarefa agendada sem administrador (D-18), confirmação sobre o botão Guide (R-05).
+- **Spike técnico (arquiteto, sem o usuário, D-35; validação com jogos reais no QA final, D-29):** primeiro plano e fallback de minimizar (R-01), fim de sessão por loja (R-02), formato local de Epic e GOG e jogos GOG sem Galaxy (R-08, E-17), registro de "Iniciar com o Windows" com UAC de outra conta (E-19), tempo da inicialização automática e tarefa agendada sem administrador (D-18), confirmação sobre o botão Guide (R-05).

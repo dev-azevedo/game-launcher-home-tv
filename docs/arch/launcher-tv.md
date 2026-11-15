@@ -10,7 +10,7 @@
 | Branch | `feature/launcher-tv-20261113` (base `main`) |
 | Repo | único: núcleo Rust (`src-tauri/` + `crates/`) e UI (`ui/`) |
 | ADRs | 0001 a 0006 em `docs/adr/` |
-| Data | 2026-11-13 (rev. 4: D-29 a D-35, sem spike com o usuário, Win10 como alvo principal; rev. 2: decisões do usuário P-01 a P-07 + SEC-xx; rev. 3: SEC-28 detalhado, SEC-31, SEC-32, DR-03, termos "Ocultar"/"Itens ocultos") |
+| Data | 2026-11-14 (rev. 8: D-43, fallback do desinstalador restrito a dois arquivos e código de saída do purge, ADR-0006; SEC-BUG-01, membros do jogo no modo Job, ADR-0005; D-44, desligamento híbrido, desvio 5 revertido); 2026-11-14 (rev. 7: revisão de código ARQ-05 rodada 1, desvios 1 a 8 aceitos, seção 13); 2026-11-13 (rev. 6: cenário A da escada aprovado, P-08 b, P-09 a, SEC-19 aceito; rev. 5: resultado dos spikes técnicos SP-01, SP-02, SP-06, SP-07, SP-08 em `docs/arch/spikes/`; rev. 4: D-29 a D-35, sem spike com o usuário, Win10 como alvo principal; rev. 2: decisões do usuário P-01 a P-07 + SEC-xx; rev. 3: SEC-28 detalhado, SEC-31, SEC-32, DR-03, termos "Ocultar"/"Itens ocultos") |
 
 Neste documento, "back" é o **núcleo** (Rust) e "front" é a **UI** (React no WebView2). O "contrato de API" é o conjunto de **comandos Tauri** (UI → núcleo) e **eventos** (núcleo → UI). Os termos de domínio seguem a seção 4 da spec. A seção 4 deste documento é a **baseline de comandos e capabilities** usada na verificação de SEC-03/SEC-05.
 
@@ -77,17 +77,17 @@ Cada módulo é **deep**: interface pequena e muito comportamento dentro. Os sea
 
 | Módulo | Interface (resumo) | O que esconde | Seam / adapters |
 |---|---|---|---|
-| **Input** | `subscribe() -> Receiver<InputEvent>`; `set_mode(Foreground \| Background \| Off)` | XInput nos 4 slots (slot vazio consultado a cada 1 s), zona morta 25% (RN-06), repetição (400 ms, depois intervalo), borda do gatilho no meio do curso (RN-23), combinação de retorno de 1,5 s (RN-11), conexão e desconexão (CA-13 a CA-15), vários controles como um só (RN-08). Sem hook global (SEC-28) | `GamepadSource` (XInput; fake roteirizado) |
+| **Input** | `subscribe() -> Receiver<InputEvent>`; `set_mode(Foreground \| Background \| Off)` | XInput nos 4 slots (slot vazio consultado a cada 1 s), zona morta 25% (RN-06), repetição (400 ms, depois a cada 100 ms; ARQ-05, desvio 4 aceito), borda do gatilho no meio do curso (RN-23), combinação de retorno de 1,5 s (RN-11), conexão e desconexão (CA-13 a CA-15), vários controles como um só (RN-08). Sem hook global (SEC-28) | `GamepadSource` (XInput; fake roteirizado) |
 | **Library** | `snapshot()`, `refresh()`, `add_manual(path)`, `rename(id, name)`, `restore_name(id)`, `hide(id)`, `unhide(id)`, `hidden()`, `mark_played(id, at)` | Varredura das origens em paralelo, isolamento de falha e `panic` por origem (SEC-13), validação de IDs e caminhos (SEC-11, SEC-12, SEC-14, SEC-16), fusão com a camada do usuário (ADR-0004), unicidade (RN-03, E-12), ordenação (RN-05), normalização do nome exibido (SEC-07), filtro de itens que não são jogo na Steam (P-05) | `StoreScanner` ×3 (Steam, Epic, GOG) **seam real**; `LibraryRepository` (JSON; memória); `CoverCache` |
-| **Session** | `launch(game_id)`, `launch_with_uac(game_id)`, `current()`, `return_to_game()`, `request_close()`, `force_close()`, `subscribe()` | Máquina de estados (2.4), prazo de 60 s (CA-29), tolerância de 5 s (E-14), fechar em duas etapas (RN-12), troca de jogo (CA-31), conjunto de processos rastreado **por handle** com tempo de criação (SEC-15), lista de exclusão e direitos mínimos (SEC-17), erro 740 (AF-01) | `GameStarter` (exe+Job, URI de loja); `SessionProbe` (Job Object / varredura por pasta) **seam real**; `Clock` |
-| **Foreground** (`ForegroundBroker`) | `bring_launcher_front() -> FrontOutcome { Front \| FrontAfterMinimize \| Failed }`; `give_front_to(session)`; `allow_others()` | Escada de tentativas com verificação (ADR-0003), timeouts, `HWND_TOPMOST` temporário, janelas de topo do jogo | `WindowSystem` (Win32; fake para testar a escada) |
+| **Session** | `launch(game_id)`, `launch_with_uac(game_id)`, `current()`, `return_to_game()`, `request_close()`, `force_close()`, `subscribe()` | Máquina de estados (2.4), prazo de 60 s (CA-29), tolerância de 5 s (E-14), varredura só de PID novo com cache, intervalo adaptativo (1 s em Launching/Ending, 2 s em Running) e espera nos handles dos membros para o fim imediato (ADR-0005), fechar em duas etapas (RN-12), troca de jogo (CA-31), conjunto de processos rastreado **por handle** com tempo de criação (SEC-15), lista de exclusão e direitos mínimos (SEC-17), erro 740 (AF-01) | `GameStarter` (exe+Job, URI de loja); `SessionProbe` (Job Object / varredura por pasta) **seam real**; `Clock` |
+| **Foreground** (`ForegroundBroker`) | `bring_launcher_front() -> FrontOutcome { Front \| FrontAfterMinimize \| Failed }`; `give_front_to(session)`; `allow_others()` | Escada de tentativas com verificação (ADR-0003), ordem recomendada 1 → 3 → 2 → 4 (`AttachThreadInput` antes da tecla F24; minimizar por último), cada degrau ligável em runtime. Roda em **thread de trabalho**, com a janela do Sofá já visível e `TOPMOST` e a thread da janela sem bloqueio (SP-01). Usada na combinação de retorno **e** no fim de sessão (CA-30) | `WindowSystem` (Win32; fake para testar a escada) |
 | **Audio** | `state() -> VolumeState { level, muted, available }`; `apply(VolumeCommand)`; `subscribe()` | COM em thread MTA, `IAudioEndpointVolume` do dispositivo padrão, `IAudioEndpointVolumeCallback` (CA-41), `IMMNotificationClient` (CA-42), regras de passo e mudo puras (CA-38 a CA-40, CA-64), limite 0 a 100 (SEC-27) | `AudioEndpoint` (Core Audio; fake) |
-| **Power** | `capabilities()`; `prepare(PowerAction) -> PowerTicket`; `execute(PowerTicket)` | Ticket válido por 30 s e uso único (SEC-27). `AdjustTokenPrivileges(SeShutdownPrivilege)` só durante a chamada (AF-04); `ExitWindowsEx(EWX_POWEROFF [\| EWX_HYBRID_SHUTDOWN], SHTDN_REASON_FLAG_PLANNED)` / `EWX_REBOOT`, nunca `EWX_FORCE*` (RN-15, CA-49); `SetSuspendState(FALSE, FALSE, FALSE)`; disponibilidade via `GetPwrCapabilities` (CA-47) | `PowerControl` (Win32; fake) |
+| **Power** | `capabilities()`; `prepare(PowerAction) -> PowerTicket`; `execute(PowerTicket)` | Ticket válido por 30 s e uso único (SEC-27). `AdjustTokenPrivileges(SeShutdownPrivilege)` só durante a chamada (AF-04); "Desligar" faz **o mesmo que o menu Iniciar** (D-44, rev. 8; o desvio 5 do ARQ-05 foi revertido): com a inicialização rápida ligada, `ExitWindowsEx(EWX_HYBRID_SHUTDOWN \| EWX_POWEROFF, SHTDN_REASON_FLAG_PLANNED)`; desligada, `EWX_POWEROFF`. "Ligada" = `HiberbootEnabled = 1` em `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power` **e** hibernação disponível (`GetPwrCapabilities`: `SystemS4` e `HiberFilePresent`), lido no `execute`, não em cache. Se `ExitWindowsEx` com o bit híbrido falhar, tenta uma vez `EWX_POWEROFF` e registra no log. "Reiniciar" é sempre **completo** (`EWX_REBOOT`, sem bit híbrido), como no menu Iniciar. Nunca `EWX_FORCE*` (RN-15, CA-49); ver RA-05; `SetSuspendState(FALSE, FALSE, FALSE)`; disponibilidade via `GetPwrCapabilities` (CA-47) | `PowerControl` (Win32; fake) |
 | **Display** | `monitors()`; `place_launcher(preferred: Option<MonitorId>)`; `subscribe()` | ID estável (`monitorDevicePath` de `DisplayConfigGetDeviceInfo`), fallback para o principal (RN-20, CA-67), `WM_DISPLAYCHANGE`, tela cheia sem borda | `DisplayTopology` (Win32; fake) |
-| **Autostart** | `is_enabled()`, `set(bool)`, `apply_install_default_once()` | **Tarefa agendada de logon do próprio usuário, `LeastPrivilege`** (P-03 b), com **fallback automático** para `HKCU\...\Run` (P-03 a) se a criação falhar ou se a tarefa registrar falha na última execução (ADR-0006). Caminho entre aspas + `--autostart` (SEC-22). Recusa registrar se o exe em execução não estiver sob `%ProgramFiles%` (DR-04). Um mecanismo ativo por vez: ligar um remove o outro | `AutostartRegistry` (TaskScheduler COM; HKCU Run) **seam real** |
-| **SingleInstance** | (sem interface pública: só traz a janela) | Mutex/pipe em `Local\` com identificador + SID do usuário; `argv` da 2ª instância ignorado, salvo `--autostart` sem valor (SEC-19) | `tauri-plugin-single-instance` (ou adapter próprio se o nome não incluir SID) |
-| **SystemEvents** | `subscribe() -> SystemEvent { DisplayChanged, Resumed, Suspending, ForegroundChanged }` | Janela de mensagens (`HWND_MESSAGE`): `WM_DISPLAYCHANGE`, `WM_POWERBROADCAST`; `SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, NULL, cb, 0, 0, WINEVENT_OUTOFCONTEXT \| WINEVENT_SKIPOWNPROCESS)` para saber se o Sofá está na frente. Confirmado dentro de SEC-28; `WINEVENT_INCONTEXT` é proibido | só adapter Win32 |
-| **Modo de remoção de dados** (`sofa.exe --purge-user-data`) | Entrada de linha de comando, tratada no `main` **antes** de criar Tauri, WebView2 e instância única; aceita só se for o **único** argumento; códigos de saída 0 (ok), 1 (parcial), 2 (alvo inválido), 3 (rodando elevado) | Existe só para o desinstalador, que o chama via `RunAsUser` (SEC-31). Recusa rodar elevado. Calcula o alvo sozinho (`FOLDERID_LocalAppData` + identifier fixo no build), sem receber caminho. Confere SEC-25 (um nível abaixo, não é reparse point, contém `library.json` ou `settings.json`). Apaga **por handle** com `FILE_FLAG_OPEN_REPARSE_POINT`: pontos de reanálise são apagados sem descer neles. **Não é comando IPC**, não está na capability e não é repassado por segunda instância (SEC-19) | só adapter (`launcher-win/src/purge.rs`); a política do alvo é pura em `domain/data_dir_policy` |
+| **Autostart** | `is_enabled()`, `set(bool)`, `apply_install_default_once()` | **Tarefa agendada de logon do próprio usuário, `LeastPrivilege`** (P-03 b), com **fallback automático** para `HKCU\...\Run` (P-03 a) se `RegisterTaskDefinition` devolver erro (ex.: `E_ACCESSDENIED`) ou se a tarefa registrar falha real na última execução (`0x41303` = ainda não rodou, não é falha). A conferência de que a tarefa é do Sofá compara SID, `RunLevel = LUA` e caminho sem aspas (ADR-0006, SP-07). Caminho entre aspas + `--autostart` (SEC-22). Recusa registrar se o exe em execução não estiver sob `%ProgramFiles%` (DR-04). Um mecanismo ativo por vez: ligar um remove o outro. Depois do fallback, a volta Run → tarefa só acontece quando o usuário religa a opção; a nova tentativa "numa atualização do app" que SEC-22 (d) permite **não** é feita no MVP (ARQ-05, desvio 6: é o lado mais restritivo do requisito) | `AutostartRegistry` (TaskScheduler COM; HKCU Run) **seam real** |
+| **SingleInstance** | (sem interface pública: só traz a janela) | Mutex do plugin `"{identifier}-sim"` no namespace da sessão (sem SID, aceito pela segurança: SEC-19 emendado com a condição de ignorar `argv`); o callback ignora `argv` e cwd por completo; `--autostart` só é lido pela própria instância que inicia (SEC-19) | `tauri-plugin-single-instance` (decidido no SP-07, aceito pela segurança) |
+| **SystemEvents** | `subscribe() -> SystemEvent { DisplayChanged, Resumed, Suspending, ForegroundChanged }` | Janela **de topo oculta** (`WS_POPUP` sem `WS_VISIBLE`, `WS_EX_TOOLWINDOW \| WS_EX_NOACTIVATE`, nunca mostrada, fora do Alt+Tab e da barra de tarefas), e não `HWND_MESSAGE`: janela só de mensagem não recebe broadcast, e `WM_DISPLAYCHANGE` e `WM_POWERBROADCAST` chegam por broadcast (ARQ-05, desvio 1 aceito). `SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, NULL, cb, 0, 0, WINEVENT_OUTOFCONTEXT \| WINEVENT_SKIPOWNPROCESS)` fica **desligado no MVP**, porque nenhum caso de uso consome `ForegroundChanged` (ARQ-BUG-05). Se voltar a ser usado: `SKIPOWNPROCESS` não avisa quando o próprio Sofá volta à frente. Confirmado dentro de SEC-28; `WINEVENT_INCONTEXT` é proibido | só adapter Win32 |
+| **Modo de remoção de dados** (`sofa.exe --purge-user-data`) | Entrada de linha de comando, tratada no `main` **antes** de criar Tauri, WebView2 e instância única; aceita só se for o **único** argumento; códigos de saída 0 (ok), 1 (parcial), 2 (alvo inválido), 3 (rodando elevado), 4 (Sofá aberto, rev. 8) | Existe só para o desinstalador, que o inicia como o usuário interativo e lê o código de saída (ADR-0006 §6b rev. 6; SEC-31). Recusa rodar elevado. Recusa rodar com o Sofá aberto (mutex `app.sofa.launcher-sim` existe → código 4, sem apagar; SEC-BUG-03). Calcula o alvo sozinho (`FOLDERID_LocalAppData` + identifier fixo no build), sem receber caminho. Confere SEC-25 (um nível abaixo, não é reparse point, contém `library.json` ou `settings.json`). Apaga **por handle** com `FILE_FLAG_OPEN_REPARSE_POINT`: pontos de reanálise são apagados sem descer neles. **Não é comando IPC**, não está na capability e não é repassado por segunda instância (SEC-19) | só adapter (`launcher-win/src/purge.rs`); a política do alvo é pura em `domain/data_dir_policy` |
 | **FolderBrowser** | `list(path: Option<PathBuf>) -> DirListing` | Só unidades `DRIVE_FIXED`/`DRIVE_REMOVABLE`; sem UNC, `\\?\`, `\\.\`; só pastas e `.exe`; nunca lê conteúdo (SEC-09, AF-02) | só adapter (`std::fs` + Win32) |
 | **Settings** | `get()`, `set_monitor(Option<MonitorId>)`, `advanced() -> AdvancedSettings` (só leitura no núcleo) | `settings.json`, migração por `schemaVersion`, backup do arquivo inválido, `MonitorId` aceito só se estiver na lista enumerada; seção `advanced` (degraus da escada, tolerâncias de sessão, zona morta, nível de diagnóstico) com faixas validadas e editável só à mão (9.3) | `SettingsRepository` (JSON; memória) |
 
@@ -104,20 +104,22 @@ LaunchSpec = SteamUri{ app_id: u32 } | EpicUri{ namespace, catalog_item_id, app_
 
 `LaunchSpec` é sempre construído **pelo núcleo**, a partir da detecção atual ou do jogo manual revalidado. A UI nunca o envia (SEC-03).
 
-### 2.2 Detectores e lançamento por origem (validar no QA final, QF-04)
+### 2.2 Detectores e lançamento por origem (revisado com o SP-08; observação em loja real no QA-17, QF-04)
 
 | Origem | Descoberta | Lista de jogos | ID e validação | Capa / ícone | Como iniciar |
 |---|---|---|---|---|---|
-| Steam | `HKCU\Software\Valve\Steam\SteamPath` | `steamapps\libraryfolders.vdf` → `appmanifest_<appid>.acf` com bit 4 em `StateFlags` | `appid` `^[0-9]{1,10}$` e cabe em `u32`. `installdir` = um único componente (sem `\`, `/`, `..`, `:`); pasta = `<library>\steamapps\common\<installdir>` (SEC-12) | `appcache\librarycache\<appid>_library_600x900.jpg` ou `...\<appid>\library_600x900.jpg` | **Template fixo** `steam://rungameid/<appid>` via `ShellExecuteExW` (verbo padrão). Nunca `steam://run/<id>//<args>` (SEC-11). A Steam abre se estiver fechada (CA-26) |
-| Epic | `%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests\*.item` | um `.item` por jogo; ignora `bIsIncompleteInstall` e DLC (`AppName` ≠ `MainGameAppName`) | `CatalogNamespace`, `CatalogItemId`, `AppName` em `^[A-Za-z0-9_.-]{1,128}$`. `InstallLocation` absoluto local; `LaunchExecutable` relativo e confinado à pasta após canonicalizar (SEC-12) | sem capa local → ícone do exe | Template fixo `com.epicgames.launcher://apps/<ns>%3A<itemId>%3A<appName>?action=launch&silent=true`, componentes com percent-encoding, via `ShellExecuteExW` (SEC-11) |
-| GOG | `HKLM\SOFTWARE\WOW6432Node\GOG.com\Games\<id>` (Galaxy **e** instalador avulso, E-17) | uma subchave por jogo | `gameID` `^[0-9]{1,20}$`; `path` passa por SEC-16 | `goggame-<id>.ico` na pasta do jogo, senão ícone do exe. Sem leitura do SQLite do Galaxy (AF-06) | **Exe direto** (P-02 a): `playTask` primário de `goggame-<id>.info` (`path`, `arguments`, `workingDir`), confinado à pasta do jogo, `.exe` fora de `%SystemRoot%` (SEC-12, SEC-14), via `CreateProcessW` sem shell, com argumentos como lista (SEC-10), dentro de Job Object. Sem `.info` válido → `exe`/`workingDir` do registro |
+| Steam | `HKCU\Software\Valve\Steam\SteamPath`, que vem com barras normais e unidade minúscula: **normalizar** para `C:\...` antes das políticas de caminho | `steamapps\libraryfolders.vdf` (formato atual com entradas `"0"`, `"1"`… e `"path"`; tolerar o antigo `BaseInstallFolder_N`) → `appmanifest_<appid>.acf` com **teste de bit** 4 em `StateFlags` (`6` = instalado com atualização pendente aparece; `1`, `2`, `1026` não) | `appid` `^[0-9]{1,10}$` e cabe em `u32`. `installdir` = um único componente (sem `\`, `/`, `..`, `:`); pasta = `<library>\steamapps\common\<installdir>` (SEC-12) | `appcache\librarycache\<appid>_library_600x900.jpg` (layout antigo) ou `librarycache\<appid>\<hash>\library_600x900.jpg` (layout novo: **enumerar as subpastas de 1 nível** sob `<appid>\`) | **Template fixo** `steam://rungameid/<appid>` via `ShellExecuteExW` (verbo padrão). Nunca `steam://run/<id>//<args>` (SEC-11). A Steam abre se estiver fechada (CA-26) |
+| Epic | `<FOLDERID_ProgramData>\Epic\EpicGamesLauncher\Data\Manifests\*.item` (`SHGetKnownFolderPath`, não variável de ambiente) | um `.item` por jogo (JSON; **remover BOM UTF-8** antes do parse; **campos desconhecidos ignorados**, sem `deny_unknown_fields`, que vale só para os JSON do Sofá); ignora `bIsIncompleteInstall = true` e DLC (`AppName` ≠ `MainGameAppName`; `MainGameAppName` ausente = jogo) | `CatalogNamespace`, `CatalogItemId`, `AppName` obrigatórios, em `^[A-Za-z0-9_.-]{1,128}$` (vazio ou ausente = item ignorado). `InstallLocation` absoluto local; `LaunchExecutable` relativo e confinado à pasta após canonicalizar (SEC-12) | sem capa local → ícone do exe | Template fixo `com.epicgames.launcher://apps/<ns>%3A<itemId>%3A<appName>?action=launch&silent=true`, componentes com percent-encoding, via `ShellExecuteExW` (SEC-11). Com a loja deslogada, o cliente abre e pede login: CA-26/CA-29 conferidos no QA-17 |
+| GOG | `HKLM\SOFTWARE\WOW6432Node\GOG.com\Games\<id>`: o instalador avulso cria; **não confirmado se o Galaxy 2.0 sempre cria** (E-17, QA-17). Se não criar, a alternativa é varrer as pastas de instalação conhecidas por `goggame-*.info` (decidir com o log do QA-17) | uma subchave por jogo (`gameID`, `gameName`, `exe`, `path`, `workingDir`, `launchParam`…) | `gameID` `^[0-9]{1,20}$`; `path` passa por SEC-16 | `goggame-<id>.ico` na pasta do jogo, senão ícone do exe. Sem leitura do SQLite do Galaxy (AF-06) | **Exe direto** (P-02 a): `playTask` primário de `goggame-<id>.info` (`isPrimary: true`, `category: "game"`, `type: "FileTask"`; `URLTask` nunca é executada; `.info` sem `playTask` = item ignorado) com `path`, `arguments`, `workingDir`, confinado à pasta do jogo, `.exe` fora de `%SystemRoot%` (SEC-12, SEC-14), via `CreateProcessW` sem shell, com argumentos como lista (SEC-10), dentro de Job Object. Sem `.info` válido → `exe`/`workingDir` do registro |
 | Manual | `library.json` | `manualGames[]` | Caminho canônico, unidade local fixa ou removível, `.exe` com cabeçalho `MZ`+`PE`, sem ADS nem nome reservado (SEC-09); revalidado a cada carga (SEC-18) | ícone do exe | `CreateProcessW` com `lpApplicationName` absoluto, `bInheritHandles=FALSE`, sem argumentos (AF-03), dentro de Job Object |
 
 Regras comuns a todas as origens:
 - ID ou caminho fora do formato faz o jogo ser **ignorado** e registrado no log. Nada é "sanitizado" (SEC-11).
 - A pasta de instalação passa pela política de SEC-16 (profundidade ≥ 2, fora de pastas de sistema, da loja e do próprio Sofá).
-- Arquivos de terceiros têm limite de 4 MB e o VDF tem profundidade máxima 32, checada por varredura de chaves antes do parse. Nenhum `unwrap` em dado de terceiro (SEC-13).
-- **Filtro Steam (P-05 a)**: lista fixa de appids que não são jogo, em `domain/library/steam_non_games.rs` (ex.: 228980 Steamworks Common Redistributables, runtimes do Steam Linux/Proton). O resto o usuário oculta (CA-21).
+- Arquivos de terceiros têm limite de 4 MB, checado **antes** de ler (SP-08: um VDF de 10 MB leva 372 ms e muita memória). Nenhum `unwrap` em dado de terceiro (SEC-13).
+- **Pré-checagem de profundidade 32 no VDF, obrigatória e antes do parse**: varredura que conta `{`/`}` fora de aspas (11 ms para 10 MB). O `keyvalues-parser` é recursivo: com 10.000 níveis o processo morre por `STATUS_STACK_OVERFLOW`, que `catch_unwind` **não captura**.
+- O parser aceita qualquer conteúdo (`appid` com `//`, `?&`, espaço, Unicode; `installdir` com `..`, `/`, `:`, vazio, `.`). **Toda a validação é das políticas do domínio.** As fixtures do SP-08 ficam em `crates/launcher-win/tests/fixtures/`.
+- **Filtro Steam (P-05 a)**: lista fixa de appids que não são jogo, em `domain/library/steam_non_games.rs` : `228980` (Steamworks Common Redistributables, confirmado), mais candidatos a conferir no QA-17: `250820` (SteamVR), `1070560`, `1391110`, `1628350` (Steam Linux Runtime), `1493710` (Proton Experimental), `2180100` (Proton Hotfix). O resto o usuário oculta (CA-21).
 
 ### 2.3 Camadas e workspace Rust (Clean Architecture)
 
@@ -154,6 +156,7 @@ gamelaucher/
             commands/*.rs; events.rs; dto.rs; errors.rs; cover_protocol.rs; webview_hardening.rs)
 ```
 
+- **Formato dos arquivos do Sofá (emenda ARQ-05)**: os codecs de `library.json`, `settings.json` e `cache\scan.json` (schema fechado, limites, `schemaVersion` e migração) são funções puras de bytes para tipo e ficam em `launcher-core` (`domain/library/stored.rs`, `domain/library/scan_cache.rs`, `domain/settings/`), com `serde`/`serde_json`. Assim são testados sem disco. O adapter `persistence/json.rs` só faz I/O atômico, backup e caminho. Limite da emenda: `serde` em `launcher-core` só nesses codecs. Entidades de domínio não derivam `Serialize` para a IPC; os DTOs ficam em `src-tauri/src/dto.rs`.
 - **Domínio**: tipos e funções puras. Tempo entra como parâmetro (`now: Instant`). As políticas de segurança sobre caminhos e IDs são regras puras aqui, testadas por tabela. A canonicalização (que precisa do disco) fica em `launcher-win/path_canon.rs`.
 - **Aplicação**: um caso de uso por ação da spec. Recebe ports por injeção e não conhece Win32 nem Tauri.
 - **Infraestrutura**: adapters finos. Nenhuma RN-xx aqui.
@@ -172,6 +175,7 @@ stateDiagram-v2
   Launching --> NotConfirmed: 60 s sem processo (CA-29)
   NotConfirmed --> Launching: "Tentar de novo"
   NotConfirmed --> Idle: "Voltar"
+  NotConfirmed --> Running: processo aparece depois dos 60 s (E-03, E-16) → mark_played
   Running --> Ending: 0 processos associados
   Ending --> Running: processo reaparece < 5 s (E-14)
   Ending --> Idle: 5 s seguidos → trazer o Sofá (CA-30)
@@ -183,7 +187,9 @@ stateDiagram-v2
 ```
 
 - **Último jogado = início da sessão (P-06 a)**: `lastPlayedAt` é gravado na transição para `Running`.
-- **Encerramento (SEC-15, SEC-17)**: cada processo entra no conjunto da sessão com handle `PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE` aberto na detecção e com o tempo de criação guardado. `force_close` duplica o handle guardado com `PROCESS_TERMINATE` e confere o tempo de criação antes de `TerminateProcess`. No Job Object, usa `TerminateJobObject`. Nunca entram no conjunto: o Sofá e seus filhos WebView2, processos das lojas, `explorer.exe`, outra sessão ou usuário, processos protegidos.
+- **`NotConfirmed` (CA-29, rev. 7)**: ao entrar, o Sofá volta ao primeiro plano pela mesma escada do fim de sessão (a tela da loja pode estar na frente: login, atualização), e a entrada volta a `Foreground`. A sonda continua ligada: se o jogo abrir depois dos 60 s, a sessão vai a `Running` e segue o fluxo normal (janela oculta, WebView2 suspenso, `give_front_to`). "Voltar" encerra a sonda; um jogo que abra depois disso não vira sessão (como E-07). Desvio 3 aceito no ARQ-05; a volta ao primeiro plano é o ARQ-BUG-01.
+- **Efeitos fora do `Mutex` (rev. 7)**: gravar `lastPlayedAt`, esconder ou mostrar a janela e a escada rodam **depois** de soltar o `Mutex` da sessão (ARQ-BUG-02). A thread da UI (callback da instância única, eventos de janela) pode pegar esse `Mutex`, então nada que espera a thread da UI pode rodar com ele preso.
+- **Encerramento (SEC-15, SEC-17)**: cada processo entra no conjunto da sessão com handle `PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE` aberto na detecção e com o tempo de criação guardado. `force_close` duplica o handle guardado com `PROCESS_TERMINATE` e confere o tempo de criação antes de `TerminateProcess`. **No Job Object, igual (rev. 8, SEC-BUG-01)**: cada PID do Job passa pelo mesmo `classify` (pasta do exe ou do jogo GOG + exclusões abaixo); só os membros recebem `WM_CLOSE` e `terminate_if_same`; os demais são acompanhantes (ex.: `steam.exe` ou navegador abertos pelo jogo) e não mantêm a sessão viva. A sessão vai a `Ending` quando não sobra membro. `TerminateJobObject` é proibido (ADR-0005 rev. 6). Nunca entram no conjunto: o Sofá e seus filhos WebView2 (o fecho de `msedgewebview2.exe` a partir do PID do Sofá, **não** todo filho direto: o jogo manual ou GOG e a Steam aberta pelo Sofá são filhos diretos; desvio 2 conferido no ARQ-05), processos das lojas, `explorer.exe`, outra sessão ou usuário, processos protegidos.
 - **Jogo elevado (AF-01)**: com `launch_with_uac` o processo não entra no Job (UIPI) e a sessão usa varredura por pasta. "Fechar" e "Voltar ao jogo" podem falhar e mostram mensagem, sem tentar elevar (SEC-17, RA-02).
 
 ### 2.5 Fluxos principais
@@ -294,6 +300,13 @@ O repo não tem código para reaproveitar, então o reuso é de bibliotecas e do
 | Logs | `tracing`, `tracing-subscriber`, `tracing-appender` | MIT | — |
 | Erros | `thiserror` | MIT/Apache-2.0 | — |
 | Gamepad / processos | XInput e ToolHelp via `windows` (ADR-0002, ADR-0005) | — | `gilrs`, `sysinfo` |
+
+**Como ficou no código (ARQ-05, rodada 1).** Diferenças em relação à tabela acima, todas aceitas:
+- `ts-rs` no lugar de `tauri-specta` (fallback já previsto, RA-06). Tipos em `ui/src/shared/ipc/generated/`.
+- Registro pela feature `Win32_System_Registry` do próprio `windows`, sem `windows-registry`.
+- Logs com `tracing` + `tracing-subscriber` e um escritor próprio com rotação por tamanho (`launcher-win/src/logging.rs`), porque `tracing-appender` só gira por tempo. `tracing-appender::non_blocking` continua candidato para tirar o I/O do caminho quente (ARQ-BUG-07).
+- Novos e justificados: `sha2` (ID do jogo manual por SHA-256, CT-05); `webview2-com` + `windows-core` 0.62 (suspender e retomar o WebView2, SP-06); `embed-resource` (build, só manifesto dos binários de teste).
+- Dois `windows-rs` no build (0.58 do workspace, 0.6x do Tauri): aceito até o alvo MSVC permitir subir o workspace (ADR-0001).
 
 ### UI
 
@@ -495,12 +508,12 @@ Formatos de `GameId`: `steam:<u32>`, `epic:<AppName>` (`^[A-Za-z0-9_.-]{1,128}$`
 | Tema | Meta | Como |
 |---|---|---|
 | Latência de input (M-05) | ≤ 50 ms botão → foco desenhado | leitura a ~120 Hz + emit + render + frame |
-| Retorno (M-04) | ≤ 3 s; meta interna ≤ 1 s nos degraus 1-3 | 20 Hz em segundo plano, retomar o WebView2 (< 300 ms, ST-04), escada com passos de 150 ms |
+| Retorno (M-04) | ≤ 3 s; meta interna ≤ 1 s | Medido: escada ≤ 350 ms no pior caso (SP-01: degrau 1 falha em 150 a 200 ms, degrau 3 em 5 a 30 ms ou 2 em 1 a 5 ms); retomada do WebView2 ~30 ms (SP-06); input a 20 Hz. Com jogo real e Sofá real: QA-17 |
 | Boot (M-02) | ≤ 5 s até navegável | tarefa de logon sem o atraso do Explorer (P-03 b), splash da marca no primeiro paint, biblioteca do cache, varredura depois |
 | Volume na tela | ≤ 200 ms | thread de áudio, resposta síncrona + evento |
 | Varredura | < 500 ms para 300 jogos em SSD | paralela por origem; capas reencodadas sob demanda e guardadas em cache (o 1º reencode de 300 capas roda em segundo plano, fora do caminho do boot) |
-| CPU em segundo plano (RN-21) | < 1% (meta interna < 0,3%) | janela oculta + `TrySuspend` + `MemoryUsageTargetLevel=Low`; input a 20 Hz só em slots conectados; probe a 1 Hz só em sessão de loja; Job Object sem polling |
-| Memória | núcleo < 40 MB; total < 250 MB na frente, < 120 MB suspenso | ST-04 |
+| CPU em segundo plano (RN-21) | **< 1% da CPU total** (base do Gerenciador de Tarefas); meta interna < 0,3% do total | Medido (16 lógicos): WebView2 suspenso 0,00 a 0,013% do total (0 a 0,21% de 1 núcleo); input 20 Hz com 1 controle ~0,1% de 1 núcleo (slot vazio só a cada 1 s); probe de loja com cache por PID + 2 s em Running ~0,02 a 0,04% do total (meta própria < 0,1% do total); Job Object zero. Ordem: `hide` → `IsVisible(false)` → `MemoryUsageTargetLevel(LOW)` → `TrySuspend`; volta: `Resume` → `IsVisible(true)` → `show`. **Não esvaziar o DOM** (a retomada iria de 30 para ~555 ms). Na sala: QF-07 |
+| Memória (**working set privado**, a coluna "Memória" do Gerenciador de Tarefas, somando `sofa.exe` e os processos do WebView2) | < 250 MB na frente; < 120 MB suspenso | SP-06: suspenso **118 MB** (cumprida, no limite); oculto sem suspender 127 MB; na frente **293 MB no pior caso** (300 capas montadas, sem virtualização). Piso do WebView2 ~70 a 120 MB, independente do conteúdo. A meta na frente é **remedida com a UI real** (grade virtualizada, ≤ ~60 capas montadas, 3.4) no BE-20/FE; se ainda estourar, reduzir as capas montadas ou o tamanho do cache de imagem. Na sala: QF-07 |
 | Biblioteca grande | 500 jogos fluidos | grade virtualizada, capas de no máximo 600×900 |
 | Robustez | falha de loja, imagem ou JSON não derruba | SEC-13, `catch_unwind`, backup do JSON inválido |
 | Observabilidade | log local INFO | `tracing`: contagem e duração por origem, jogos rejeitados por validação (motivo, sem caminho em INFO), transições de sessão, degrau da escada e tempo, ações de energia, erros. Sem telemetria |
@@ -518,7 +531,7 @@ Estes passam a valer para o repo e devem ir para um futuro `docs/arch/principios
 | INV-02 | A UI só fala com o sistema por comandos de domínio por ID | Lista fechada (4.1), capability mínima (4.3) | CI compara `generate_handler!`/`main.json` com 4.1 e confirma que `purge` não aparece em nenhum dos dois; ESLint `no-restricted-imports` de `@tauri-apps/*` fora de `shared/ipc` |
 | INV-03 | Um dono por recurso: input, primeiro plano, arquivos de dados, autostart | Só `Input` chama `XInputGetState`, só `ForegroundBroker` chama `SetForegroundWindow`/`SendInput`/`AttachThreadInput`, só os `*Repository` escrevem dados, só `AutostartRegistry` toca Run e tarefa | CI com grep das chamadas fora do arquivo dono |
 | INV-04 | Caminho quente de input sem I/O | a thread de input só lê XInput, chama o domínio e envia por canal | revisão nomeada |
-| INV-05 | Nada forçado sem 2ª confirmação: energia nunca forçada; encerrar processo só da sessão, por handle | SEC-15, SEC-17, SEC-27 | CI com grep de `EWX_FORCE`, `SeDebugPrivilege`, `PROCESS_ALL_ACCESS`, `shutdown.exe`; teste do caso de uso |
+| INV-05 | Nada forçado sem 2ª confirmação: energia nunca forçada; encerrar processo só da sessão, por handle | SEC-15, SEC-17, SEC-27; no modo Job, só membros do jogo, sem `TerminateJobObject` (rev. 8) | CI com grep de `EWX_FORCE`, `SeDebugPrivilege`, `PROCESS_ALL_ACCESS`, `shutdown.exe`, `TerminateJobObject`; teste do caso de uso |
 | INV-06 | O Sofá roda sempre sem elevação | manifesto `asInvoker`; instalador abre o app como o usuário (SEC-20, SEC-21) | CI verifica o manifesto embutido |
 | INV-07 | Nada sai do PC | sem cliente HTTP; CSP local | `cargo deny` banindo `reqwest`/`hyper`/`ureq`; CSP 4.4 |
 | INV-08 | Sem hook global, injeção ou acesso à memória de outro processo (SEC-28) | XInput por polling; escada só com APIs de janela e entrada documentadas | CI com grep de `SetWindowsHookEx`, `CreateRemoteThread`, `ReadProcessMemory`, `WriteProcessMemory`, `LoadLibrary` relativo |
@@ -532,7 +545,7 @@ Estes passam a valer para o repo e devem ir para um futuro `docs/arch/principios
 |---|---|---|
 | Tauri 2 + React/TS; WebView2 por bootstrapper embutido (P-01 a) | Velocidade de UI e Win32 em Rust vs. custo do WebView2 | ADR-0001 |
 | XInput só no núcleo, thread própria | Um caminho de input vs. ~1-2 ms de IPC | ADR-0002 |
-| Escada de primeiro plano com verificação, dentro de SEC-28 | Sem mudar o sistema vs. truques (tecla sintética neutra, `AttachThreadInput`), com condições de SEC-28 | ADR-0003 (accepted; degraus 2/3 desligados até a revisão da segurança com o QA final) |
+| Escada de primeiro plano com verificação, dentro de SEC-28 | Sem mudar o sistema vs. truques (tecla sintética neutra, `AttachThreadInput`), com condições de SEC-28 | ADR-0003 (accepted; cenário A: ordem 1 → 3 → 2 → 4, todos ligados, aprovado pela segurança) |
 | JSON em `%LOCALAPPDATA%\app.sofa.launcher` + camada do usuário | Simples, uma pasta só para apagar (SEC-25) vs. não acompanha perfil roaming (irrelevante em PC pessoal) | ADR-0004 |
 | Job Object (manual, GOG direto) + varredura por pasta (Steam, Epic); GOG pelo exe (P-02 a) | Sessão exata onde dá vs. sem saves em nuvem do Galaxy | ADR-0005 (accepted; tolerâncias configuráveis) |
 | NSIS perMachine; autostart por tarefa de logon do usuário `LeastPrivilege` criada pelo próprio Sofá (P-03 b), fallback HKCU Run (P-03 a) | Sem o atraso do Explorer vs. um mecanismo a mais para limpar | ADR-0006 (accepted; fallback automático para Run) |
@@ -559,19 +572,19 @@ As decisões dos ADRs **não dependem de spike**. Cada ponto incerto tem um padr
 
 | Spike | Objetivo | Como, sem jogos reais | Saída |
 |---|---|---|---|
-| ST-01 Escada de primeiro plano | Medir os degraus contra janelas de teste | Apps sintéticos: janela comum, borderless em tela cheia, D3D11 em **tela cheia exclusiva** de teste (swap chain com `SetFullscreenState(TRUE)`), processo **elevado** de teste. Combinação de retorno simulada (amostra XInput fake ou controle de dev, se houver). Medir degrau × ms, com cada degrau ligado e desligado | Defaults de tempo da escada; RA-02 confirmado com o processo elevado de teste |
-| ST-02 Sessão | Validar Job Object, varredura por pasta, handles e tolerância | Exe de teste que cria filhos, sai e reabre em < 5 s (E-14); exe de teste "launcher intermediário" fora da pasta; processo com o mesmo nome fora da pasta (SEC-15); medir CPU da varredura a 1 Hz com ~300 processos | Defaults de `session.*`; CPU < 0,2% |
-| ST-03 Autostart e instalador | Tarefa sem admin, fallback, RunAsUser, purge, DLL | Conta local **padrão** de teste na máquina de dev (se a política corporativa permitir; senão, VM Win10 22H2): criar a tarefa via `ITaskService` como essa conta; instalar com UAC de outra conta; `--purge-user-data` com junction-isca; DLLs plantadas ao lado do instalador | Confirma o caminho feliz e o fallback automático do ADR-0006 |
-| ST-04 WebView2 em segundo plano | CPU, memória e retomada | App Tauri com 300 capas sintéticas; `TrySuspend` + janela oculta | CPU suspenso < 0,3%; retomar < 300 ms |
-| ST-05 Win10 | Compatibilidade do alvo principal | **VM Win10 22H2** sem WebView2 pré-instalado (testa o bootstrapper embutido): instalar, abrir, tela cheia, áudio, energia (só capacidades), DisplayConfig | Nenhuma API exclusiva do Win11. Exigências mínimas usadas: Win10 1709+ para `FILE_DISPOSITION_FLAG_POSIX_SEMANTICS` no purge (com fallback para exclusão sem POSIX); o resto é Win8+ |
-| ST-06 Formatos de loja | Parsers sem dados reais | Fixtures montadas a partir dos formatos conhecidos (2.2) + variantes maliciosas da seção 5 do doc de segurança. Se a máquina de dev puder instalar o Steam com um app gratuito, gerar um fixture real | Detectores tolerantes: campo desconhecido é ignorado e campo obrigatório ausente faz o item ser ignorado, com log |
+| ST-01 Escada de primeiro plano (**feito: SP-01**) | Medir os degraus contra janelas de teste | Apps sintéticos: janela comum, borderless em tela cheia, D3D11 em **tela cheia exclusiva** de teste (swap chain com `SetFullscreenState(TRUE)`), processo **elevado** de teste. Combinação de retorno simulada (amostra XInput fake ou controle de dev, se houver). Medir degrau × ms, com cada degrau ligado e desligado | Defaults de tempo da escada; RA-02 confirmado com o processo elevado de teste |
+| ST-02 Sessão (**feito: SP-02**) | Validar Job Object, varredura por pasta, handles e tolerância | Exe de teste que cria filhos, sai e reabre em < 5 s (E-14); exe de teste "launcher intermediário" fora da pasta; processo com o mesmo nome fora da pasta (SEC-15); medir CPU da varredura a 1 Hz com ~300 processos | Defaults de `session.*`; CPU < 0,2% |
+| ST-03 Autostart e instalador (**parcial: SP-07**, sem VM; tarefa, fallback, purge e mutex medidos; instalador elevado e DLL no QA-17) | Tarefa sem admin, fallback, RunAsUser, purge, DLL | Conta local **padrão** de teste na máquina de dev (se a política corporativa permitir; senão, VM Win10 22H2): criar a tarefa via `ITaskService` como essa conta; instalar com UAC de outra conta; `--purge-user-data` com junction-isca; DLLs plantadas ao lado do instalador | Confirma o caminho feliz e o fallback automático do ADR-0006 |
+| ST-04 WebView2 em segundo plano (**feito: SP-06**) | CPU, memória e retomada | App Tauri com 300 capas sintéticas; `TrySuspend` + janela oculta | CPU suspenso < 0,3%; retomar < 300 ms |
+| ST-05 Win10 (**não feito**: sem VM; vai para o QA-17) | Compatibilidade do alvo principal | **VM Win10 22H2** sem WebView2 pré-instalado (testa o bootstrapper embutido): instalar, abrir, tela cheia, áudio, energia (só capacidades), DisplayConfig | Nenhuma API exclusiva do Win11. Exigências mínimas usadas: Win10 1709+ para `FILE_DISPOSITION_FLAG_POSIX_SEMANTICS` no purge (com fallback para exclusão sem POSIX); o resto é Win8+ |
+| ST-06 Formatos de loja (**feito: SP-08**, sem loja instalada; fixtures no repo) | Parsers sem dados reais | Fixtures montadas a partir dos formatos conhecidos (2.2) + variantes maliciosas da seção 5 do doc de segurança. Se a máquina de dev puder instalar o Steam com um app gratuito, gerar um fixture real | Detectores tolerantes: campo desconhecido é ignorado e campo obrigatório ausente faz o item ser ignorado, com log |
 
 ### 9.2 Validação no QA final (com o usuário, PC da sala, Win10)
 
 | Item | Risco | O que o QA final confirma | Se falhar |
 |---|---|---|---|
-| QF-01 Retorno ao Sofá | R-01, R-05 | Jogos da lista D-29 × {janela, sem borda, exclusiva}: retorno ≤ 3 s, degrau usado (log), Guide fora do caminho | Ligar `advanced.foreground.step2/step3` **só após a revisão da segurança** (SEC-28) com o log; senão aceitar os degraus 1 + 4 (CA-63) |
-| QF-02 Anti-cheat (D-30, offline) | R-07, SEC-28 | O jogo com anti-cheat não acusa o Sofá, com os degraus 2/3 desligados e, se a segurança liberar, ligados | Degrau vetado: fica desligado |
+| QF-01 Retorno ao Sofá | R-01, R-05 | Jogos da lista D-29 × {janela, sem borda, exclusiva}: retorno ≤ 3 s, degrau usado (log), Guide fora do caminho | Trocar a ordem ou desligar um degrau pelo log, dentro do cenário A e das condições de SEC-28 (ADR-0003). Se o anti-cheat ou o jogo reagir ao degrau 2 ou 3 (QF-02), o degrau é desligado e o caso volta à segurança |
+| QF-02 Anti-cheat (D-30, offline) | R-07, SEC-28 | O jogo com anti-cheat não acusa o Sofá com o cenário A (degraus 3 e 2 ligados) | Degrau vetado: fica desligado |
 | QF-03 Fim de sessão | R-02, R-03 | Um jogo por loja + um com launcher de publicadora: sem falso fim, retorno ≤ 3 s + tolerância | Ajustar `advanced.session.*` pelo log; listar jogos problemáticos (R-03) |
 | QF-04 Detecção | R-08, E-17 | Steam, Epic e GOG reais aparecem; o log traz contagem por origem e motivo de rejeição | Corrigir o parser com o dump anonimizado do log (nível DEBUG) |
 | QF-05 Instalação (D-31) | E-19, SEC-21/23/25/31/32 | Conta padrão + UAC de outro admin: app aberto como o usuário, autostart no perfil certo (tarefa ou Run, conforme o log), desinstalar mantendo e apagando dados | Bug de instalador; o fallback de autostart já é automático |
@@ -585,19 +598,22 @@ As decisões dos ADRs **não dependem de spike**. Cada ponto incerto tem um padr
 
 | Chave | Padrão | Faixa |
 |---|---|---|
+| `foreground.order` | `[1, 3, 2, 4]` | permutação de 1..4 |
 | `foreground.step1` / `step4` | `true` / `true` | bool |
-| `foreground.step2` / `step3` | **`false`** / **`false`** (SEC-28, até a revisão da segurança) | bool |
+| `foreground.step3` | `true` (cenário A, aprovado pela segurança; também no build de dev) | bool |
+| `foreground.step2` | `true` (cenário A; só depois de o degrau 3 falhar, um F24 por tentativa) | bool |
 | `foreground.step2Key` | `"F24"` | `"F24"` \| `"Alt"` |
 | `foreground.verifyDelayMs` | 150 | 50..500 |
 | `session.startTimeoutSeconds` | 60 (CA-29) | 30..300 |
 | `session.endGraceSeconds` | 5 (E-14) | 2..30 |
 | `session.closeTimeoutSeconds` | 10 (RN-12) | 5..60 |
-| `session.probeIntervalMs` | 1000 | 500..5000 |
+| `session.probeIntervalMs` (Launching/Ending) | 1000 | 500..5000 |
+| `session.runningProbeIntervalMs` | 2000 | 1000..10000 |
 | `session.useSteamRunningAppId` | `true` | bool |
 | `input.deadzonePercent` | 25 (RN-06) | 10..50 |
 | `diagnostics.level` | `"info"` | `"info"` \| `"debug"` |
 
-Os padrões são os valores da spec. Alterá-los só é previsto para ajuste no QA final.
+Os padrões são os valores da spec e dos spikes. O padrão dos degraus 2 e 3 é o cenário A (aprovado pela segurança, rev. 5), igual no build de dev e no release. Alterar valores só é previsto para ajuste no QA final.
 
 **Log de diagnóstico** (`logs\`, 5 MB × 3, SEC-18). Em `debug`, registra:
 - por tentativa de retorno: degraus tentados, ms e `FrontOutcome`;
@@ -610,10 +626,10 @@ Nunca registra nada além de IDs, nomes e caminhos de jogo (SEC-18). Configuraç
 
 ### 9.4 Resumo por risco
 
-- **R-01**: escada do ADR-0003, degraus 1 + 4 ligados por padrão; 2 e 3 ligáveis em runtime após a revisão da segurança (QF-01, QF-02).
-- **R-02**: ADR-0005 com tolerâncias configuráveis (QF-03).
-- **R-05**: View + Menu (D-02); confirmação no QF-01.
-- **R-08**: detectores tolerantes + log de rejeição (QF-04).
+- **R-01**: escada do ADR-0003. O SP-01 mostrou que os degraus 1 + 4 sozinhos falham (degrau 4: 1 sucesso em 26) e que os degraus 2 e 3 funcionam (8/8 em janela, sem borda e tela cheia exclusiva). Padrão: cenário A, ordem 1 → 3 → 2 → 4, aprovado pela segurança (QF-01, QF-02).
+- **R-02**: ADR-0005 validado no SP-02 com processos de teste (nenhum falso fim; Job Object em ~1 ms); lojas reais no QF-03.
+- **R-05**: só `XInputGetState` público; `XInputGetStateEx` e o Guide não são usados (ADR-0003). Controle real no QF-01.
+- **R-08**: tabela 2.2 revisada pelo SP-08 (fixtures no repo); observação em loja real no QF-04.
 
 ---
 
@@ -631,18 +647,18 @@ Nunca registra nada além de IDs, nomes e caminhos de jogo (SEC-18). Configuraç
 | SEC-11 | 2.2: **Steam por template fixo `steam://rungameid/<appid>`** com `appid` `u32` validado; Epic por template com percent-encoding; só os esquemas `steam` e `com.epicgames.launcher`; `ShellExecuteExW` com verbo padrão. GOG pelo exe (P-02 a), então não há linha de comando do Galaxy |
 | SEC-12, SEC-14, SEC-16 | `install_path_policy` no domínio, sobre caminhos canonicalizados em `path_canon.rs` (comparação por componente) |
 | SEC-13 | 2.2 (limites, profundidade, sem `panic`, isolamento por loja); sem SQLite (AF-06) |
-| SEC-15, SEC-17 | 2.4 (handles, tempo de criação, exclusões, direitos mínimos) |
+| SEC-15, SEC-17 | 2.4 (handles, tempo de criação, exclusões, direitos mínimos), nos modos varredura **e** Job (SEC-BUG-01, ADR-0005 rev. 6) |
 | SEC-18 | ADR-0004 e seção 5 (`%LOCALAPPDATA%`, escrita atômica, `deny_unknown_fields`, limites, revalidação, logs 5 MB × 3) |
 | SEC-19 | módulo SingleInstance (2.1) |
 | SEC-20 | `sofa.exe.manifest` `asInvoker`; nada gravado em `Program Files`; aviso se `TokenElevation` for verdadeiro |
 | SEC-21, SEC-23 | ADR-0006 §3 e §4 (RunAsUser; NSIS 3.x + `SetDefaultDllDirectories` no `main` + teste com DLL plantada) |
-| SEC-25, SEC-31, DR-03 | ADR-0006 §6b. O desinstalador elevado só decide. A remoção roda **como o usuário interativo** via `RunAsUser` → `sofa.exe --purge-user-data` (2.1), que valida o alvo sozinho e apaga por handle sem seguir reparse points. Fallback: o elevado apaga só arquivos de nome conhecido, sem recursão, e `EBWebView\` fica como resto documentado. **Só os dados do usuário interativo** (DR-03) |
+| SEC-25, SEC-31, DR-03 | ADR-0006 §6b. O desinstalador elevado só decide. A remoção roda **como o usuário interativo** via `RunAsUser` → `sofa.exe --purge-user-data` (2.1), que valida o alvo sozinho e apaga por handle sem seguir reparse points. O desinstalador fecha o Sofá antes e lê o código de saída do purge; código não lido = falha. Fallback restrito (DR-06, D-43): o elevado apaga no máximo `library.json` e `settings.json` na raiz, por handle, com a raiz aberta sem `FILE_SHARE_DELETE` e conferida como não-reparse e cada arquivo conferido como não-link; o resto fica e a pasta é mostrada. **Só os dados do usuário interativo** (DR-03) |
 | SEC-32 | ADR-0006 §6a: `"$SYSDIR\schtasks.exe" /Delete /TN "Sofa Autostart (<SID>)" /F` para cada SID da `ProfileList` validado por `^S-1-5-21(-[0-9]{1,10}){4}$`, ou COM por prefixo `Sofa Autostart (` se o dev mostrar que é viável no NSIS (ST-03) |
 | SEC-22 | `AutostartRegistry`: tarefa do próprio usuário `LeastPrivilege` ou HKCU Run, caminho entre aspas + `--autostart`, recusa exe fora de `%ProgramFiles%` (DR-04), sem elevação, sem serviço, sem HKLM Run |
 | SEC-24 | `rust-toolchain.toml` ≥ 1.77.2, lockfiles, `cargo deny`, `ignore-scripts`, sem cliente HTTP |
 | SEC-26 | build gera `SHA256SUMS.txt` ao lado do instalador; README explica `Get-FileHash` |
 | SEC-27 | `power_prepare`/`power_execute` com ticket de 30 s; enum; sem `EWX_FORCE*`; privilégio só durante a chamada |
-| SEC-28 | INV-08 + condições no ADR-0003. **Degrau 2**: um único par down/up de tecla neutra (`VK_F24` preferida a Alt), disparado só pelo núcleo (combinação de retorno ou fim de sessão), nunca por IPC, uma vez por tentativa, com log. **Degrau 3**: `AttachThreadInput` só durante a tentativa, em thread com timeout, com guarda RAII que sempre desanexa. `SetWinEventHook` com `WINEVENT_OUTOFCONTEXT \| WINEVENT_SKIPOWNPROCESS`. Proibidos `uiAccess=true` e `SPI_SETFOREGROUNDLOCKTIMEOUT`. Degraus 2 e 3 **desligados por padrão em `settings.json → advanced.foreground`** (rev. 4: a trava passou de constante de compilação para configuração de runtime, sem comando IPC), ligáveis só após a **revisão obrigatória** da segurança com o resultado do QA final; se vetados, ficam os degraus 1 e 4 (CA-63) |
+| SEC-28 | INV-08 + condições no ADR-0003. **Degrau 2**: um único par down/up de tecla neutra (`VK_F24` preferida a Alt), disparado só pelo núcleo (combinação de retorno ou fim de sessão), nunca por IPC, uma vez por tentativa, com log. **Degrau 3**: `AttachThreadInput` só durante a tentativa, em thread com timeout, com guarda RAII que sempre desanexa. `SetWinEventHook` com `WINEVENT_OUTOFCONTEXT \| WINEVENT_SKIPOWNPROCESS`. Proibidos `uiAccess=true` e `SPI_SETFOREGROUNDLOCKTIMEOUT`. Degraus 2 e 3 configuráveis em `settings.json → advanced.foreground`, sem comando IPC. **Padrão: cenário A**, aprovado pela segurança (rev. 5, §12): ordem 1 → 3 → 2 → 4, F24. Condições novas: no máximo um F24 por tentativa e só após falha do degrau 3; a escada não roda com estação bloqueada ou desktop seguro; uma thread pendente no degrau 3; com jogo elevado, pula para o degrau 4 e registra no log |
 | SEC-29 | INV-09. Em tempo de execução, as escritas do Sofá ficam na pasta de dados e no autostart do próprio usuário (SEC-29 emendado na rev. 2) |
 | SEC-30 | INV-07 |
 | AF-01 | estado `NeedsElevation` + `session_launch_with_uac` (`ShellExecuteExW` verbo padrão, nunca `runas`) |
@@ -659,7 +675,7 @@ Nunca registra nada além de IDs, nomes e caminhos de jogo (SEC-18). Configuraç
 - **C-01**: resolvido. SEC-22 e SEC-29 foram emendados pela segurança na rev. 2.
 - **C-02**: degraus 2 e 3 aprovados com condições (ADR-0003). Fica a revisão obrigatória com o resultado do QA final (D-35).
 - **C-04 (rev. 4, para a segurança reavaliar):**
-  1. a trava dos degraus 2/3 passou de constante de compilação para `settings.json`, que qualquer processo do mesmo usuário pode editar (premissa RR-01). O padrão continua desligado e não há comando IPC para ligá-los;
+  1. a trava dos degraus 2/3 passou de constante de compilação para `settings.json`, que qualquer processo do mesmo usuário pode editar (premissa RR-01). Não há comando IPC para mudá-los; o padrão é o cenário A aprovado (rev. 5);
   2. o fallback tarefa → HKCU Run (SEC-22) passa a ser automático, decidido em runtime. Os dois mecanismos já são permitidos pelo SEC-22 emendado.
 - **C-03 (SEC-08, formato do cache):** capas em JPEG em vez de PNG/WebP, pelo tamanho. O objetivo do requisito é mantido. Só registro.
 - **DR-01 / SEC-31, DR-02 / SEC-32, DR-03**: incorporados (ADR-0006 §6).
@@ -702,10 +718,39 @@ Nunca registra nada além de IDs, nomes e caminhos de jogo (SEC-18). Configuraç
 | RA-02 | Jogo como administrador: UIPI bloqueia o retorno e o fechamento | Limitação documentada (AF-01, SEC-17) |
 | RA-03 | Atraso do Explorer nas entradas `Run` estoura M-02 | P-03 (b), tarefa de logon; QF-06 mede |
 | RA-04 | Modern Standby (S0ix) sem `SetSuspendState` | "Suspensão indisponível" (CA-47) |
-| RA-05 | Desligamento híbrido e controle Bluetooth | Mesmo comportamento do menu Iniciar; QA observa |
+| RA-05 | Desligamento híbrido e controle Bluetooth | "Desligar" no Sofá segue o menu Iniciar (D-44, rev. 8): com a inicialização rápida ligada, desligamento híbrido. Com isso, drivers e o rádio Bluetooth não reiniciam do zero, igual a desligar pelo menu Iniciar. "Reiniciar" é completo e é o remédio se o controle não reconectar depois de ligar. QA-17 observa a reconexão do controle depois de "Desligar" e de "Reiniciar". Ponto para o dev confirmar no BE: a documentação do `ExitWindowsEx` combina `EWX_HYBRID_SHUTDOWN` com `EWX_SHUTDOWN`; o teste confere que `EWX_HYBRID_SHUTDOWN \| EWX_POWEROFF` desliga a máquina **e** que o boot seguinte é de inicialização rápida (evento 27 do Kernel-Boot, tipo de boot 0x1). Se não for, usar `EWX_HYBRID_SHUTDOWN \| EWX_SHUTDOWN \| EWX_POWEROFF` |
 | RA-06 | `tauri-specta` em RC | fallback `ts-rs` |
 | RA-07 | Tarefa agendada com o limite padrão de execução de 72 h encerraria o Sofá | `ExecutionTimeLimit = PT0S`, sem condição de bateria (ADR-0006) |
+| RA-08 | Retorno (CA-32) e fim de sessão (CA-30) dependem dos degraus 2 e 3 (os degraus 1 + 4 falham no SP-01) | Resolvido: cenário A aprovado pela segurança. Resta o QA-17 confirmar com jogos reais e anti-cheat (QF-01, QF-02) |
+| RA-09 | Build de dev em `-gnu` traz `WebView2Loader.dll` ao lado do exe, fora de SEC-23 | Release, instalador e testes de DLL só no alvo MSVC, nesta máquina, depois de o usuário instalar o VS Build Tools (P-08 b, ADR-0001) |
+| RA-10 | Galaxy 2.0 pode não criar a chave `GOG.com\Games` (E-17) | Log de rejeição no QA-17; alternativa: varrer pastas conhecidas por `goggame-*.info` |
+| RA-11 | O build `-gnu` embute dois `RT_MANIFEST`/1 (o nosso e o padrão do MinGW; aviso ".rsrc merge failure") e o loader usa um deles | Aceito só no `-gnu`, que não é distribuído. O build MSVC de release tem de ter exatamente um manifesto, conferido por teste (ARQ-BUG-08, trava do BE-39) |
 
 ### Perguntas abertas
 
-Nenhuma pergunta de produto pendente. DR-03 foi decidido pelo usuário: o desinstalador apaga só os dados do usuário interativo, e o autostart sai de todos os perfis. Pendências: revisão da segurança com o resultado do QA final (degraus 2 e 3, C-04) e os itens QF-01 a QF-08 (9.2).
+Não há pergunta aberta.
+
+| ID | Decisão | Onde |
+|---|---|---|
+| P-08 | (b) o usuário instala o VS Build Tools (MSVC) nesta máquina; release, instalador e teste de DLL plantada são feitos aqui, no alvo MSVC | ADR-0001, ADR-0006 |
+| P-09 | (a) sem conta de teste; autostart e desinstalador com outro perfil ficam no QA-17 | §9.2 (QF-05) |
+| SG-02 (seg. rev. 5) | Cenário A da escada como padrão do MVP, com as condições novas de SEC-28 | ADR-0003 |
+| SEC-19 | Mutex do plugin sem SID aceito, com a condição de ignorar `argv` | ADR-0006 |
+| D-43 (AF-11, DR-06) | Fallback elevado do desinstalador mantido, mas restrito a `library.json` e `settings.json` na raiz, por handle, sem curinga; o resto fica e a pasta é mostrada | ADR-0006 §6b rev. 6 |
+| D-44 | "Desligar" igual ao menu Iniciar (híbrido com a inicialização rápida ligada); "Reiniciar" completo. Reverte o desvio 5 do ARQ-05 | 2.1 (Power), RA-05 |
+
+Pendência técnica: o usuário instalar o VS Build Tools antes do primeiro build de release. Validação com jogos, lojas, controle, conta padrão e Win10 da sala no QA-17 (QF-01 a QF-08).
+
+---
+
+## 13. Parecer da revisão de código (ARQ-05)
+
+**Rodada 1 (2026-11-14), parcial**: núcleo (BE-06 a BE-36, BE-40, BE-41) e UI (FE-01 a FE-14). Veredito **aprovado com ressalvas**: nenhum ARQ-BUG alto; dois médios (ARQ-BUG-01, CA-29 sem volta ao primeiro plano; ARQ-BUG-02, efeitos com o `Mutex` da sessão preso, risco de deadlock com a thread da UI) e onze baixos. INV-01, INV-02 (30 comandos, capability da 4.3), CSP da 4.4, INV-03, INV-05 e INV-08 conferidos. INV-04 e INV-09 têm ressalvas (ARQ-BUG-07 e ARQ-BUG-06). Os desvios 1 a 8 dos devs foram aceitos e estão registrados nas seções 2.1, 2.3, 2.4, 2b e 12, no ADR-0001, no ADR-0005 e no ADR-0006. Detalhes: `docs/arch/launcher-tv-revisao.md`.
+
+**Rev. 8 (2026-11-14), depois da verificação de segurança (§14 do threat model) e das decisões D-43 e D-44:**
+- **Desvio 5 revertido (D-44).** "Desligar" volta a seguir o menu Iniciar: `EWX_HYBRID_SHUTDOWN | EWX_POWEROFF` com a inicialização rápida ligada; "Reiniciar" completo (2.1 Power, RA-05). Vira tarefa de back sobre `power.rs`; o guard de `EWX_FORCE*` não muda.
+- **SEC-BUG-01 (médio):** o ADR-0005 rev. 6 troca o `TerminateJobObject` pelo `classify` aplicado aos PIDs do Job, com encerramento só dos membros, por handle e tempo de criação. A sessão termina quando não sobra membro (2.4).
+- **DR-06 (alto, desenho):** ADR-0006 §6b rev. 6 fecha o achado antes do BE-38. Fallback elevado só para dois arquivos, por handle; código de saída lido por `CreateProcessW` com processo pai = Explorer (plugin `System`); código não lido = falha; desinstalador fecha o Sofá antes; purge sai com 4 com o Sofá aberto (SEC-BUG-03).
+- A rodada 2 do ARQ-05 confere as três correções.
+
+Falta para fechar: instalador e release (BE-37 a BE-39, primeiro build MSVC com o ARQ-BUG-08 como trava), BE-43 com o padrão final dos degraus no ADR-0003, QA-13 e a rodada 2 sobre as correções.

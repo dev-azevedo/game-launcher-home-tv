@@ -24,6 +24,16 @@ O Windows 11 já traz o runtime WebView2 Evergreen. No Windows 10 ele está pres
 
 Opções descartadas: instalador offline (+~130 MB por um caso raro) e bootstrapper baixado na hora (exige internet sempre que o runtime faltar, igual ao embutido, mas sem ganho).
 
+## Toolchain (rev. 5, SP-06/SP-07)
+
+- **Release, instalador e CI**: Rust estável, alvo **`x86_64-pc-windows-msvc`**. É o único alvo em que o loader do WebView2 é estático e o binário tem CFG, como SEC-23 pressupõe. O teste de DLL plantada só vale nesse build.
+- **Desenvolvimento local**: enquanto a máquina de dev não tiver o MSVC Build Tools, usa `x86_64-pc-windows-gnu` (MinGW em escopo de usuário). Nesse alvo o `WebView2Loader.dll` aparece ao lado do exe. Serve para desenvolver e para os spikes, nunca para distribuir.
+- **Onde roda o build MSVC (P-08 b, decisão do usuário)**: o usuário instala o Visual Studio Build Tools (MSVC) **nesta máquina de dev**. Depois disso, release, instalador NSIS e teste de DLL plantada (SEC-23) são feitos aqui, no alvo `x86_64-pc-windows-msvc`. Sem CI de nuvem no MVP.
+- **`windows-rs` fixado em 0.58** no `Cargo.lock`, compatível com os dois alvos. Atualizar a versão é uma tarefa explícita, não efeito colateral de `cargo update`.
+- O `rust-toolchain.toml` fixa a versão do compilador (≥ 1.77.2, SEC-24) sem fixar o alvo. O CI de release passa `--target x86_64-pc-windows-msvc`. O build de release usa `--target x86_64-pc-windows-msvc` na máquina de dev (P-08 b).
+- **Manifesto no `-gnu` (ARQ-05)**: o linker do MinGW junta o manifesto padrão dele ao nosso (`sofa.exe.manifest`, via `tauri-build`) e avisa ".rsrc merge failure: multiple non-default manifests". O `sofa.exe` de dev sai com dois `RT_MANIFEST`/1. Os dois pedem `asInvoker`, mas só o nosso traz Common Controls v6. Aceito porque o `-gnu` não é distribuído. O build MSVC de release tem de sair com exatamente um manifesto, conferido por teste antes do instalador (ARQ-BUG-08, BE-39).
+- Memória medida no SP-06 (working set privado, árvore inteira com 6 processos do WebView2): 293 MB na frente no pior caso (300 capas montadas, sem virtualização), 127 MB oculto, **118 MB suspenso**; retomada em ~30 ms. As metas estão no §6 da arquitetura.
+
 ## Consequências
 
 - Toda chamada ao Windows mora no núcleo Rust. A UI nunca recebe acesso a sistema de arquivos, shell ou processos. A lista fechada de comandos, a capability e a CSP estão em `docs/arch/launcher-tv.md` §4 (SEC-01 a SEC-05).

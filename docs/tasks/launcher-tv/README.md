@@ -2,7 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Spec | `docs/specs/launcher-tv.md` (CA-01 a CA-76, RN-01 a RN-30, decisões D-01 a D-28) |
+| Spec | `docs/specs/launcher-tv.md` (CA-01 a CA-79, RN-01 a RN-33, decisões D-01 a D-40; revisada após a aprovação dos mockups) |
+| Design | `docs/design/launcher-tv.md` (handoff; DES-01 a DES-08 concluídos) |
 | Arquitetura | `docs/arch/launcher-tv.md` (rev. 2) + ADRs 0001 a 0006 (0003, 0005 e 0006 `proposed` até os spikes) |
 | Segurança | `docs/security/launcher-tv.md` rev. 2 (SEC-01 a SEC-32, AF-01 a AF-10; emendas em SEC-08, SEC-10, SEC-21, SEC-22, SEC-25, SEC-28, SEC-29; DR-03 decidido: desinstalar apaga só os dados do usuário interativo) |
 | Marca | `docs/brand/sofa/` (concluída) |
@@ -137,7 +138,7 @@ flowchart LR
   FE01 & DES08 --> FE04[FE-04]
   FE03 & FE04 & BE29 --> FE05[FE-05]
   FE03 & FE04 & BE14 --> FE06[FE-06]
-  FE05 --> FE07[FE-07]
+  FE05 & FE08 --> FE07[FE-07]
   FE05 & BE20 --> FE08[FE-08]
   FE08 & BE21 --> FE09[FE-09]
   FE03 & FE04 & BE32 & BE33 & BE35 --> FE10[FE-10]
@@ -149,7 +150,7 @@ flowchart LR
   QA01[QA-01] & FE10 & BE09 --> QA02[QA-02]
   QA01 & FE06 & BE14 --> QA03[QA-03]
   QA01 & FE07 & FE12 & BE29 --> QA04[QA-04]
-  QA01 & FE13 & BE30 --> QA05[QA-05]
+  QA01 & FE13 & FE08 & BE30 --> QA05[QA-05]
   QA01 & FE09 & BE21 --> QA06[QA-06]
   QA01 & FE10 & FE11 --> QA07[QA-07]
   QA01 & FE10 & FE14 & BE33 --> QA08[QA-08]
@@ -208,7 +209,7 @@ flowchart LR
 | CA-23 | FE-05, DES-02 | QA-04 |
 | CA-24 | BE-28, FE-04, DES-01, DES-02 | QA-04 |
 | CA-25 | BE-11, BE-22, BE-29 | QA-12 |
-| CA-26 | BE-16, BE-20, FE-08, DES-04 | QA-06 |
+| CA-26 | BE-16, BE-20, FE-04, FE-08, DES-04 | QA-06 |
 | CA-27 | BE-16, BE-18, BE-20 | QA-06 |
 | CA-28 | BE-20, BE-30, FE-08, DES-04, DES-07 | QA-05, QA-06 |
 | CA-29 | BE-02, BE-15, BE-20, FE-08, DES-04 | QA-06 |
@@ -217,7 +218,7 @@ flowchart LR
 | CA-32 | BE-01, BE-18, BE-21, BE-43, FE-09, DES-04 | QA-06, QA-17, SG-10 |
 | CA-33 | BE-13 | QA-06 |
 | CA-34 | BE-18, BE-21, FE-09, DES-04 | QA-06 |
-| CA-35 | BE-15, BE-21, FE-09, DES-04 | QA-06 |
+| CA-35 | BE-15, BE-21, FE-04, FE-09, DES-04 | QA-06 |
 | CA-36 | BE-21, FE-05, FE-09, DES-02, DES-04 | QA-06 |
 | CA-37 | FE-09, FE-10, DES-05 | QA-06 |
 | CA-38 | BE-31, BE-32, FE-10, DES-05 | QA-07 |
@@ -236,7 +237,7 @@ flowchart LR
 | CA-51 | BE-04, BE-36, BE-37 | QA-10 |
 | CA-52 | BE-38, BE-42 | QA-10, QA-15 |
 | CA-53 | BE-37 | QA-10 |
-| CA-54 | DES-01, FE-03, FE-04 | QA-09, DES-09 |
+| CA-54 | DES-01, FE-03, FE-04, FE-05 | QA-09, DES-09 |
 | CA-55 | DES-01, FE-03, FE-04 | QA-03, QA-09, DES-09 |
 | CA-56 | BE-26, BE-28, BE-29 | QA-04 |
 | CA-57 | BE-27, BE-28, BE-29 | QA-04 |
@@ -253,12 +254,15 @@ flowchart LR
 | CA-68 | BE-38, BE-41 | QA-10, QA-15 |
 | CA-69 | BE-22, BE-25 | QA-04 |
 | CA-70 | BE-29, FE-12, DES-06 | QA-04 |
-| CA-71 | BE-23, BE-24, BE-30, FE-08, FE-13, DES-04, DES-06 | QA-05 |
+| CA-71 | BE-07, BE-23, BE-24, BE-30, FE-02, FE-08, FE-13, DES-04, DES-06, DES-07 | QA-05 |
 | CA-72 | BE-30, FE-13, DES-06 | QA-05 |
-| CA-73 | BE-16, BE-20, FE-08, DES-04 | QA-06 |
+| CA-73 | BE-16, BE-20, FE-08, DES-04 | QA-06, QA-17 |
 | CA-74 | BE-09, BE-36 | QA-10 |
 | CA-75 | BE-11, BE-20, BE-22 | QA-06, QA-12 |
 | CA-76 | BE-39 | QA-10 |
+| CA-77 | BE-07, BE-20, FE-04, FE-08 | QA-06, QA-17, DES-09 |
+| CA-78 | BE-07, BE-21, FE-04, FE-05, FE-09 | QA-06, QA-17, DES-09 |
+| CA-79 | FE-07 | QA-04, QA-17, DES-09 |
 
 ### Regras de negócio
 
@@ -290,10 +294,13 @@ flowchart LR
 | RN-24 | BE-01, BE-18, BE-21 | QA-06 |
 | RN-25 | BE-22, FE-04 | QA-04 |
 | RN-26 | BE-37 | QA-10 |
-| RN-27 | BE-09, BE-16 | QA-06, QA-10 |
+| RN-27 | BE-09, BE-16, BE-20, FE-08 | QA-06, QA-10 |
 | RN-28 | BE-22, BE-25 | QA-04 |
 | RN-29 | BE-23, BE-24, BE-30, FE-13 | QA-05 |
 | RN-30 | BE-39 | QA-10 |
+| RN-31 | BE-07, BE-20, BE-21, FE-04, FE-08, FE-09 | QA-06, DES-09 |
+| RN-32 | FE-03, FE-05 | QA-09, DES-09 |
+| RN-33 | FE-07 | QA-04, DES-09 |
 
 ### Requisitos de segurança
 
@@ -338,6 +345,7 @@ Além das tarefas listadas na coluna "Verifica", o roteiro do usuário (QA-16/QA
 
 ## Observações
 
+- **Spec pós-mockups**: CA-77 a CA-79 e RN-31 a RN-33 não precisaram de tarefa nova. Entraram em BE-07 (código `NetworkPathBlocked` e `session_dismiss` em `Launching`/`Closing`), BE-20, BE-21, BE-30, FE-02 a FE-05, FE-07 a FE-09, FE-13, QA-04 a QA-06, QA-09, QA-17 e DES-09. FE-07 passou a depender de FE-08 ("Jogar" usa o fluxo de iniciar jogo) e QA-05 de FE-08 (mensagem de rede ao iniciar).
 - **Termos**: a seção 3.1 da arquitetura cita "Remover" (opções do jogo) e "Jogos ocultos" (configurações). A spec usa "Ocultar" e "Itens ocultos" e não tem "excluir" no MVP (RN-04). DES-03, DES-06 e ARQ-05 seguem a spec.
 - **Desinstalador (rev. 2 de segurança)**: o processo elevado só decide; a remoção dos dados roda como o usuário interativo via `sofa.exe --purge-user-data` (BE-41, SEC-31) e apaga só os dados desse usuário (DR-03). O autostart sai de todos os perfis (BE-42, SEC-32). O arquiteto está revisando os ADRs 0003 e 0006 em paralelo; SG-09 confere a revisão antes de BE-38, BE-41 e BE-42.
 - **Spikes**: código fora do repo (ex.: `D:\GIT\STD\sofa-spikes\`) ou em branch descartável; resultado em `docs/arch/spikes/SP-xx.md`.
