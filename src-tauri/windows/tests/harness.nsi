@@ -17,11 +17,11 @@ OutFile "${OUT_EXE}"
 !include LogicLib.nsh
 !include FileFunc.nsh
 
-!define PRODUCTNAME "Sofa"
+!define PRODUCTNAME "SofaLauncher"
 !define VERSION "0.0.0"
 !define BUNDLEID "app.sofa.launcher"
 !define MAINBINARYNAME "sofa"
-!define DISPLAYNAME "Sofa"
+!define DISPLAYNAME "SofaLauncher"
 ; mesmas constantes do installer.nsi, para o install-dir.nsh (SEC-BUG-05) rodar aqui como la
 !define INSTALLDIRNAME "Sofa"
 !define PLACEHOLDER_INSTALL_DIR "placeholder\${INSTALLDIRNAME}"

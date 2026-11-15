@@ -5,7 +5,7 @@
 ; todas pedidas pelo ADR-0006 rev. 6 e pelos SEC-20 a SEC-32:
 ;   1. So `perMachine` em `$PROGRAMFILES64\Sofa` (pasta ASCII), FIXA: sem pagina de pasta, `/D=`
 ;      diferente e instalacao anterior em outra pasta sao recusados (install-dir.nsh, SEC-BUG-05,
-;      ARQ-BUG-16). O nome com acento ("Sofá") fica em DISPLAYNAME (atalho, "Aplicativos
+;      ARQ-BUG-16). O nome visivel ("SofaLauncher", D-49) fica em DISPLAYNAME (atalho, "Aplicativos
 ;      instalados", mensagens).
 ;   2. "Remover dados do programa" (RmDir /r elevado em $APPDATA e $LOCALAPPDATA) SAIU (SEC-31,
 ;      DR-06). No lugar: "Manter dados", marcada. Quem apaga e o `sofa.exe --purge-user-data`,
@@ -95,7 +95,7 @@ ${StrLoc}
 ; Sofa: a chave do produto e HKLM\Software\app.sofa.launcher (SEC-29), a mesma que o app le.
 !define MANUKEY "Software\${BUNDLEID}"
 !define MANUPRODUCTKEY "Software\${BUNDLEID}"
-!define DISPLAYNAME "Sofá"
+!define DISPLAYNAME "SofaLauncher"
 !define INSTALLDIRNAME "Sofa"
 !if "${INSTALLMODE}" != "perMachine"
   !error "Sofa: o instalador e so perMachine (RN-26, Q-09)"

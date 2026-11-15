@@ -683,6 +683,19 @@ public static class SofaReparse {
         Assert-SofaTechnicalKeys $code 'template'
     }
 
+    Test-Case 'nome visivel SofaLauncher no template e no harness; atalhos saem de DISPLAYNAME (D-49, BE-62)' {
+        foreach ($f in @((Join-Path $winDir 'installer.nsi'), (Join-Path $winDir 'tests\harness.nsi'))) {
+            $code = ((Get-Content -LiteralPath $f -Encoding UTF8) | Where-Object { $_.TrimStart() -notmatch '^[;#]' }) -join "`n"
+            $m = [regex]::Matches($code, '(?m)^\s*!define DISPLAYNAME\s+"([^"]*)"')
+            Assert-Eq $m.Count 1 "definicoes de DISPLAYNAME em $(Split-Path -Leaf $f)"
+            Assert-Eq $m[0].Groups[1].Value 'SofaLauncher' "DISPLAYNAME em $(Split-Path -Leaf $f)"
+        }
+        $tplCode = ((Get-Content -LiteralPath (Join-Path $winDir 'installer.nsi') -Encoding UTF8) | Where-Object { $_.TrimStart() -notmatch '^[;#]' }) -join "`n"
+        # o nome do atalho criado e sempre ${DISPLAYNAME}.lnk (SofaLauncher.lnk); nada de nome literal
+        foreach ($l in ($tplCode -split "`n" | Where-Object { $_ -match 'CreateShortcut' })) {
+            Assert-True ($l -match '\$\{DISPLAYNAME\}\.lnk') "atalho sem DISPLAYNAME: $l"
+        }
+    }
     # =============================================================== o instalador gerado
     Write-Host "`n== Instalador gerado (se existir)" -ForegroundColor Cyan
     $gen = Get-ChildItem -LiteralPath (Join-Path $root 'target') -Recurse -Filter installer.nsi -ErrorAction SilentlyContinue |
@@ -693,14 +706,15 @@ public static class SofaReparse {
             $v = @(Invoke-GeneratedNsisGuard $gen.FullName)
             Assert-True ($v.Count -eq 0) ("violacoes: " + ($v -join '; '))
         }
-        Test-Case 'script e idioma gerados: exatamente um BOM e "Sofa" com acento (UTF-8)' {
+        Test-Case 'script e idioma gerados: exatamente um BOM e acentos em UTF-8, sem mojibake' {
             $dir = Split-Path -Parent $gen.FullName
             foreach ($n in @('installer.nsi', 'PortugueseBR.nsh')) {
                 Assert-Eq (Get-Utf8BomCount (Join-Path $dir $n)) 1 "BOMs em $n gerado"
             }
-            # bytes de "Sofa" com acento agudo: 53 6F 66 C3 A1 (nunca C3 83 C2 A1, que e o mojibake)
-            $acute = [byte[]](0x53, 0x6F, 0x66, 0xC3, 0xA1)
-            $moji = [byte[]](0x53, 0x6F, 0x66, 0xC3, 0x83, 0xC2, 0xA1)
+            # o nome novo e ASCII, mas as outras strings seguem com acento ("ja", "sofa"): "a" agudo em UTF-8 e
+            # C3 A1 (nunca C3 83 C2 A1, que e o mojibake de um arquivo lido como ANSI)
+            $acute = [byte[]](0xC3, 0xA1)
+            $moji = [byte[]](0xC3, 0x83, 0xC2, 0xA1)
             function Find-Bytes([byte[]]$Hay, [byte[]]$Needle) {
                 for ($i = 0; $i -le $Hay.Length - $Needle.Length; $i++) {
                     $ok = $true
@@ -711,14 +725,13 @@ public static class SofaReparse {
             }
             foreach ($n in @('installer.nsi', 'PortugueseBR.nsh')) {
                 $b = [System.IO.File]::ReadAllBytes((Join-Path $dir $n))
-                Assert-True (Find-Bytes $b $acute) "$n gerado sem o nome com acento"
-                Assert-True (-not (Find-Bytes $b $moji)) "$n gerado com o nome em mojibake"
+                Assert-True (Find-Bytes $b $acute) "$n gerado sem os acentos em UTF-8"
+                Assert-True (-not (Find-Bytes $b $moji)) "$n gerado com acento em mojibake"
             }
             $t = [System.IO.File]::ReadAllText($gen.FullName, [System.Text.Encoding]::UTF8)
-            $a = [string][char]0xE1
             Assert-True ($t.Contains('!define MANUFACTURER "SofaLauncher"')) 'publisher SofaLauncher ausente (BE-61)'
             Assert-True ($t.Contains('!define COPYRIGHT "Copyright (c) SofaLauncher"')) 'copyright SofaLauncher ausente (BE-61)'
-            Assert-True ($t.Contains('!define DISPLAYNAME "Sof' + $a + '"')) 'nome exibido com acento ausente'
+            Assert-True ($t.Contains('!define DISPLAYNAME "SofaLauncher"')) 'nome exibido SofaLauncher ausente (BE-62)'
         }
         Test-Case 'script gerado: chaves tecnicas iguais as da 0.1.0 (UNINSTKEY literal Uninstall\Sofa, R-11)' {
             $t = ((Get-Content -LiteralPath $gen.FullName -Encoding UTF8) | Where-Object { $_.TrimStart() -notmatch '^[;#]' }) -join "`n"
@@ -745,13 +758,12 @@ public static class SofaReparse {
         $setup = Get-ChildItem -LiteralPath (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $gen.FullName))) -Recurse -Filter '*-setup.exe' -ErrorAction SilentlyContinue |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
         if ($setup) {
-            Test-Case "nome com acento no instalador compilado ($($setup.Name))" {
+            Test-Case "nome SofaLauncher no instalador compilado ($($setup.Name))" {
                 # ProductName, FileDescription e LegalCopyright saem do mesmo .nsi (DISPLAYNAME e copyright): se o
-                # makensis leu o arquivo como ANSI, viria o mojibake em vez de "Sofa" com o acento agudo
+                # makensis leu o arquivo como ANSI, as strings viriam em mojibake; o nome tem de ser SofaLauncher (D-49)
                 $vi = (Get-Item -LiteralPath $setup.FullName).VersionInfo
-                $a = [string][char]0xE1
-                Assert-Eq $vi.ProductName ('Sof' + $a) 'ProductName'
-                Assert-Eq $vi.FileDescription ('Sof' + $a) 'FileDescription'
+                Assert-Eq $vi.ProductName 'SofaLauncher' 'ProductName'
+                Assert-Eq $vi.FileDescription 'SofaLauncher' 'FileDescription'
                 Assert-Eq $vi.LegalCopyright 'Copyright (c) SofaLauncher' 'LegalCopyright'
             }
         }
