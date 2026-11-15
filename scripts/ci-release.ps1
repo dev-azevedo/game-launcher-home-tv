@@ -174,7 +174,7 @@ function Invoke-Release {
             )
             [System.IO.File]::WriteAllText((Join-Path $stage 'README.txt'), (($readme -join "`r`n") + "`r`n"), (New-Object System.Text.UTF8Encoding($false)))
 
-            $nsisVer = (Get-Item -LiteralPath (Join-Path $env:LOCALAPPDATA 'tauri\NSIS\makensis.exe')).VersionInfo.ProductVersion
+            $nsisVer = ((& (Join-Path $env:LOCALAPPDATA 'tauri\NSIS\makensis.exe') /VERSION) -join ' ')
             $info = @(
                 "versao: $version",
                 "commit: $commit",
@@ -192,7 +192,7 @@ function Invoke-Release {
             [System.IO.File]::WriteAllText((Join-Path $stage 'BUILD-INFO.txt'), (($info -join "`r`n") + "`r`n"), (New-Object System.Text.UTF8Encoding($false)))
 
             # confere: o hash publicado bate com o arquivo
-            $line = (Get-Content -LiteralPath (Join-Path $stage 'SHA256SUMS.txt'))[0]
+            $line = @(Get-Content -LiteralPath (Join-Path $stage 'SHA256SUMS.txt'))[0]
             $pub, $name = $line -split '  ', 2
             $again = (Get-FileHash -LiteralPath (Join-Path $stage $name) -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($pub -ne $again) { throw "SHA256SUMS.txt nao confere com $name" }
