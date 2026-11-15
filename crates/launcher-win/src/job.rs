@@ -21,11 +21,14 @@ use windows::Win32::System::IO::{
 /// Chave que identifica o Job na porta; a de parada e outra.
 const JOB_KEY: usize = 0x50;
 const STOP_KEY: usize = 0x51;
+/// Pacote proprio postado pela espera no handle de um membro (ARQ-BUG-15): o `dwNumberOfBytes`
+/// leva o PID. Nao e mensagem do kernel: avisa que o objeto do processo **sinalizou de fato**.
+const MEMBER_KEY: usize = 0x52;
 
 /// Mensagens do Job (`JOB_OBJECT_MSG_*`).
 const MSG_ACTIVE_PROCESS_ZERO: u32 = 4;
 const MSG_NEW_PROCESS: u32 = 6;
-const MSG_EXIT_PROCESS: u32 = 7;
+pub(crate) const MSG_EXIT_PROCESS: u32 = 7;
 const MSG_ABNORMAL_EXIT_PROCESS: u32 = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,6 +36,8 @@ pub enum JobMessage {
     NewProcess(u32),
     /// Saiu o processo com esse PID (saida normal ou anormal).
     ExitProcess(u32),
+    /// O handle do membro com esse PID sinalizou: o processo saiu de fato (ARQ-BUG-15).
+    MemberExited(u32),
     /// Nenhum processo ativo no Job.
     ActiveZero,
     Other,
@@ -103,6 +108,9 @@ impl Job {
         if key == STOP_KEY {
             return JobMessage::Stop;
         }
+        if key == MEMBER_KEY {
+            return JobMessage::MemberExited(bytes);
+        }
         match bytes {
             MSG_NEW_PROCESS => JobMessage::NewProcess(overlapped as usize as u32),
             MSG_EXIT_PROCESS | MSG_ABNORMAL_EXIT_PROCESS => {
@@ -118,6 +126,30 @@ impl Job {
         // SAFETY: `port` valido; sem `OVERLAPPED`.
         unsafe {
             let _ = PostQueuedCompletionStatus(self.port, 0, STOP_KEY, None);
+        }
+    }
+
+    /// Avisa pela porta que o handle do membro `pid` sinalizou. Chamada pela espera registrada no
+    /// handle (thread de espera do sistema): so posta o pacote, sem `Mutex` nem alocacao.
+    pub fn post_member_exited(&self, pid: u32) {
+        // SAFETY: `port` valido enquanto o `Job` existir; sem `OVERLAPPED`.
+        unsafe {
+            let _ = PostQueuedCompletionStatus(self.port, pid, MEMBER_KEY, None);
+        }
+    }
+
+    /// Testes: poe na porta uma mensagem do kernel falsa (`JOB_OBJECT_MSG_*`) para um PID, como se
+    /// a porta avisasse a saida de um processo que ainda nao sinalizou.
+    #[cfg(test)]
+    pub(crate) fn inject_kernel_message(&self, msg: u32, pid: u32) {
+        // SAFETY: `port` valido; o PID viaja no campo `OVERLAPPED` como o kernel faz.
+        unsafe {
+            let _ = PostQueuedCompletionStatus(
+                self.port,
+                msg,
+                JOB_KEY,
+                Some(pid as usize as *const OVERLAPPED),
+            );
         }
     }
 

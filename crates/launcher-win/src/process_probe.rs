@@ -31,7 +31,8 @@ use launcher_core::application::AppError;
 use launcher_core::domain::session::{classify, GameScope, ProcessInfo, SessionContext};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{
-    CloseHandle, GetLastError, ERROR_ACCESS_DENIED, FILETIME, HANDLE, LPARAM, WAIT_OBJECT_0, WPARAM,
+    CloseHandle, GetLastError, BOOLEAN, ERROR_ACCESS_DENIED, FILETIME, HANDLE,
+    INVALID_HANDLE_VALUE, LPARAM, WAIT_OBJECT_0, WPARAM,
 };
 use windows::Win32::Security::{
     EqualSid, GetTokenInformation, TokenUser, PSID, TOKEN_QUERY, TOKEN_USER,
@@ -45,9 +46,10 @@ use windows::Win32::System::Registry::{
 use windows::Win32::System::RemoteDesktop::ProcessIdToSessionId;
 use windows::Win32::System::Threading::{
     CreateEventW, GetCurrentProcess, GetCurrentProcessId, GetProcessTimes, OpenProcess,
-    OpenProcessToken, QueryFullProcessImageNameW, SetEvent, TerminateProcess,
-    WaitForMultipleObjects, WaitForSingleObject, PROCESS_NAME_WIN32,
-    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+    OpenProcessToken, QueryFullProcessImageNameW, RegisterWaitForSingleObject, SetEvent,
+    TerminateProcess, UnregisterWaitEx, WaitForMultipleObjects, WaitForSingleObject, INFINITE,
+    PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+    WT_EXECUTEINWAITTHREAD, WT_EXECUTEONLYONCE,
 };
 use windows::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE};
 
@@ -57,8 +59,6 @@ use crate::windows_enum::{hwnd as to_hwnd, top_level_windows};
 /// Nao membros sao reavaliados a cada ~60 s (reuso de PID, ADR-0005).
 const REVALIDATE_AFTER: Duration = Duration::from_secs(60);
 const MAX_WAIT_HANDLES: usize = 63;
-/// Folga maxima para o handle de um processo que a porta do Job ja disse que saiu.
-const EXIT_SIGNAL_WAIT_MS: u32 = 500;
 
 // ---------------------------------------------------------------------------- handles
 
@@ -160,7 +160,74 @@ fn sids_equal(a: &[u8], b: &[u8]) -> bool {
 
 // -------------------------------------------------------------------------- varredura
 
+/// Espera registrada no handle de um membro (modo Job, ARQ-BUG-15): quando o objeto do processo
+/// **de fato** sinaliza, o sistema chama `member_exited`, que posta um pacote proprio na porta do
+/// Job. Nenhum prazo fixo e nenhum `Mutex` preso: o fim de sessao nao depende de quanto o jogo
+/// leva para desmontar o processo depois de o kernel avisar `EXIT_PROCESS`.
+struct ExitWait {
+    wait: HANDLE,
+    /// Contexto da espera (`Box::into_raw`); so liberado depois de `UnregisterWaitEx` bloquear
+    /// ate o fim de qualquer chamada em curso.
+    ctx: *mut ExitWaitCtx,
+}
+
+struct ExitWaitCtx {
+    job: Arc<Job>,
+    pid: u32,
+}
+
+// SAFETY: `wait` e um identificador do sistema e `ctx` so e lido pela callback (que apenas posta
+// na porta) e liberado no `Drop`, depois de a espera ser cancelada.
+unsafe impl Send for ExitWait {}
+
+/// Callback da thread de espera do sistema. So posta o pacote: sem `Mutex`, sem alocacao.
+unsafe extern "system" fn member_exited(ctx: *mut std::ffi::c_void, _timed_out: BOOLEAN) {
+    // SAFETY: `ctx` e o `ExitWaitCtx` de `ExitWait::register`, vivo ate o `UnregisterWaitEx`
+    // do `Drop`, que espera esta chamada terminar.
+    let ctx = unsafe { &*(ctx as *const ExitWaitCtx) };
+    ctx.job.post_member_exited(ctx.pid);
+}
+
+impl ExitWait {
+    /// Registra a espera no handle (que precisa de `SYNCHRONIZE`). Se o handle ja sinalizou, o
+    /// sistema chama a callback na hora. `None` se o registro falhar.
+    fn register(handle: HANDLE, job: Arc<Job>, pid: u32) -> Option<ExitWait> {
+        let ctx = Box::into_raw(Box::new(ExitWaitCtx { job, pid }));
+        let mut wait = HANDLE::default();
+        // SAFETY: `ctx` vive ate o `Drop`; a callback executa na propria thread de espera.
+        let r = unsafe {
+            RegisterWaitForSingleObject(
+                &mut wait,
+                handle,
+                Some(member_exited),
+                Some(ctx as *const std::ffi::c_void),
+                INFINITE,
+                WT_EXECUTEONLYONCE | WT_EXECUTEINWAITTHREAD,
+            )
+        };
+        if r.is_err() {
+            // SAFETY: nenhuma espera foi registrada: o contexto ainda e so nosso.
+            drop(unsafe { Box::from_raw(ctx) });
+            return None;
+        }
+        Some(ExitWait { wait, ctx })
+    }
+}
+
+impl Drop for ExitWait {
+    fn drop(&mut self) {
+        // SAFETY: `INVALID_HANDLE_VALUE` bloqueia ate a callback em curso terminar (ela so posta
+        // na porta, nunca espera por nos); depois disso o contexto nao e mais lido.
+        unsafe {
+            let _ = UnregisterWaitEx(self.wait, INVALID_HANDLE_VALUE);
+            drop(Box::from_raw(self.ctx));
+        }
+    }
+}
+
 struct Member {
+    /// Declarado antes de `handle`: a espera sai antes de o handle fechar.
+    _exit_wait: Option<ExitWait>,
     handle: Owned,
     creation: u64,
 }
@@ -176,12 +243,14 @@ struct Scanner {
     cache: HashMap<u32, CacheEntry>,
     ctx: SessionContext,
     own_sid: Option<Vec<u8>>,
+    /// Modo Job: o Job que recebe o pacote `MemberExited` de cada membro (ARQ-BUG-15).
+    notify: Option<Arc<Job>>,
     /// Quantos snapshots ToolHelp esta varredura tirou (testes: o modo Job nunca tira, ARQ-BUG-14).
     snapshots: usize,
 }
 
 impl Scanner {
-    fn new(scope: GameScope, store_dirs: Vec<String>) -> Self {
+    fn new(scope: GameScope, store_dirs: Vec<String>, notify: Option<Arc<Job>>) -> Self {
         // SAFETY: handle pseudo do proprio processo.
         let own_pid = unsafe { GetCurrentProcessId() };
         let own_sid = user_sid(unsafe { GetCurrentProcess() });
@@ -196,6 +265,7 @@ impl Scanner {
                 store_dirs,
             },
             own_sid,
+            notify,
             snapshots: 0,
         }
     }
@@ -297,19 +367,6 @@ impl Scanner {
         !self.members.is_empty()
     }
 
-    /// A porta avisa a saida **antes** de o objeto do processo sinalizar. Sem o snapshot, que dava
-    /// essa folga sem querer, o membro que saiu ainda pareceria vivo e o fim da sessao nao seria
-    /// avisado (nenhuma outra mensagem viria se so restar um acompanhante). Espera, por pouco
-    /// tempo, o handle do membro sinalizar.
-    fn wait_member_exit(&self, pid: u32) {
-        if let Some(m) = self.members.get(&pid) {
-            // SAFETY: handle de membro vivo no conjunto (tem SYNCHRONIZE).
-            unsafe {
-                WaitForSingleObject(m.handle.0, EXIT_SIGNAL_WAIT_MS);
-            }
-        }
-    }
-
     /// Abre o processo, confere o dono e a sessao e, se o `classify` aceitar, guarda o handle e o
     /// tempo de criacao como membro. Com `job`, confirma antes que o handle e mesmo do Job.
     fn evaluate(&mut self, pid: u32, parent: Option<u32>, job: Option<&Job>) {
@@ -345,7 +402,19 @@ impl Scanner {
         };
         if classify(&info, &self.ctx).is_ok() {
             if let Some(creation) = creation_time(handle.0) {
-                self.members.insert(pid, Member { handle, creation });
+                // Modo Job: a espera avisa pela porta quando o processo sai de fato.
+                let exit_wait = self
+                    .notify
+                    .as_ref()
+                    .and_then(|job| ExitWait::register(handle.0, Arc::clone(job), pid));
+                self.members.insert(
+                    pid,
+                    Member {
+                        _exit_wait: exit_wait,
+                        handle,
+                        creation,
+                    },
+                );
             }
         }
     }
@@ -605,9 +674,8 @@ fn job_loop(
         // O `Mutex` do scanner solta antes de avisar o sink (que pega o `Mutex` da sessao).
         let has_members = {
             let mut s = scanner.lock().unwrap_or_else(PoisonError::into_inner);
-            if let JobMessage::ExitProcess(pid) = message {
-                s.wait_member_exit(pid);
-            }
+            // Sem espera aqui: se o membro que a porta disse que saiu ainda nao sinalizou, a
+            // espera registrada no handle posta `MemberExited` quando ele sinalizar (ARQ-BUG-15).
             s.scan_job(job)
         };
         if matches!(message, JobMessage::NewProcess(_)) && first_pending {
@@ -712,7 +780,11 @@ impl WinSessionProbe {
             };
             let job = job.downcast::<Job>().map_err(|_| AppError::Internal)?;
             let job: Arc<Job> = Arc::new(*job);
-            let scanner = Arc::new(Mutex::new(Scanner::new(scope, self.store_dirs.clone())));
+            let scanner = Arc::new(Mutex::new(Scanner::new(
+                scope,
+                self.store_dirs.clone(),
+                Some(Arc::clone(&job)),
+            )));
             let (j, sc, st, sk) = (
                 Arc::clone(&job),
                 Arc::clone(&scanner),
@@ -734,7 +806,11 @@ impl WinSessionProbe {
         let Some(scope) = scope_of(plan.scan_dir, plan.exact_exe) else {
             return Err(AppError::Internal); // nada para vigiar
         };
-        let scanner = Arc::new(Mutex::new(Scanner::new(scope, self.store_dirs.clone())));
+        let scanner = Arc::new(Mutex::new(Scanner::new(
+            scope,
+            self.store_dirs.clone(),
+            None,
+        )));
         let (sc, st, stop_ev) = (
             Arc::clone(&scanner),
             Arc::clone(&stopping),
@@ -761,5 +837,186 @@ impl WinSessionProbe {
             stopping,
             thread: Some(thread),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! ARQ-BUG-15: o fim da sessao no modo Job nao depende de prazo fixo. O kernel avisa
+    //! `EXIT_PROCESS` antes de o objeto do processo sinalizar; aqui a ordem e controlada (mensagem
+    //! injetada com o membro ainda vivo) e confere-se a espera registrada no handle.
+
+    use super::*;
+    use crate::job::MSG_EXIT_PROCESS;
+    use std::os::windows::io::AsRawHandle;
+    use std::path::{Path, PathBuf};
+    use std::process::{Child, Command, Stdio};
+    use std::sync::Condvar;
+
+    struct Dir(PathBuf);
+
+    impl Dir {
+        fn new(tag: &str) -> Self {
+            let p = std::env::temp_dir().join(format!("sofa-probe-{}-{tag}", std::process::id()));
+            std::fs::create_dir_all(&p).unwrap();
+            Dir(p)
+        }
+        /// Copia o `ping.exe` do sistema para `rel`: processo que vive `count - 1` segundos.
+        fn ping(&self, rel: &str) -> PathBuf {
+            let dst = self.0.join(rel);
+            std::fs::create_dir_all(dst.parent().unwrap()).unwrap();
+            let sys = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+            std::fs::copy(Path::new(&sys).join(r"System32\ping.exe"), &dst).unwrap();
+            dst
+        }
+    }
+
+    impl Drop for Dir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn spawn_in_job(exe: &Path, count: u32, job: &Job) -> Child {
+        let child = Command::new(exe)
+            .args(["-n", &count.to_string(), "127.0.0.1"])
+            .stdout(Stdio::null())
+            .spawn()
+            .unwrap();
+        job.assign(HANDLE(child.as_raw_handle())).expect("assign");
+        child
+    }
+
+    #[derive(Default)]
+    struct TestSink {
+        events: Mutex<Vec<&'static str>>,
+        cv: Condvar,
+    }
+
+    impl ProbeSink for TestSink {
+        fn process_seen(&self, _g: u64) {
+            self.events.lock().unwrap().push("seen");
+            self.cv.notify_all();
+        }
+        fn processes_gone(&self, _g: u64) {
+            self.events.lock().unwrap().push("gone");
+            self.cv.notify_all();
+        }
+    }
+
+    impl TestSink {
+        fn wait(&self, name: &str, timeout: Duration) -> bool {
+            let deadline = Instant::now() + timeout;
+            let mut g = self.events.lock().unwrap();
+            while !g.contains(&name) {
+                let Some(left) = deadline.checked_duration_since(Instant::now()) else {
+                    return false;
+                };
+                g = self.cv.wait_timeout(g, left).unwrap().0;
+            }
+            true
+        }
+    }
+
+    /// A espera registrada no handle do membro posta `MemberExited(pid)` quando o processo sai de
+    /// fato, e o pacote so chega depois de o handle sinalizar.
+    #[test]
+    fn espera_no_handle_posta_o_pacote_proprio_quando_o_membro_sai_de_fato() {
+        let dir = Dir::new("espera");
+        let exe = dir.ping(r"Jogo\game.exe");
+        let job = Arc::new(Job::new().unwrap());
+        let mut scanner = Scanner::new(
+            GameScope::Dir(dir.0.join("Jogo").to_string_lossy().into_owned()),
+            vec![],
+            Some(Arc::clone(&job)),
+        );
+        let mut child = spawn_in_job(&exe, 3, &job); // ~2 s
+        let pid = child.id();
+        assert!(scanner.scan_job(&job), "o ping da pasta do jogo e membro");
+
+        // Rede de seguranca: se o pacote nao vier, a espera acaba por `Stop`.
+        let guard = {
+            let j = Arc::clone(&job);
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_secs(20));
+                j.wake();
+            })
+        };
+        let exited = loop {
+            match job.wait_message() {
+                JobMessage::MemberExited(p) => break p,
+                JobMessage::Stop | JobMessage::Failed => panic!("o pacote do membro nao veio"),
+                _ => {}
+            }
+        };
+        assert_eq!(exited, pid);
+        assert!(
+            is_signaled(scanner.members[&pid].handle.0),
+            "o pacote so e postado depois de o handle sinalizar"
+        );
+        assert!(
+            !scanner.scan_job(&job),
+            "o membro saiu de fato: sem membros"
+        );
+        let _ = child.wait();
+        drop(guard);
+    }
+
+    /// Chega `EXIT_PROCESS` com o membro ainda vivo (o handle sinaliza so depois) e ha um
+    /// acompanhante vivo no Job. A thread da sonda nao espera nada com o `Mutex` do scanner preso
+    /// (`pids` e `force_close` o pegam com o `Mutex` da sessao preso) e a sessao termina quando o
+    /// handle sinaliza.
+    #[test]
+    fn exit_process_antecipado_nao_prende_o_mutex_e_a_sessao_termina_quando_o_handle_sinaliza() {
+        let dir = Dir::new("antecipado");
+        let exe = dir.ping(r"Jogo\game.exe");
+        let outro = dir.ping(r"Fora\acompanhante.exe");
+        let job = Arc::new(Job::new().unwrap());
+        let scanner = Arc::new(Mutex::new(Scanner::new(
+            GameScope::Dir(dir.0.join("Jogo").to_string_lossy().into_owned()),
+            vec![],
+            Some(Arc::clone(&job)),
+        )));
+        let sink = Arc::new(TestSink::default());
+        let stopping = Arc::new(AtomicBool::new(false));
+        let mut member = spawn_in_job(&exe, 5, &job); // ~4 s
+        let mut companion = spawn_in_job(&outro, 60, &job); // vive bem mais que o teste
+        let thread = {
+            let (j, sc, sk, st) = (
+                Arc::clone(&job),
+                Arc::clone(&scanner),
+                Arc::clone(&sink),
+                Arc::clone(&stopping),
+            );
+            std::thread::spawn(move || job_loop(&j, &sc, 1, sk.as_ref(), &st))
+        };
+        assert!(sink.wait("seen", Duration::from_secs(5)), "inicio");
+
+        job.inject_kernel_message(MSG_EXIT_PROCESS, member.id());
+        std::thread::sleep(Duration::from_millis(100)); // a thread da sonda ja pegou a mensagem
+        let t = Instant::now();
+        drop(scanner.lock().unwrap());
+        let took = t.elapsed();
+        assert!(
+            took < Duration::from_millis(150),
+            "o Mutex do scanner nao pode ficar preso esperando o handle: {took:?}"
+        );
+        assert!(
+            !sink.wait("gone", Duration::from_millis(500)),
+            "o membro segue vivo: a sessao nao acabou"
+        );
+
+        assert!(
+            sink.wait("gone", Duration::from_secs(10)),
+            "o handle sinalizou: a sessao termina, com o acompanhante vivo"
+        );
+        assert!(companion.try_wait().unwrap().is_none(), "acompanhante vivo");
+
+        stopping.store(true, Ordering::Release);
+        job.wake();
+        thread.join().unwrap();
+        let _ = companion.kill();
+        let _ = companion.wait();
+        let _ = member.wait();
     }
 }

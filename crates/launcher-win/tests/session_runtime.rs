@@ -926,3 +926,148 @@ fn escada_real_traz_a_janela_do_sofa_para_a_frente() {
     assert!(started.elapsed() < Duration::from_secs(3));
     let _ = AppError::Internal; // mantem o import usado em todos os perfis de teste
 }
+
+// ------------------------------------------------------------- ARQ-BUG-15: fim sem prazo fixo
+
+/// Inicia `exe` dentro de um Job, **sob depurador**, e segura a saida: o depurador so libera o
+/// processo `hold` depois do `EXIT_PROCESS_DEBUG_EVENT`, como um jogo grande que demora a
+/// desmontar o processo. Medido: o kernel posta o `EXIT_PROCESS` do Job so depois dessa folga, ou
+/// seja, aqui a mensagem e o handle chegam juntos; a ordem "mensagem antes do handle" e provada em
+/// `process_probe::tests` (mensagem injetada). Este e o teste de ponta a ponta: a sessao termina
+/// com a saida lenta, com e sem acompanhante. Devolve o Job, pronto para o `WatchPlan`.
+fn start_in_job_with_slow_exit(
+    exe: &Path,
+    args: &str,
+    hold: Duration,
+) -> Box<launcher_win::job::Job> {
+    use windows::core::PWSTR;
+    use windows::Win32::Foundation::DBG_CONTINUE;
+    use windows::Win32::System::Diagnostics::Debug::{
+        ContinueDebugEvent, WaitForDebugEvent, DEBUG_EVENT, EXIT_PROCESS_DEBUG_EVENT,
+    };
+    use windows::Win32::System::Threading::{
+        CreateProcessW, ResumeThread, CREATE_SUSPENDED, DEBUG_ONLY_THIS_PROCESS, INFINITE,
+        PROCESS_INFORMATION, STARTUPINFOW,
+    };
+
+    let line = format!("\"{}\" {args}", exe.display());
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        // O depurador e quem criou o processo: so esta thread recebe os eventos.
+        let job = launcher_win::job::Job::new().expect("job");
+        let mut cmd: Vec<u16> = line.encode_utf16().chain(std::iter::once(0)).collect();
+        let si = STARTUPINFOW {
+            cb: std::mem::size_of::<STARTUPINFOW>() as u32,
+            ..Default::default()
+        };
+        let mut pi = PROCESS_INFORMATION::default();
+        // SAFETY: linha NUL-terminada e mutavel; handles fechados ao fim do loop de eventos.
+        unsafe {
+            CreateProcessW(
+                PCWSTR::null(),
+                PWSTR(cmd.as_mut_ptr()),
+                None,
+                None,
+                false,
+                CREATE_SUSPENDED | DEBUG_ONLY_THIS_PROCESS,
+                None,
+                PCWSTR::null(),
+                &si,
+                &mut pi,
+            )
+            .expect("CreateProcessW");
+            job.assign(pi.hProcess).expect("assign");
+            ResumeThread(pi.hThread);
+            tx.send(Box::new(job)).unwrap();
+            loop {
+                let mut ev = DEBUG_EVENT::default();
+                if WaitForDebugEvent(&mut ev, INFINITE).is_err() {
+                    break;
+                }
+                let exiting = ev.dwDebugEventCode == EXIT_PROCESS_DEBUG_EVENT;
+                if exiting {
+                    std::thread::sleep(hold);
+                }
+                let _ = ContinueDebugEvent(ev.dwProcessId, ev.dwThreadId, DBG_CONTINUE);
+                if exiting {
+                    break;
+                }
+            }
+            let _ = CloseHandle(pi.hThread);
+            let _ = CloseHandle(pi.hProcess);
+        }
+    });
+    rx.recv_timeout(Duration::from_secs(10)).expect("job")
+}
+
+fn watch_slow_exit(
+    exe: &Path,
+    args: &str,
+    hold: Duration,
+    sink: &Arc<Sink>,
+) -> Box<dyn SessionWatch> {
+    let job = start_in_job_with_slow_exit(exe, args, hold);
+    let plan = WatchPlan {
+        game: GameId::parse("manual:9f3a1c2b7d4e5a60").unwrap(),
+        job: Some(job),
+        scan_dir: exe.parent().map(|p| p.to_string_lossy().into_owned()),
+        exact_exe: None,
+        steam_app_id: None,
+    };
+    let s: Arc<dyn ProbeSink> = sink.clone();
+    WinSessionProbe::with_store_dirs(vec![])
+        .watch(plan, 1, s, cfg())
+        .unwrap()
+}
+
+/// ARQ-BUG-15, ponta a ponta: o membro leva 2 s para sair depois de pedir a saida; a sessao tem
+/// de terminar (sem acompanhante).
+#[test]
+fn job_termina_quando_o_handle_do_membro_sinaliza_2s_depois_do_exit_process() {
+    let sb = Sandbox::new();
+    let exe = sb.game(r"Jogos\Saida Lenta\game.exe");
+    let sink = Arc::new(Sink::default());
+    let t0 = Instant::now();
+    let _watch = watch_slow_exit(&exe, "sleep 600", Duration::from_secs(2), &sink);
+    sink.wait("seen", 1, Duration::from_secs(4))
+        .expect("inicio");
+    let gone = sink
+        .wait("gone", 1, Duration::from_secs(10))
+        .expect("a sessao termina sem prazo fixo");
+    assert!(
+        gone.duration_since(t0) >= Duration::from_millis(2400),
+        "o processo so e liberado em ~2,6 s: fim em {:?}",
+        gone.duration_since(t0)
+    );
+}
+
+/// ARQ-BUG-15, ponta a ponta, com acompanhante vivo no Job (o caso do SEC-BUG-01), que vive bem
+/// mais que o teste e e poupado.
+#[test]
+fn job_com_acompanhante_termina_quando_o_handle_do_membro_sinaliza_2s_depois() {
+    let sb = Sandbox::new();
+    let exe = sb.game(r"Jogos\Saida Lenta 2\game.exe");
+    let outside = sb.game("Fora/acompanhante-saida-lenta.exe");
+    let sink = Arc::new(Sink::default());
+    let t0 = Instant::now();
+    let args = format!("spawn \"{}\" 60000 600", outside.display());
+    let watch = watch_slow_exit(&exe, &args, Duration::from_secs(2), &sink);
+    sink.wait("seen", 1, Duration::from_secs(4))
+        .expect("inicio");
+    let gone = sink
+        .wait("gone", 1, Duration::from_secs(10))
+        .expect("a sessao termina mesmo com o acompanhante vivo");
+    assert!(gone.duration_since(t0) >= Duration::from_millis(2400));
+    assert!(
+        alive_by_name("acompanhante-saida-lenta.exe"),
+        "o acompanhante nao e membro nem e encerrado"
+    );
+    drop(watch);
+    let _ = Command::new("taskkill")
+        .args(["/F", "/IM", "acompanhante-saida-lenta.exe"])
+        .output();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while alive_by_name("acompanhante-saida-lenta.exe") && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
