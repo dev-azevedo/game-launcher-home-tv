@@ -63,19 +63,26 @@ ADR-0001). O MSVC entra em `scripts/ci.ps1 -Release`, que depois dos passos acim
 1. `cargo test` no MSVC (`-SkipMsvcTests` pula), na toolchain MSVC **da versão fixada** em
    `rust-toolchain.toml` (ou `stable-...-msvc` se for a mesma versão; senão o script diz o comando
    `rustup toolchain install`). Por padrão sem `session_e2e` e `session_runtime`, que sobem o
-   `sofa-test-game.exe`: o Defender classifica esse helper (compilado no MSVC) como
-   `Trojan:Win32/Bearfoos.A!ml`, falso positivo, e bloqueia a execução (erro 225). `-FullMsvcTests`
-   roda tudo (adicione `target\` às exclusões do Defender se quiser).
+   `sofa-test-game.exe`. `-FullMsvcTests` roda tudo. O helper sem metadados era barrado pelo
+   Defender (falso positivo `Trojan:Win32/Bearfoos.A!ml`, erro 225, BE-52); ganhou versão, empresa,
+   descrição e manifesto (`crates/launcher-win/test-game.rc`, `build.rs`) e passa. **Nada de
+   exclusão no Defender**: se o erro 225 voltar, o teste falha e o motivo está aqui.
 2. Relatórios de `cargo deny` e `npm audit` (produção, nível alto) em `relatorios\`.
 3. `tauri build --target x86_64-pc-windows-msvc --bundles nsis` (a CLI vem do `ui/package.json`, sem
    scripts de instalação): NSIS por máquina, `Program Files\Sofa`, bootstrapper do WebView2 embutido.
-4. **Trava do ARQ-BUG-08**: `src-tauri/tests/manifest_resource.rs` lê o diretório de recursos do
-   `sofa.exe` MSVC e exige exatamente um `RT_MANIFEST` (`asInvoker`, `uiAccess="false"`, Common
-   Controls v6). No `-gnu` o mesmo teste só avisa (o MinGW soma o manifesto dele ao nosso).
-5. Guards de NSIS (SEC-31, SEC-32) no `installer.nsi` gerado.
-6. `scripts/test-installer.ps1`: testes do instalador e do desinstalador **sem instalar nada**, sem
+4. **Travas do `sofa.exe` MSVC**: `src-tauri/tests/manifest_resource.rs` lê o diretório de recursos e
+   exige exatamente um `RT_MANIFEST` (`asInvoker`, `uiAccess="false"`, Common Controls v6;
+   ARQ-BUG-08), e `src-tauri/tests/pe_hardening.rs` exige Control Flow Guard (`GUARD_CF`), ASLR de
+   64 bits e DEP no cabeçalho do PE (SEC-BUG-06). O CFG vem de `.cargo/config.toml`
+   (`-C control-flow-guard` no alvo MSVC; a variável `RUSTFLAGS`, se existir, o substituiria, e o
+   teste reprova). No `-gnu` os dois testes só avisam.
+5. **Varredura do Defender** (BE-52, RR-02): `MpCmdRun -Scan -ScanType 3 -File` no instalador e no
+   `sofa.exe`; se acusar (ou não concluir), o build falha. O resultado vai para `relatorios\defender.txt`
+   e para o `BUILD-INFO.txt`. Não muda configuração nem exclusão do Defender.
+6. Guards de NSIS (SEC-31, SEC-32) e do BOM no `installer.nsi` gerado.
+7. `scripts/test-installer.ps1`: testes do instalador e do desinstalador **sem instalar nada**, sem
    elevação, em pastas temporárias (veja abaixo).
-7. Copia o instalador, gera `SHA256SUMS.txt` (formato do `sha256sum -c`), `README.txt` com o
+8. Copia o instalador, gera `SHA256SUMS.txt` (formato do `sha256sum -c`), `README.txt` com o
    `Get-FileHash` e `BUILD-INFO.txt`, e confere o hash recalculando.
 
 Release oficial sai **de uma tag** `v<versão>` com a árvore limpa (RN-30); `-AllowUntagged` permite um
@@ -89,7 +96,9 @@ funções de `uninstall-hooks.nsh`, e um stub de `sofa.exe`. Cobre: SID, decisã
 do purge (0 a 4, não lido, ainda rodando), purge de ponta a ponta (filho do Explorer, integridade
 Medium, mesmo usuário), caminho alternativo com o `CreateProcessW` forçado a falhar, fallback restrito
 (só `library.json` e `settings.json`; raiz e arquivos como junction, ponto de reanálise, pasta, hard
-link, somente leitura, em uso; junction trocada em laço) e a remoção da tarefa de autostart por SID.
+link, somente leitura, em uso; junction trocada em laço), a remoção da tarefa de autostart por SID,
+a **pasta fixa em `Program Files\Sofa`** (`/D=` diferente e instalação anterior fora dela recusados,
+sem página de pasta; SEC-BUG-05) e os acentos ("Sofá" no instalador compilado, um BOM no `.nsi` gerado).
 Symlink de verdade exige privilégio: num PowerShell elevado o script o inclui sozinho. O que só vale
 instalando (UAC de outra conta, ACL, `HKU` de outros perfis, DLL plantada) fica no QA-17.
 
