@@ -279,3 +279,43 @@ fn ca61_nome_so_com_invisiveis_vira_vazio() {
         assert_eq!(normalize_display_name(invisivel), "", "{invisivel:?}");
     }
 }
+
+/// Rodada 2: mais invisiveis alem dos do QA-BUG-01 (regressao e lacunas). Nome so com eles vira vazio;
+/// texto legitimo com ZWJ (emoji composto) e acento combinado continua intacto.
+#[test]
+fn ca61_mais_invisiveis_e_texto_legitimo_preservado() {
+    for invisivel in [
+        "\u{034F}",
+        "\u{180E}",
+        "\u{FE0F}",
+        "\u{E0001}",
+        "\u{E0020}",
+        "\u{2062}\u{2063}",
+        "\u{200B} \u{200B}",
+        "\u{FFA0}",
+        "\u{2007}",
+        "\u{00A0}",
+        "\u{202F}",
+        "\u{205F}",
+        "\u{3000}",
+    ] {
+        assert_eq!(normalize_display_name(invisivel), "", "{invisivel:?}");
+    }
+    assert_eq!(
+        normalize_display_name("👨\u{200D}👩\u{200D}👧 Jogo"),
+        "👨\u{200D}👩\u{200D}👧 Jogo"
+    );
+    assert_eq!(
+        normalize_display_name("Ac\u{327}a\u{303}o"),
+        "Ac\u{327}a\u{303}o"
+    );
+}
+
+/// QA-BUG-04 (corrigido): formatos musicais invisiveis (Cf) U+1D173..U+1D17A contam como
+/// invisiveis.
+#[test]
+fn ca61_formatos_musicais_invisiveis_viram_vazio() {
+    for c in '\u{1D173}'..='\u{1D17A}' {
+        assert_eq!(normalize_display_name(&c.to_string()), "", "{c:?}");
+    }
+}

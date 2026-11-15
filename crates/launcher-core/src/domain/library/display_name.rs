@@ -16,8 +16,11 @@ fn is_blocked(c: char) -> bool {
 }
 
 /// Caracteres que nao desenham nada (espaco incluido): se o nome so tem esses, ele e vazio
-/// (CA-61, QA-BUG-01). Dentro de um nome com texto visivel eles ficam: o ZWJ, o seletor de
-/// variacao e afins compoem emoji e escrita.
+/// (CA-61, QA-BUG-01, QA-BUG-04). Dentro de um nome com texto visivel eles ficam: o ZWJ, o seletor
+/// de variacao e afins compoem emoji e escrita. Cobre os `Default_Ignorable_Code_Point` e os
+/// formatos (`Cf`) sem glifo. Ficam de fora, de proposito, os `Cf` que desenham um sinal proprio
+/// (sinais numericos arabes `U+0600..0605`, `U+06DD`, `U+0890..0891`, `U+08E2`, `U+070F`,
+/// `U+110BD` e `U+110CD`).
 fn is_invisible(c: char) -> bool {
     c.is_whitespace()
         || matches!(
@@ -26,16 +29,18 @@ fn is_invisible(c: char) -> bool {
             | '\u{034F}'                  // combining grapheme joiner
             | '\u{115F}' | '\u{1160}'     // fillers de hangul
             | '\u{17B4}' | '\u{17B5}'     // vogais inerentes khmer
-            | '\u{180B}'..='\u{180E}'     // seletores e separador mongol
+            | '\u{180B}'..='\u{180F}'     // seletores e separador mongol
             | '\u{200B}'..='\u{200D}'     // ZWSP, ZWNJ, ZWJ
-            | '\u{2060}'..='\u{2064}'     // word joiner e operadores invisiveis
-            | '\u{206A}'..='\u{206F}'     // formatos obsoletos
+            | '\u{2060}'..='\u{206F}'     // word joiner, operadores, isolates e formatos obsoletos
             | '\u{2800}'                  // braille em branco
             | '\u{3164}'                  // filler de hangul
             | '\u{FE00}'..='\u{FE0F}'     // seletores de variacao
             | '\u{FEFF}'                  // BOM / ZWNBSP
             | '\u{FFA0}'                  // filler de hangul de meia largura
-            | '\u{FFF9}'..='\u{FFFB}'     // anotacoes interlineares
+            | '\u{FFF0}'..='\u{FFFB}'     // nao atribuidos ignoraveis e anotacoes interlineares
+            | '\u{13430}'..='\u{1343F}'   // controles de formato de hieroglifos egipcios
+            | '\u{1BCA0}'..='\u{1BCA3}'   // controles de formato de estenografia
+            | '\u{1D173}'..='\u{1D17A}'   // formatos musicais invisiveis
             | '\u{E0000}'..='\u{E0FFF}'   // tags e seletores de variacao suplementares
         )
 }
@@ -97,6 +102,12 @@ mod tests {
             " \u{200B}\u{A0}\u{3000} ",
             "\u{FE0F}",
             "\u{E0020}\u{E007F}",
+            "\u{180F}",
+            "\u{2065}",
+            "\u{FFF0}\u{FFF8}",
+            "\u{13430}\u{1343F}",
+            "\u{1BCA0}\u{1BCA3}",
+            "\u{1D173}\u{1D17A}",
         ] {
             assert_eq!(normalize_display_name(invisivel), "", "{invisivel:?}");
         }
