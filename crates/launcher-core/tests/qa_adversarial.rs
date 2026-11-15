@@ -1,7 +1,7 @@
 //! QA-11 (rodada 1): entradas hostis nas politicas puras do dominio, vistas de fora (API publica).
 //! Os casos vem de SEC-07, SEC-09, SEC-11, SEC-12, SEC-14 e SEC-16 e dos nomes de arquivo que o
 //! Windows trata de forma especial. Testes marcados `#[ignore = "QA-BUG-xx"]` descrevem um defeito
-//! aberto: retirar o `ignore` quando o bug for corrigido.
+//! aberto: retirar o `ignore` quando o bug for corrigido (QA-BUG-01 ja corrigido).
 
 use launcher_core::domain::library::exe_policy::{
     check_manual_exe_path, check_store_exe, parse_browse_path, ManualPathError,
@@ -265,7 +265,6 @@ fn sec07_nome_exibido_nao_tem_controle_nem_override_bidi_e_nunca_passa_de_256() 
 /// CA-61: "Nome vazio não é aceito". Um nome feito só de caracteres invisíveis passa pela
 /// normalização, vira o nome do card (em branco) e nada o distingue na tela.
 #[test]
-#[ignore = "QA-BUG-01: nome so com caracteres invisiveis (ZWSP, BOM, filler) nao e tratado como vazio"]
 fn ca61_nome_so_com_invisiveis_vira_vazio() {
     for invisivel in [
         "\u{200B}",

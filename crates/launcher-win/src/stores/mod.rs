@@ -40,11 +40,28 @@ impl StoreEnv {
     /// Politica do Windows de verdade (SEC-16): `%SystemRoot%` e as pastas proibidas, as lojas
     /// (cliente) e a pasta do proprio Sofa.
     pub fn system() -> Self {
+        // Pasta do cliente da Steam (SteamPath do HKCU): proibida para TODAS as lojas, nao so para
+        // o scanner da Steam (SEC-BUG-02). Sem ela, um `.item` da Epic com `InstallLocation` na
+        // pasta da Steam associaria processos de outros jogos e do overlay da Steam.
+        let steam_dir = WinRegistry
+            .read_string(Hive::CurrentUser, r"Software\Valve\Steam", "SteamPath")
+            .and_then(|raw| steam::normalize_steam_path(&raw))
+            .and_then(|p| FsPathResolver.canonicalize(&p));
+        let system_root = known::windows_dir().unwrap_or_else(|| r"C:\Windows".to_owned());
+        Self::new(
+            InstallPathPolicy::new(&system_root, Self::forbidden_dirs(steam_dir)),
+            Arc::new(FsPathResolver),
+        )
+    }
+
+    /// Pastas que nunca sao pasta de instalacao (SEC-16): sistema, perfil, clientes das lojas
+    /// (inclui a da Steam, se instalada) e a do proprio Sofa.
+    fn forbidden_dirs(steam_dir: Option<String>) -> Vec<String> {
         let sofa_dir = std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|d| d.to_string_lossy().into_owned()));
         let pf86 = known::program_files_x86();
-        let forbidden: Vec<String> = [
+        [
             known::program_files(),
             pf86.clone(),
             known::program_data(),
@@ -55,16 +72,12 @@ impl StoreEnv {
             // Clientes das lojas (as pastas dos jogos ficam em outro lugar).
             pf86.as_ref().map(|p| format!(r"{p}\Epic Games\Launcher")),
             pf86.as_ref().map(|p| format!(r"{p}\GOG Galaxy")),
+            steam_dir,
         ]
         .into_iter()
         .flatten()
         .map(|p| crate::path_canon::strip_verbatim(&p))
-        .collect();
-        let system_root = known::windows_dir().unwrap_or_else(|| r"C:\Windows".to_owned());
-        Self::new(
-            InstallPathPolicy::new(&system_root, forbidden),
-            Arc::new(FsPathResolver),
-        )
+        .collect()
     }
 
     pub fn canon(&self, path: &str) -> Option<String> {

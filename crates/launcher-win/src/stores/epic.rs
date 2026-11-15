@@ -203,6 +203,37 @@ mod tests {
         assert_eq!(a.cover_source, None); // a Epic nao tem capa local: ficam o icone do exe e o placeholder
     }
 
+    /// SEC-BUG-02: um `.item` com `InstallLocation` = pasta do cliente da Steam e executavel dentro
+    /// de `steamapps\common` nao pode virar jogo da Epic: a pasta da Steam e proibida para todas as
+    /// lojas (`StoreEnv::forbidden_dirs`).
+    #[test]
+    fn item_da_epic_apontando_para_a_pasta_da_steam_e_recusado() {
+        use launcher_core::domain::library::InstallPathPolicy;
+
+        let t = TempDir::new("epic-steam");
+        let m = t.path().join("Manifests");
+        let steam_dir = format!(r"{}\Steam", t.text());
+        let a1 = item("Manifests", "A1B2C3D4E5F6.item");
+        write(
+            &m.join("A1B2C3D4E5F6.item"),
+            &install(&t, &a1, "Steam", r"steamapps\common\X\x.exe", true),
+        );
+        let root = crate::path_canon::known::windows_dir().unwrap();
+        let scan_with = |forbidden: Vec<String>| {
+            let env = Arc::new(StoreEnv::new(
+                InstallPathPolicy::new(&root, forbidden),
+                Arc::new(crate::path_canon::FsPathResolver),
+            ));
+            EpicScanner::new(Some(m.clone()), env).scan().unwrap()
+        };
+        // Sem a pasta da Steam na lista, o manifesto malicioso passaria.
+        assert_eq!(scan_with(Vec::new()).len(), 1);
+        // A lista real inclui a pasta da Steam (so ela entra aqui; o temp fica no perfil).
+        let forbidden = StoreEnv::forbidden_dirs(Some(steam_dir.clone()));
+        assert!(forbidden.contains(&steam_dir), "{forbidden:?}");
+        assert!(scan_with(vec![steam_dir]).is_empty());
+    }
+
     #[test]
     fn bom_utf8_e_removido_antes_do_parse() {
         let com_bom = item("malicious\\Manifests", "m13.item");

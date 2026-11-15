@@ -15,8 +15,34 @@ fn is_blocked(c: char) -> bool {
         )
 }
 
+/// Caracteres que nao desenham nada (espaco incluido): se o nome so tem esses, ele e vazio
+/// (CA-61, QA-BUG-01). Dentro de um nome com texto visivel eles ficam: o ZWJ, o seletor de
+/// variacao e afins compoem emoji e escrita.
+fn is_invisible(c: char) -> bool {
+    c.is_whitespace()
+        || matches!(
+            c,
+            '\u{00AD}'                    // hifen condicional
+            | '\u{034F}'                  // combining grapheme joiner
+            | '\u{115F}' | '\u{1160}'     // fillers de hangul
+            | '\u{17B4}' | '\u{17B5}'     // vogais inerentes khmer
+            | '\u{180B}'..='\u{180E}'     // seletores e separador mongol
+            | '\u{200B}'..='\u{200D}'     // ZWSP, ZWNJ, ZWJ
+            | '\u{2060}'..='\u{2064}'     // word joiner e operadores invisiveis
+            | '\u{206A}'..='\u{206F}'     // formatos obsoletos
+            | '\u{2800}'                  // braille em branco
+            | '\u{3164}'                  // filler de hangul
+            | '\u{FE00}'..='\u{FE0F}'     // seletores de variacao
+            | '\u{FEFF}'                  // BOM / ZWNBSP
+            | '\u{FFA0}'                  // filler de hangul de meia largura
+            | '\u{FFF9}'..='\u{FFFB}'     // anotacoes interlineares
+            | '\u{E0000}'..='\u{E0FFF}'   // tags e seletores de variacao suplementares
+        )
+}
+
 /// Normaliza um nome vindo de fora (manifesto, nome de arquivo, driver) ou digitado pelo usuario.
-/// O resultado pode ser vazio: quem exige nome (renomear) responde `EmptyName`.
+/// O resultado pode ser vazio (inclusive para nome so de caracteres invisiveis): quem exige nome
+/// (renomear) responde `EmptyName`.
 pub fn normalize_display_name(raw: &str) -> String {
     let cleaned: String = raw.chars().filter(|c| !is_blocked(*c)).collect();
     let cut: String = cleaned
@@ -24,6 +50,9 @@ pub fn normalize_display_name(raw: &str) -> String {
         .chars()
         .take(MAX_DISPLAY_NAME_CHARS)
         .collect();
+    if cut.chars().all(is_invisible) {
+        return String::new();
+    }
     cut.trim_end().to_owned()
 }
 
@@ -52,6 +81,33 @@ mod tests {
         for (entrada, esperado) in casos {
             assert_eq!(normalize_display_name(entrada), *esperado, "{entrada:?}");
         }
+    }
+
+    #[test]
+    fn nome_so_de_invisiveis_vira_vazio_mas_invisivel_dentro_de_texto_fica() {
+        for invisivel in [
+            "\u{200B}",
+            "\u{200B}\u{200C}\u{200D}",
+            "\u{2060}",
+            "\u{FEFF}",
+            "\u{3164}",
+            "\u{2800}",
+            "\u{00AD}",
+            "\u{115F}",
+            " \u{200B}\u{A0}\u{3000} ",
+            "\u{FE0F}",
+            "\u{E0020}\u{E007F}",
+        ] {
+            assert_eq!(normalize_display_name(invisivel), "", "{invisivel:?}");
+        }
+        // Emoji composto (ZWJ, VS16) e nome com invisivel no meio continuam como vieram.
+        let familia = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
+        assert_eq!(normalize_display_name(familia), familia);
+        assert_eq!(
+            normalize_display_name("\u{2764}\u{FE0F}"),
+            "\u{2764}\u{FE0F}"
+        );
+        assert_eq!(normalize_display_name("A\u{200B}B"), "A\u{200B}B");
     }
 
     #[test]
