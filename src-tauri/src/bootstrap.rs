@@ -8,7 +8,8 @@ use launcher_core::application::ports::{
     ScanCache, SettingsRepository, StoreScanner, VolumeEvents,
 };
 use launcher_core::application::{
-    AutostartService, DisplayService, LibraryDeps, LibraryService, PowerService, VolumeService,
+    AutostartService, DisplayService, LibraryDeps, LibraryService, PowerService, SettingsService,
+    VolumeService,
 };
 use launcher_core::domain::settings::{LogLevel, Step2Key};
 use launcher_win::cover_cache::WinCoverCache;
@@ -23,7 +24,6 @@ use tauri::{AppHandle, Manager, Runtime};
 
 use crate::events::{TauriDisplayEvents, TauriLibraryEvents, TauriVolumeEvents};
 use crate::launcher_window::TauriLauncherPlacement;
-use crate::settings_store::AppSettingsStore;
 use crate::state::{AppState, UserData};
 
 /// Resolve `%LOCALAPPDATA%\app.sofa.launcher`, liga o log em `logs\`, carrega `settings.json`
@@ -63,14 +63,10 @@ pub fn init_user_data<R: Runtime>(app: &impl Manager<R>) -> tauri::Result<()> {
     }
 
     let state = app.state::<AppState>();
-    *state
+    let _ = state
         .settings
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner) = loaded.value;
-    let _ = state.user_data.set(UserData {
-        data_dir,
-        settings_repo: repo,
-    });
+        .set(Arc::new(SettingsService::new(repo, loaded.value)));
+    let _ = state.user_data.set(UserData { data_dir });
     Ok(())
 }
 
@@ -151,10 +147,14 @@ pub fn init_power<R: Runtime>(app: &AppHandle<R>) {
 /// `display://changed`. A janela ainda nao existe aqui; `display.start()` roda depois dela.
 pub fn init_display<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<AppState>();
+    let Some(settings) = state.settings.get().cloned() else {
+        tracing::error!("display: configuracoes nao inicializadas; monitor indisponivel");
+        return;
+    };
     let service = DisplayService::new(
         Arc::new(launcher_win::display::WinDisplayTopology),
         Arc::new(TauriLauncherPlacement::new(app.clone())),
-        Arc::new(AppSettingsStore::new(app.clone())),
+        settings,
         Arc::new(TauriDisplayEvents::new(app.clone())),
     );
     let _ = state.display.set(Arc::new(service));
@@ -175,11 +175,15 @@ pub fn init_autostart<R: Runtime>(app: &AppHandle<R>) {
             return;
         }
     };
+    let Some(settings) = state.settings.get().cloned() else {
+        tracing::error!("autostart: configuracoes nao inicializadas; opcao indisponivel");
+        return;
+    };
     let service = AutostartService::new(
         Arc::new(tasks),
         Arc::new(launcher_win::autostart::WinRunEntry::new()),
         Arc::new(launcher_win::autostart::WinInstallEnv),
-        Arc::new(AppSettingsStore::new(app.clone())),
+        settings,
     );
     let _ = state.autostart.set(Arc::new(service));
 }

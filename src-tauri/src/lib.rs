@@ -13,7 +13,6 @@ pub mod launcher_window;
 pub mod library_view;
 pub mod marks;
 pub mod runtime;
-pub mod settings_store;
 pub mod single_instance;
 pub mod state;
 pub mod webview_hardening;

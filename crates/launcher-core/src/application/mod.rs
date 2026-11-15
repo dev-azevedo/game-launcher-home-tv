@@ -9,6 +9,7 @@ pub mod ports;
 pub mod power_service;
 pub mod serial;
 pub mod session_service;
+pub mod settings_service;
 pub mod volume_service;
 
 pub use autostart_service::{AutostartService, AutostartStatus};
@@ -19,4 +20,5 @@ pub use library_service::{LibraryDeps, LibraryService, LibraryState};
 pub use power_service::{PowerCapabilities, PowerService};
 pub use serial::SerialGate;
 pub use session_service::{SessionDeps, SessionService, SessionView};
+pub use settings_service::SettingsService;
 pub use volume_service::{VolumeService, VolumeView};

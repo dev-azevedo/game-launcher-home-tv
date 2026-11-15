@@ -3,6 +3,7 @@
 use tauri::ipc::Request;
 use tauri::State;
 
+use launcher_core::application::ports::SettingsStore;
 use launcher_core::application::{AppError, AutostartStatus};
 
 use crate::convert::monitor_dtos;
@@ -13,7 +14,6 @@ use crate::state::AppState;
 /// `SettingsDto` de agora: monitor e pasta de logs vem das configuracoes; o autostart (estado
 /// real do Windows, ADR-0006) vem de `status`, lido antes em thread de bloqueio.
 fn dto_with(state: &AppState, status: AutostartStatus) -> Result<SettingsDto, AppError> {
-    let settings = state.settings.lock().map_err(|_| AppError::Internal)?;
     let log_dir = state
         .user_data
         .get()
@@ -22,7 +22,7 @@ fn dto_with(state: &AppState, status: AutostartStatus) -> Result<SettingsDto, Ap
     Ok(SettingsDto {
         autostart: status.enabled,
         autostart_mechanism: status.mechanism.into(),
-        monitor_id: settings.monitor_id.clone(),
+        monitor_id: state.settings.get().and_then(|s| s.monitor_id()),
         log_dir,
     })
 }

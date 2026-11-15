@@ -87,8 +87,9 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     }
     let advanced = state
         .settings
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get()
+        .ok_or("configuracoes nao inicializadas")?
+        .snapshot()
         .advanced()
         .settings;
 

@@ -362,11 +362,10 @@ fn monitor_pela_ipc_com_topologia_falsa() {
     use launcher_core::application::ports::{
         DisplayTopology, LauncherPlacement, Loaded, SettingsRepository, StoreError,
     };
-    use launcher_core::application::DisplayService;
+    use launcher_core::application::{DisplayService, SettingsService};
     use launcher_core::domain::display::{Monitor, Rect};
     use launcher_core::domain::settings::Settings;
     use sofa_lib::events::TauriDisplayEvents;
-    use sofa_lib::settings_store::AppSettingsStore;
     use sofa_lib::state::{AppState, UserData};
     use tauri::Listener;
 
@@ -427,15 +426,16 @@ fn monitor_pela_ipc_com_topologia_falsa() {
         .user_data
         .set(UserData {
             data_dir: std::env::temp_dir(),
-            settings_repo: repo.clone(),
         })
         .ok()
         .unwrap();
+    let settings = Arc::new(SettingsService::new(repo.clone(), Settings::default()));
+    state.settings.set(settings.clone()).ok().unwrap();
     let placement = Arc::new(Placement::default());
     let display = DisplayService::new(
         Arc::new(Topology),
         placement.clone(),
-        Arc::new(AppSettingsStore::new(handle.clone())),
+        settings,
         Arc::new(TauriDisplayEvents::new(handle.clone())),
     );
     display.start();

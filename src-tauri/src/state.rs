@@ -6,18 +6,16 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use launcher_core::application::ports::{CoverCache, SettingsRepository};
+use launcher_core::application::ports::CoverCache;
 use launcher_core::application::{
     AutostartService, DisplayService, LibraryService, PowerService, SerialGate, SessionService,
-    VolumeService,
+    SettingsService, VolumeService,
 };
-use launcher_core::domain::settings::Settings;
 use launcher_win::input_thread::InputControl;
 
-/// Dados do usuario carregados no `setup` (pasta de dados, repositorio e configuracoes).
+/// Dados do usuario carregados no `setup` (pasta de dados).
 pub struct UserData {
     pub data_dir: PathBuf,
-    pub settings_repo: Arc<dyn SettingsRepository>,
 }
 
 /// Portas de serializacao do contrato (secao 0): `Busy` em chamada concorrente.
@@ -33,8 +31,9 @@ pub struct AppState {
     pub exit_hook: OnceLock<Box<dyn Fn() + Send + Sync>>,
     /// Definido no `setup`, depois de resolver a pasta de dados.
     pub user_data: OnceLock<UserData>,
-    /// Configuracoes em memoria; `settings_set_*` gravam por `user_data.settings_repo`.
-    pub settings: Mutex<Settings>,
+    /// Configuracoes em memoria e a regra de gravar (BE-45); definidas no `setup`, junto da
+    /// pasta de dados. `DisplayService` e `AutostartService` usam o mesmo objeto como `SettingsStore`.
+    pub settings: OnceLock<Arc<SettingsService>>,
     /// Casos de uso de sessao (BE-20, BE-21); definidos por `runtime::start` no `setup`.
     pub session: OnceLock<Arc<SessionService>>,
     /// Estado da entrada (modo e controles conectados, BE-14).
