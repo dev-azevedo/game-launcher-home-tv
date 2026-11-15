@@ -61,7 +61,7 @@ pb.append(h('h2',{text:'Prompt para o feedback'}),fb,out,h('div',{class:'copyrow
 function label(list,v){ var r=list.filter(function(x){return x[0]===v})[0]; return r?r[1]:v }
 function updatePrompt(){
   var p=[];
-  p.push('Ajuste o mockup "'+PG.title+'" do Sofá (launcher-tv).');
+  p.push('Ajuste o mockup "'+PG.title+'" do SofaLauncher (launcher-tv).');
   p.push('Estado em análise: '+label(PG.scenarios,st.scenario)+'.');
   var ch=[]; PG.options.forEach(function(o){ if(st[o.key]!==DEF[o.key])ch.push(o.label.toLowerCase()+': '+label(o.values,st[o.key])) });
   if(ch.length)p.push('Variações em teste: '+ch.join('; ')+'.');

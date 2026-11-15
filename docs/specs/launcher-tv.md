@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Feature | launcher-tv (MVP do Sofá) |
-| Produto | Sofá (identificadores técnicos: `sofa`; identificador do app e pasta de dados: `app.sofa.launcher`) |
+| Feature | launcher-tv (MVP do SofaLauncher) |
+| Produto | SofaLauncher; sigla de texto SL (D-49, D-52). Identificadores técnicos sem mudança (D-56, ADR-0007): `sofa`, `sofa.exe`, identificador do app e pasta de dados `app.sofa.launcher`, pasta `Program Files\Sofa`, chave `Uninstall\Sofa` |
 | Branch | `feature/launcher-tv-20261113` |
-| Status | Revisada com as decisões do usuário, da arquitetura, de segurança e da rodada 1 de QA e design (seção 14) |
+| Status | Revisada com as decisões do usuário, da arquitetura, de segurança e da rodada 1 de QA e design, mais D-49 a D-51, tomadas depois da versão de teste 0.1.0 (seção 14) |
 | Plataforma | Windows 10 e Windows 11, app desktop instalado |
 | Stack provável | Tauri (Rust + UI web), repo único. Decisão final do arquiteto |
 | Data | 2026-11-13 |
@@ -71,7 +71,7 @@ Usar estes nomes na UI, no código e nos próximos documentos.
 | Sessão de jogo | Período entre iniciar um jogo e o launcher detectar que ele terminou. No MVP há no máximo uma sessão ativa. |
 | Combinação de retorno | View + Menu segurados por 1,5 s durante uma sessão de jogo; traz o launcher para a frente. |
 | Painel do jogo em andamento | Tela do launcher mostrada por cima do jogo após a combinação de retorno. |
-| Menu rápido | Menu aberto pelo botão Menu com volume, energia, configurações e sair. |
+| Menu rápido | Menu aberto pelo botão Menu com volume, energia (inclusive "Fechar o launcher") e configurações. |
 | Ação de energia | Desligar, reiniciar ou suspender o PC. |
 | Monitor do launcher | Tela onde o launcher abre. Padrão: monitor principal do Windows; pode ser trocado nas configurações. |
 
@@ -88,7 +88,7 @@ Usar estes nomes na UI, no código e nos próximos documentos.
 7. Iniciar jogo, acompanhar a sessão e voltar ao launcher quando o jogo fecha.
 8. Combinação de retorno durante o jogo, com opções de voltar ao jogo ou fechar o jogo.
 9. Volume do sistema: aumentar, diminuir e mudo pelo menu rápido; aumentar e diminuir com RT/LT na biblioteca; indicador na tela.
-10. Desligar, reiniciar e suspender o PC, sempre com confirmação.
+10. Desligar, reiniciar e suspender o PC, sempre com confirmação. No mesmo grupo do menu rápido, "Fechar o launcher", também com confirmação (RN-35).
 11. Iniciar com o Windows (opção ligada/desligada, por usuário).
 12. Escolha do monitor do launcher nas configurações.
 13. Comportamento definido sem controle conectado e ao desconectar.
@@ -126,8 +126,8 @@ Usar estes nomes na UI, no código e nos próximos documentos.
 Definidas pelo usuário. A spec não fixa identidade visual; logo, cores e tipografia estão no guia de marca.
 
 - **Público:** só o usuário. Não há onboarding de marketing nem textos para terceiros.
-- **Nome do produto:** Sofá. Identificadores técnicos usam `sofa`; identificador do app e pasta de dados, `app.sofa.launcher`.
-- **Marca:** direção A, "Palco", em `docs/brand/sofa/`.
+- **Nome do produto:** SofaLauncher (D-49). SL é só uma sigla de texto e não aparece no logo nem no ícone (D-52). Os identificadores técnicos não mudam: `sofa`, `sofa.exe`, identificador do app e pasta de dados `app.sofa.launcher`, pasta `Program Files\Sofa` e chave `Uninstall\Sofa`, sem migração (D-56, ADR-0007).
+- **Marca:** direção A, "Palco", em `docs/brand/sofa/`. Logo aprovado: um controle, no lugar do símbolo de play, com "SofaLauncher" escrito por extenso (D-52). O guia de marca ainda não reflete essa mudança.
 - **Mockups:** aprovados pelo usuário, em `docs/design/launcher-tv/mockups/`, com handoff em `docs/design/launcher-tv.md`. Microcopy em `docs/design/launcher-tv/microcopy.md`.
 - **Linguagem visual:** "console moderno", na linha do dashboard do Xbox e do PS5. Cards grandes, capas em destaque, o jogo em foco ampliado ou realçado, pouca informação por tela.
 - **Leitura a distância:** valem CA-54 e CA-55.
@@ -149,7 +149,7 @@ Definidas pelo usuário. A spec não fixa identidade visual; logo, cores e tipog
 | US-11 | Como jogador de sofá, quero ver um aviso claro quando não há controle conectado, para saber o que fazer. | P1 |
 | US-12 | Como jogador de sofá, quero instalar o launcher com um instalador comum, para configurar o PC uma vez e esquecer. | P1 |
 | US-13 | Como jogador de sofá, quero ligar e desligar a inicialização com o Windows, para usar o PC normalmente quando não estou na TV. | P2 |
-| US-14 | Como jogador de sofá, quero sair do launcher para a área de trabalho, para usar o PC de outro jeito quando precisar. | P2 |
+| US-14 | Como jogador de sofá, quero fechar o launcher pelo menu de energia e ir para a área de trabalho, para usar o PC de outro jeito quando precisar. | P2 |
 | US-15 | Como jogador de sofá com monitor e TV no mesmo PC, quero escolher em qual tela o launcher abre, para ele aparecer na TV sem mudar o monitor principal do Windows. | P2 |
 
 ## 8. Mapeamento padrão do controle
@@ -183,7 +183,7 @@ Teclado de emergência (RN-07, CA-80): cada ação desta tabela tem uma tecla eq
 
 **CA-04**: Dado que o usuário está nas configurações, quando desliga "Iniciar com o Windows" e reinicia o PC, então o launcher não abre sozinho; ao religar a opção, volta a abrir no próximo login.
 
-**CA-05**: Dado que o usuário escolhe "Sair do launcher" no menu rápido, quando confirma, então o launcher fecha e o Windows mostra a área de trabalho. Se houver sessão de jogo ativa, o diálogo avisa que o jogo continuará aberto.
+**CA-05**: Dado o menu rápido aberto, quando o usuário percorre os itens, então não existe "Sair do launcher". O launcher só é fechado por "Fechar o launcher", no grupo de energia (CA-82, D-53).
 
 ### Navegação por controle
 
@@ -339,7 +339,7 @@ Teclado de emergência (RN-07, CA-80): cada ação desta tabela tem uma tecla eq
 
 ### Desinstalador
 
-**CA-68**: Dado o desinstalador, quando ele roda, então pergunta se o usuário quer manter biblioteca e configurações, com "Manter dados" marcado por padrão. Marcado, os dados ficam e uma reinstalação os recupera. Desmarcado, o desinstalador apaga só os arquivos do Sofá na pasta de dados `app.sofa.launcher` do usuário (biblioteca, configurações, logs, cache) e nada fora dela, nem por atalhos ou links dentro da pasta. Essa remoção roda sem privilégio de administrador.
+**CA-68**: Dado o desinstalador, quando ele roda, então pergunta se o usuário quer manter biblioteca e configurações, com "Manter dados" marcado por padrão. Marcado, os dados ficam e uma reinstalação os recupera. Desmarcado, o desinstalador apaga só os arquivos do SofaLauncher na pasta de dados `app.sofa.launcher` do usuário (biblioteca, configurações, logs, cache) e nada fora dela, nem por atalhos ou links dentro da pasta. Essa remoção roda sem privilégio de administrador.
 
 Se a remoção sem administrador falhar (ou não confirmar que terminou com sucesso), o desinstalador apaga como administrador só `library.json` e `settings.json` na raiz da pasta de dados, pelo nome exato, sem curinga e sem entrar em subpastas. Capas, logs e o resto ficam, e o desinstalador mostra a pasta ao usuário.
 
@@ -352,7 +352,7 @@ Se a remoção sem administrador falhar (ou não confirmar que terminou com suce
 ### Cadastro manual: bloqueios
 
 **CA-71**: Dado o navegador de pastas de "Adicionar jogo", quando o usuário procura uma pasta de rede ou unidade de rede mapeada, então ela não aparece na lista. Cada momento tem mensagem própria:
-- no cadastro, se chegar um local fora dos discos deste PC: "Este local não é aceito. O Sofá só abre jogos de discos deste PC.", com "Voltar";
+- no cadastro, se chegar um local fora dos discos deste PC: "Este local não é aceito. O SofaLauncher só abre jogos de discos deste PC.", com "Voltar";
 - ao iniciar um jogo cujo caminho é de rede (ex.: biblioteca editada à mão): o jogo não inicia e aparece "Jogos em pastas de rede não são aceitos. Copie o jogo para um disco deste PC.", com "Ocultar" e "Voltar" (foco em "Voltar").
 
 **CA-72**: Dado que o usuário seleciona um arquivo com extensão `.exe` que não é um executável válido do Windows, quando confirma, então aparece "Este arquivo não é um executável válido" e o jogo não é cadastrado.
@@ -360,8 +360,8 @@ Se a remoção sem administrador falhar (ou não confirmar que terminou com suce
 ### Jogo que exige administrador
 
 **CA-73**: Dado um jogo que exige permissão de administrador, quando o usuário o inicia, então acontece em duas etapas, e o launcher continua sem privilégio de administrador:
-1. Antes de qualquer UAC, o Sofá mostra "<nome> precisa de permissão de administrador para abrir. O Windows vai pedir a sua confirmação.", com "Continuar" (em foco) e "Voltar". "Voltar" ou B cancelam sem abrir o UAC.
-2. Com "Continuar", o Windows mostra a própria confirmação (UAC) do jogo e o Sofá exibe por trás dela: "<nome> pede permissão de administrador. Confirme no Windows com teclado ou mouse. A combinação de retorno pode não funcionar neste jogo."
+1. Antes de qualquer UAC, o SofaLauncher mostra "<nome> precisa de permissão de administrador para abrir. O Windows vai pedir a sua confirmação.", com "Continuar" (em foco) e "Voltar". "Voltar" ou B cancelam sem abrir o UAC.
+2. Com "Continuar", o Windows mostra a própria confirmação (UAC) do jogo e o SofaLauncher exibe por trás dela: "<nome> pede permissão de administrador. Confirme no Windows com teclado ou mouse. A combinação de retorno pode não funcionar neste jogo."
 
 Se o usuário recusar no UAC, aparece "O Windows não deu permissão para abrir <nome>" com "Voltar".
 
@@ -377,7 +377,7 @@ Se o usuário recusar no UAC, aparece "O Windows não deu permissão para abrir 
 
 ### Telas de espera
 
-**CA-77**: Dado a tela "Abrindo <nome>…", quando ela aparece, então tem o botão "Voltar" em foco e ignora A nos primeiros 600 ms. Ao apertar "Voltar" (A no botão ou B), o Sofá para de esperar e volta à biblioteca, mas não cancela o início: o jogo ainda pode abrir depois. Se abrir, vale o comportamento normal de sessão (CA-27, CA-30).
+**CA-77**: Dado a tela "Abrindo <nome>…", quando ela aparece, então tem o botão "Voltar" em foco e ignora A nos primeiros 600 ms. Ao apertar "Voltar" (A no botão ou B), o SofaLauncher para de esperar e volta à biblioteca, mas não cancela o início: o jogo ainda pode abrir depois. Se abrir, vale o comportamento normal de sessão (CA-27, CA-30).
 
 **CA-78**: Dado a tela "Fechando <nome>…" (após confirmar "Fechar jogo"), quando ela aparece, então tem o botão "Ir para a biblioteca" em foco e ignora A nos primeiros 600 ms. Ao apertar o botão (A ou B), a biblioteca aparece; o pedido de fechamento continua e o card mostra "Em andamento" até o jogo fechar. Se o jogo não fechar, o usuário volta ao painel pelo card (CA-36) e chega ao "Forçar fechamento" (CA-35).
 
@@ -392,6 +392,16 @@ Se o usuário recusar no UAC, aparece "O Windows não deu permissão para abrir 
 ### Diálogos
 
 **CA-81**: Dado qualquer diálogo com mais de um botão, quando ele aparece, então "Cancelar" ou "Voltar" fica à esquerda e a ação principal à direita, com o foco padrão definido no CA do diálogo (RN-34).
+
+### Fechar o launcher
+
+**CA-82**: Dado o menu rápido aberto (na biblioteca ou no painel do jogo em andamento), quando o usuário escolhe "Fechar o launcher" no grupo de energia, então (RN-35):
+1. Aparece um diálogo de confirmação com "Cancelar" à esquerda e em foco e "Fechar o launcher" à direita. O diálogo diz como reabrir: pelo atalho do SofaLauncher ou reiniciando o PC (D-55; texto final na microcopy). "Cancelar" ou B fecham o diálogo sem fechar nada.
+2. Sem sessão de jogo ativa, ao confirmar, o launcher fecha e o Windows mostra a área de trabalho.
+3. Com sessão de jogo ativa, o diálogo também avisa que <nome do jogo> continua aberto, sem o aviso de progresso perdido do CA-48. Ao confirmar, só o launcher fecha: o jogo segue rodando, não recebe pedido de fechamento, não é minimizado nem pausado, e o launcher não o traz à frente antes de sair; o Windows decide qual janela fica em primeiro plano (D-57).
+4. Só com o teclado, com ou sem controle conectado, o usuário abre o menu rápido, chega ao item, confirma e cancela pelas teclas equivalentes a Menu, direções, A e B, com o mesmo efeito do controle (RN-07, CA-80).
+5. Depois de fechar, "Iniciar com o Windows" continua como estava. Se estiver ligado, o launcher abre no próximo login (CA-01).
+6. Ao ser aberto de novo (atalho, menu Iniciar ou próximo login), o launcher abre como numa inicialização normal: tela cheia no monitor do launcher, biblioteca com os dados preservados (CA-25) e, se o fechamento aconteceu durante uma sessão, o jogo dela no topo dos recentes (CA-75). Se esse jogo ainda estiver aberto, ele é tratado como aberto fora do launcher (E-07): a sessão não é retomada, o card não mostra "Em andamento" e a combinação de retorno não funciona para ele (D-54).
 
 ## 10. Regras de negócio
 
@@ -421,7 +431,7 @@ Se o usuário recusar no UAC, aparece "O Windows não deu permissão para abrir 
 
 **RN-13**: O volume controlado é o volume mestre do dispositivo de saída padrão do Windows. Passo de 5 pontos percentuais, faixa de 0 a 100.
 
-**RN-14**: Toda ação de energia (desligar, reiniciar, suspender) e toda ação destrutiva (fechar jogo, forçar fechamento, ocultar item, sair do launcher) exige confirmação com "Cancelar" em foco por padrão.
+**RN-14**: Toda ação de energia (desligar, reiniciar, suspender) e toda ação destrutiva (fechar jogo, forçar fechamento, ocultar item, fechar o launcher) exige confirmação com "Cancelar" em foco por padrão.
 
 **RN-15**: Ações de energia usam o caminho normal do Windows, sem forçar o encerramento de outros apps. "Desligar" funciona igual ao Desligar do menu Iniciar: usa a inicialização rápida do Windows quando ela está ligada. "Reiniciar" é sempre um reinício completo (CA-44, CA-45).
 
@@ -447,7 +457,7 @@ Se o usuário recusar no UAC, aparece "O Windows não deu permissão para abrir 
 
 **RN-26**: A instalação é para todo o PC, em `Program Files`, e exige administrador (UAC) para instalar, atualizar e desinstalar. O uso diário roda sem administrador. Os dados (RN-18) e a inicialização automática (RN-17) são por usuário. Se o runtime WebView2 faltar, o instalador o baixa e instala (CA-50).
 
-**RN-27**: O launcher nunca roda como administrador e nunca pede elevação por conta própria. Jogo que exige administrador só é aberto depois que o usuário confirma o aviso do Sofá; então abre do jeito padrão do Windows, que mostra o UAC do próprio jogo (CA-73).
+**RN-27**: O launcher nunca roda como administrador e nunca pede elevação por conta própria. Jogo que exige administrador só é aberto depois que o usuário confirma o aviso do SofaLauncher; então abre do jeito padrão do Windows, que mostra o UAC do próprio jogo (CA-73).
 
 **RN-28**: Itens da Steam que não são jogos (redistribuíveis, ferramentas, trilhas sonoras) são filtrados por uma lista fixa de identificadores mantida no launcher. O que a lista não cobrir, o usuário oculta pelo controle (RN-04).
 
@@ -462,6 +472,8 @@ Se o usuário recusar no UAC, aparece "O Windows não deu permissão para abrir 
 **RN-33**: Opções do jogo (View) é o único lugar com ações por jogo, e "Jogar" é sempre o primeiro item, seguido de "Renomear", "Restaurar nome original" (se o nome foi alterado) e "Ocultar". Não há tela de detalhe do jogo no MVP (CA-79).
 
 **RN-34**: Em todo diálogo, "Cancelar" ou "Voltar" fica sempre à esquerda e a ação principal à direita. A posição não muda o foco padrão, que segue RN-14 e o CA de cada diálogo (CA-81).
+
+**RN-35**: "Fechar o launcher" é a única forma de fechar o launcher pelo menu rápido ("Sair do launcher" deixou de existir, D-53). Fica no grupo de energia, junto de "Desligar" e "Reiniciar", mas não é ação de energia: encerra só o launcher e não mexe no PC (D-50, D-51). Sempre pede confirmação com "Cancelar" à esquerda e em foco por padrão (RN-14, RN-34), e a confirmação diz como reabrir: pelo atalho do SofaLauncher ou reiniciando o PC (D-55). O teclado de emergência cobre o item e o diálogo como qualquer ação do controle (RN-07). Com sessão de jogo ativa, o launcher não fecha, não minimiza, não pausa e não traz o jogo à frente antes de sair (D-57); deixa de acompanhar a sessão, e a data de último jogado já gravada no início dela continua valendo (RN-05). Fechar o launcher não altera "Iniciar com o Windows" (RN-17). Enquanto o launcher estiver fechado, a combinação de retorno não tem efeito e o fim do jogo não traz nada à frente. Ao reabrir com o jogo ainda rodando, o jogo é tratado como aberto fora do launcher (E-07): a sessão não é retomada e o jogo fica no topo dos recentes (CA-75, D-54) (CA-82).
 
 ## 11. Requisitos não funcionais
 
@@ -500,12 +512,16 @@ Se o usuário recusar no UAC, aparece "O Windows não deu permissão para abrir 
 | E-21 | Com o launcher na frente e o jogo aberto em segundo plano (painel ou biblioteca), o jogo também reage aos botões do controle | Aceito no MVP: o Windows não dá a nenhum app uso exclusivo do controle e o jogo não é minimizado (CA-36). O QA lista os jogos afetados. |
 | E-22 | Jogo GOG que usa saves na nuvem do Galaxy | Aberto pelo executável (CA-26), o Galaxy não sincroniza os saves. Para sincronizar, o usuário abre o Galaxy. |
 | E-23 | Jogo que roda como administrador | A combinação de retorno pode falhar, porque o Windows impede um app comum de mexer na janela de um app elevado. O aviso de CA-73 avisa disso. |
+| E-24 | Usuário fechou o launcher com o jogo aberto e depois segura View + Menu | Nada acontece: não há launcher rodando para vir à frente, e o jogo recebe os botões normalmente. Mesmo depois de reabrir o launcher, a combinação não vale para esse jogo, que conta como aberto fora do launcher (RN-35, E-07, D-54). |
+| E-25 | Usuário fechou o launcher com o jogo aberto e depois sai do jogo pelo menu dele | Com o launcher fechado, o Windows mostra a área de trabalho e nada volta à frente sozinho. Se o launcher já foi reaberto, ele também não vem à frente, porque não há sessão (RN-35, D-54). |
+| E-26 | Launcher reaberto com o jogo da sessão anterior rodando; o usuário aperta A nesse jogo | O jogo conta como aberto fora do launcher (E-07). Se ele só traz a própria janela, sem processo novo, o launcher pode mostrar a mensagem do CA-29 (R-12). |
+| E-27 | Usuário reabre o launcher logo depois de fechá-lo, enquanto a instância antiga ainda está saindo | Pode não aparecer nada. Abrir de novo resolve (R-13). |
 
 ## 13. Riscos
 
 | ID | Risco | Impacto | Mitigação |
 |---|---|---|---|
-| R-01 | Windows restringe quem pode roubar o primeiro plano; jogos em tela cheia exclusiva podem não ceder a frente ao launcher. | Quebra US-07, que é o diferencial, e o retorno automático no fim da sessão (CA-30). | Spike técnico SP-01 (`docs/arch/spikes/SP-01.md`): minimizar o jogo trouxe o Sofá à frente em só 1 de 26 tentativas, e fechar o jogo também não devolve o foco. Adotada a sequência de quatro tentativas de RN-24 (D-41), aprovada pela arquitetura (ADR-0003) e pela segurança. Validação com jogos reais no teste final do usuário (QA-17). |
+| R-01 | Windows restringe quem pode roubar o primeiro plano; jogos em tela cheia exclusiva podem não ceder a frente ao launcher. | Quebra US-07, que é o diferencial, e o retorno automático no fim da sessão (CA-30). | Spike técnico SP-01 (`docs/arch/spikes/SP-01.md`): minimizar o jogo trouxe o SofaLauncher à frente em só 1 de 26 tentativas, e fechar o jogo também não devolve o foco. Adotada a sequência de quatro tentativas de RN-24 (D-41), aprovada pela arquitetura (ADR-0003) e pela segurança. Validação com jogos reais no teste final do usuário (QA-17). |
 | R-02 | Detectar fim de sessão para jogos de loja é indireto: o launcher pede à loja para iniciar o jogo e não controla o processo. Na Epic e no GOG Galaxy o jogo pode passar por processos intermediários da loja. | Launcher não volta sozinho (CA-30) ou volta antes da hora. | Regra por pasta de instalação (RN-10) + período de tolerância (E-14). Validar no spike com ao menos um jogo de cada loja. |
 | R-03 | Launchers de publicadoras e anti-cheat abrem processos e janelas próprios. | Sessão mal detectada; janelas que não aceitam controle. | Aceitar como limitação no MVP e listar jogos problemáticos encontrados nos testes. |
 | R-04 | Telas do Windows (UAC, login, atualização) não aceitam controle. | Viola M-01 em casos pontuais. Instalar e atualizar exigem teclado/mouse por causa do UAC (RN-26). | Fora do escopo (RN-19); instalação é rara. Orientar o usuário a configurar logon e janelas de atualização. |
@@ -514,6 +530,10 @@ Se o usuário recusar no UAC, aparece "O Windows não deu permissão para abrir 
 | R-07 | Anti-cheat de alguns jogos pode desconfiar de processos que leem entrada global ou mexem em janelas. | Risco baixo, mas possível bloqueio. A tecla F24 sintética (degrau 2, terceira tentativa de RN-24) pode ser tratada como macro por algum anti-cheat. | O launcher só lê o controle via API padrão e não injeta nada no jogo (overlay fora de escopo). A tecla F24 é enviada uma vez por retorno e pode ser desligada em configuração avançada. Validação com jogo com anti-cheat no teste final do usuário (QA-17, offline, D-30). |
 | R-08 | Epic e GOG guardam a lista de jogos instalados em arquivos locais sem documentação pública; o formato pode mudar com atualizações das lojas. A Epic costuma exigir o próprio launcher aberto e logado para iniciar jogos. | Jogos somem da biblioteca após atualização da loja; início lento ou bloqueado por login. | Falha de leitura de uma loja não derruba as outras (seção 11). Cadastro manual como alternativa. Arquiteto confirma no spike o que cada loja expõe, incluindo jogos GOG sem Galaxy (E-17). |
 | R-09 | Outro programa rodando com o mesmo usuário do Windows pode alterar a biblioteca salva. | Jogos ou caminhos adulterados na biblioteca. | Risco aceito (D-26). Ao carregar, o launcher reaplica as mesmas validações do cadastro (RN-29), então caminho de rede ou arquivo inválido não inicia. |
+| R-10 | Depois de "Fechar o launcher", só o atalho do SofaLauncher (teclado ou mouse) ou reiniciar o PC trazem o launcher de volta. | Viola M-01 até reabrir, se o usuário fechar sem querer ou durante o jogo. | Consequência de D-51. Confirmação com "Cancelar" em foco, aviso de jogo aberto e instrução de como reabrir (RN-35, CA-82, D-55). |
+| R-11 | Com o nome novo, a chave de desinstalação mudaria se não fosse fixada em `Uninstall\Sofa` (D-56). | Duas entradas em "Aplicativos instalados" e o instalador 0.2.0 deixa de conferir e chamar o desinstalador antigo (SEC-BUG-05). | Chave fixada no literal `Uninstall\Sofa`, com teste no script de teste do instalador (arquitetura, seção 14). |
+| R-12 | Com o jogo da sessão anterior ainda aberto (D-54), iniciar de novo o mesmo jogo pode cair na mensagem de "não foi possível confirmar" (CA-29), se o jogo só traz a própria janela. | Mensagem de erro com o jogo já aberto. | Comportamento já previsto para E-07 (E-26). O QA-17 observa. |
+| R-13 | Reabrir enquanto o processo antigo ainda está saindo pode entregar o pedido de reabertura à janela que está fechando. | Nada aparece. Probabilidade baixa: o fechamento leva menos de 1 s. | Abrir de novo (E-27). |
 
 ## 14. Decisões
 
@@ -535,7 +555,7 @@ Respostas do usuário às perguntas abertas da versão anterior.
 | D-12 | Q-12. Ferramentas existentes | Usuário não testou; seguir com o app próprio. | Seção 1 |
 | D-13 | Q-13. Jogos não instalados | Não mostrar. | RN-02 |
 | D-14 | Marca e visual | Público só o usuário; visual "console moderno". | Seção 6 |
-| D-15 | Nome e marca | Produto "Sofá"; identificadores técnicos `sofa`; identificador do app e pasta de dados `app.sofa.launcher`. Marca: direção A, "Palco" (`docs/brand/sofa/`). | Cabeçalho, seção 6, RN-18, CA-68 |
+| D-15 | Nome e marca | Produto "Sofá"; identificadores técnicos `sofa`; identificador do app e pasta de dados `app.sofa.launcher`. Marca: direção A, "Palco" (`docs/brand/sofa/`). Nome e logo substituídos por D-49; identificadores mantidos. | Cabeçalho, seção 6, RN-18, CA-68 |
 | D-16 | P-01. WebView2 no instalador | Bootstrapper embutido no instalador; baixa o runtime só se faltar. | CA-50, RN-26 |
 | D-17 | P-02. Como abrir jogos GOG | Pelo executável direto, inclusive os instalados pelo Galaxy. | CA-26, RN-10, E-22, escopo |
 | D-18 | P-03. Atraso da inicialização automática | Se a entrada de inicialização do usuário passar de 5 s, usar tarefa agendada no logon do usuário, sem elevação, se o spike confirmar que dá sem administrador; senão, aceitar o atraso. | RN-17 |
@@ -548,7 +568,7 @@ Respostas do usuário às perguntas abertas da versão anterior.
 | D-25 | AF-05. Mecanismo de inicialização automática | Só por usuário (entrada de inicialização do usuário ou tarefa por usuário não elevada, D-18). Nunca para todos os usuários, serviço ou tarefa elevada. | RN-17 |
 | D-26 | AF-08. Adulteração da biblioteca | Risco aceito para processos do mesmo usuário. | R-09 |
 | D-27 | AF-09. Instalador sem assinatura | Mantido, com SHA-256 publicado. | CA-76, RN-30, R-06 |
-| D-28 | AF-10. Desinstalador apagando dados | Apaga só os arquivos da pasta de dados do Sofá, com travas para não sair dela. | CA-68 |
+| D-28 | AF-10. Desinstalador apagando dados | Apaga só os arquivos da pasta de dados do SofaLauncher, com travas para não sair dela. | CA-68 |
 | D-29 | Lista de jogos para teste | A lista de jogos reais do usuário vem depois, para o QA final. | Validação (arquitetura §9) |
 | D-30 | Teste de anti-cheat | Feito offline, no QA final. | R-07 |
 | D-31 | Conta do teste final | Conta padrão do Windows + credencial de outro administrador no UAC. | E-19, CA-50 a CA-53 |
@@ -556,7 +576,7 @@ Respostas do usuário às perguntas abertas da versão anterior.
 | D-33 | Hardware ausente | O que depender de hardware não disponível no desenvolvimento fica registrado como "não verificado" até o QA final. | Validação |
 | D-34 | CI | Script local mais pasta de releases. | RN-30 (publicação do SHA-256) |
 | D-35 | Testes do usuário | O usuário testa só no fim; não há spike com jogos, controle ou contas reais dele. | Pendências |
-| D-36 | Jogo que exige administrador | Aviso do Sofá antes do UAC ("precisa de permissão… Continuar / Voltar"), depois o UAC do jogo. | CA-73, RN-27 |
+| D-36 | Jogo que exige administrador | Aviso do SofaLauncher antes do UAC ("precisa de permissão… Continuar / Voltar"), depois o UAC do jogo. | CA-73, RN-27 |
 | D-37 | Telas de espera | "Abrindo…" tem "Voltar" e "Fechando…" tem "Ir para a biblioteca". Voltar durante "Abrindo" interrompe a espera, mas o jogo pode abrir depois. | CA-26, CA-35, CA-77, CA-78, RN-31 |
 | D-38 | Cards cortados na borda | Aceitos como sinal de continuidade, exceção visual à área segura; texto e itens focáveis continuam dentro dela. | CA-54, RN-32 |
 | D-39 | Erro de caminho de rede | Mensagem própria no cadastro e outra ao iniciar jogo. | CA-71 |
@@ -569,7 +589,18 @@ Respostas do usuário às perguntas abertas da versão anterior.
 | D-46 | D-QA-04. Card cortado embaixo | Permitido, com a mesma lógica de D-38: a fileira seguinte pode aparecer cortada sob o rodapé. Texto e foco do item focado sempre dentro da área segura. | CA-54, RN-32 |
 | D-47 | DES-BUG-04. Ordem dos botões nos diálogos | Cancelar ou Voltar sempre à esquerda, ação principal à direita. Regra única. | RN-34, CA-81 |
 | D-48 | D-QA-01. Ordem das opções do jogo | Jogar, Renomear, Restaurar nome original (se o nome foi alterado) e Ocultar, como nos mockups. | CA-79, RN-33, seção 8 |
+| D-49 | Nome do produto (após a v0.1.0) | O produto passa a se chamar SofaLauncher, com a sigla SL no logo e no ícone. O logo passa a ser um controle, no lugar do símbolo de play. Substitui o nome e o logo de D-15. Sigla e logo ajustados por D-52; identificadores por D-56. | Cabeçalho, seção 6, CA-68, CA-71, CA-73, CA-77, RN-27, R-01, D-15 |
+| D-50 | Onde fica "Fechar o launcher" (após a v0.1.0) | No menu de energia, junto de Desligar e Reiniciar, com confirmação e "Cancelar"/"Voltar" à esquerda (RN-34). | RN-14, RN-35, CA-82, escopo item 10 |
+| D-51 | Fechar o launcher com jogo aberto (após a v0.1.0) | Fecha só o launcher. O jogo continua aberto e "Iniciar com o Windows" segue valendo no próximo boot. | RN-35, CA-82, E-24, E-25, R-10 |
+| D-52 | Logo aprovado | O logo é o controle, com "SofaLauncher" escrito por extenso. SL é só uma sigla de texto e não vai no logo nem no ícone. Ajusta D-49. | Cabeçalho, seção 6 |
+| D-53 | Q-14. "Sair do launcher" e "Fechar o launcher" | Substituir: fica só "Fechar o launcher", no menu de energia. "Sair do launcher" sai do menu rápido. | CA-05, CA-82, US-14, RN-14, RN-35, seção 4 (menu rápido) |
+| D-54 | Q-15. Reabrir com o jogo rodando | O jogo é tratado como aberto fora do launcher (E-07). A sessão não é retomada e o jogo fica no topo dos recentes (CA-75). | CA-82, RN-35, E-24 a E-26, R-12 |
+| D-55 | Q-16. Aviso de como reabrir | A confirmação diz como reabrir: pelo atalho do SofaLauncher ou reiniciando o PC. Texto final com o designer. | CA-82, RN-35, R-10 |
+| D-56 | Q-18. Identificadores técnicos | Ficam como estão (ADR-0007): `app.sofa.launcher`, `sofa.exe`, pasta `Program Files\Sofa` e chave `Uninstall\Sofa`. Sem migração. | Cabeçalho, seção 6, R-11 |
+| D-57 | Q-17. Trazer o jogo à frente antes de fechar | Não trazer. Os PCs com a 0.1.0 são atualizados por cima, com a versão 0.2.0. | CA-82, RN-35, CA-53 |
 
 ### Pendências
 
 - **Spike técnico (arquiteto, sem o usuário, D-35; validação com jogos reais no QA final, D-29):** primeiro plano e fallback de minimizar (R-01), fim de sessão por loja (R-02), formato local de Epic e GOG e jogos GOG sem Galaxy (R-08, E-17), registro de "Iniciar com o Windows" com UAC de outra conta (E-19), tempo da inicialização automática e tarefa agendada sem administrador (D-18), confirmação sobre o botão Guide (R-05).
+- **Perguntas de D-49 a D-51, todas fechadas:** Q-14 (substituir "Sair do launcher", D-53), Q-15 (jogo aberto fora do launcher ao reabrir, D-54), Q-16 (aviso de como reabrir, D-55), Q-17 (não trazer o jogo à frente, D-57) e Q-18 (identificadores mantidos, D-56).
+- **Docs fora desta spec ainda com o nome e o item antigos:** guia de marca (logo com play), microcopy, mockups e roteiro do usuário dizem "Sofá", ainda têm "Sair do launcher" e não têm "Fechar o launcher" nem o aviso de como reabrir. Atualização a cargo de design e QA.

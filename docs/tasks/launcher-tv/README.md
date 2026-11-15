@@ -350,3 +350,121 @@ Além das tarefas listadas na coluna "Verifica", o roteiro do usuário (QA-16/QA
 - **Desinstalador (rev. 2 de segurança)**: o processo elevado só decide; a remoção dos dados roda como o usuário interativo via `sofa.exe --purge-user-data` (BE-41, SEC-31) e apaga só os dados desse usuário (DR-03). O autostart sai de todos os perfis (BE-42, SEC-32). O arquiteto está revisando os ADRs 0003 e 0006 em paralelo; SG-09 confere a revisão antes de BE-38, BE-41 e BE-42.
 - **Spikes**: código fora do repo (ex.: `D:\GIT\STD\sofa-spikes\`) ou em branch descartável; resultado em `docs/arch/spikes/SP-xx.md`.
 - **Métricas**: M-02 e M-04 entram no "Pronto quando" de BE-40, BE-21 e QA-06/QA-10; M-01 só fecha no QA-14, que não bloqueia a revisão final.
+
+## Versão 0.2.0 (pós-0.1.0): nome SofaLauncher e "Fechar o launcher"
+
+| Campo | Valor |
+|---|---|
+| Spec | `docs/specs/launcher-tv.md`: D-49 a D-57, RN-35, CA-82, CA-05 atualizado, E-24 a E-27, R-10 a R-13 |
+| Arquitetura | `docs/arch/launcher-tv.md` seção 14 (rev. 9) e "Reuso pós-0.1.0" da seção 2b |
+| ADR | `docs/adr/0007-renomear-sofalauncher-so-no-nome-visivel.md` (`accepted`) |
+| Marca | `docs/brand/sofa/` (guia v1.1; assets prontos) |
+| Design | `docs/design/launcher-tv.md`, `microcopy.md` e mockups em atualização (DES-11) |
+| Data | 2026-11-15 |
+
+Sem comando, evento, DTO ou código de erro novo: "Fechar o launcher" reusa o `app_exit` (#30). Muda só o nome visível; `app.sofa.launcher`, `sofa.exe`, `Program Files\Sofa` e `Uninstall\Sofa` ficam (D-56).
+
+### Tarefas novas
+
+| Agente | Tarefas | Qtde |
+|---|---|---|
+| dev-backend | BE-61 a BE-75 | 15 |
+| dev-frontend | FE-20 a FE-24 | 5 |
+| designer-ux | DES-11 a DES-13 | 3 |
+| qa | QA-18, QA-19 | 2 |
+| seguranca | SG-11 | 1 |
+| arquiteto | ARQ-06 | 1 |
+
+Total: 27. Ajustes em tarefas existentes que ainda não estão feitas: QA-17 passa a depender de QA-19 e roda com o instalador `v0.2.0` (D-57); QA-13 inclui QA-18 e cobre CA-01 a CA-82 e RN-01 a RN-35.
+
+### Ordem de execução
+
+| Fase | Tarefas | Observação |
+|---|---|---|
+| 0. Já pode começar | BE-66, BE-69, BE-70, BE-71, BE-72, BE-73; DES-11 (em andamento) | Não dependem de texto novo do designer |
+| 1. Nome no núcleo e no instalador | BE-61 (espera o `shortDescription` do DES-11), BE-62, BE-63, BE-64, BE-67, BE-68, BE-65 (espera os textos do DES-11) | Em sequência a partir do BE-61, porque todos mexem no `tauri.conf.json` ou no `installer.nsi` |
+| 2. Aprovação e front | DES-12 (usuário) → FE-20, FE-21, FE-22 → FE-23 → FE-24; BE-74 | Nenhuma tela antes do DES-12 |
+| 3. Verificação | QA-18, depois SG-11; DES-13 | Sobre um build de candidato sem tag (`-AllowUntagged`) |
+| 4. Revisão e release | ARQ-06 → BE-75 (tag `v0.2.0`) → QA-19 | A tag só sai depois da revisão, para não repetir o BE-60 |
+| 5. Usuário | QA-17 com o roteiro atualizado (atualizar por cima da 0.1.0 no PC da sala) | Depois segue o fechamento original: SG-10, BE-43, QA-13, SG-08, ARQ-05 |
+
+### Caminho crítico da 0.2.0
+
+```text
+DES-11 → DES-12 (usuário aprova) → FE-22 → FE-23 → FE-24 → QA-18 → SG-11 → ARQ-06 → BE-75 (tag v0.2.0) → QA-19 → QA-17 (usuário)
+```
+
+O risco de atraso está no DES-11 (em andamento) e na aprovação do usuário (DES-12, com a D-58). O back corre em paralelo e entra no QA-18 por BE-61 → BE-62 → BE-64/BE-65 e por BE-71, BE-72 e BE-73; só passa a ser crítico se o BE-61 esperar demais pelo `shortDescription`.
+
+**Em paralelo**: BE-66, BE-69, BE-70, BE-71, BE-72 e BE-73 entre si e com o DES-11; FE-20, FE-21 e FE-22 entre si depois do DES-12; BE-74 com o front; DES-13 com o QA-18 e o SG-11.
+
+### Grafo de dependências da 0.2.0
+
+```mermaid
+flowchart LR
+  DES11[DES-11 design 0.2.0] --> DES12[DES-12 aprovação]
+  DES11 --> BE61[BE-61 tauri.conf]
+  DES11 & BE62 --> BE65[BE-65 PortugueseBR.nsh]
+  BE61 --> BE62[BE-62 DISPLAYNAME]
+  BE61 --> BE63[BE-63 UNINSTKEY literal]
+  BE62 --> BE64[BE-64 Sofá.lnk]
+  BE61 --> BE67[BE-67 ci-release]
+  BE61 --> BE68[BE-68 versão 0.2.0]
+  BE67 --> BE74[BE-74 READMEs]
+  BE66[BE-66 coletar-logs]
+  BE69[BE-69 ícones]
+  BE70[BE-70 título]
+  BE71[BE-71 log de saída]
+  BE72[BE-72 guard INV-05]
+  BE73[BE-73 teste do Job]
+
+  DES12 --> FE20[FE-20 marca] & FE21[FE-21 textos] & FE22[FE-22 QuickMenu]
+  FE22 & DES12 --> FE23[FE-23 ExitDialog]
+  FE23 --> FE24[FE-24 teclado]
+  FE20 & FE21 & FE22 & FE23 --> DES13[DES-13 revisão UI]
+
+  FE20 & FE21 & FE24 & BE61 & BE62 & BE63 & BE64 & BE65 & BE66 & BE67 & BE68 & BE69 & BE70 & BE71 & BE72 & BE73 --> QA18[QA-18 validação]
+  BE63 & BE64 & BE65 & BE71 & BE72 & BE73 & QA18 --> SG11[SG-11 verificação]
+  QA18 & SG11 & DES13 & BE74 --> ARQ06[ARQ-06 revisão do diff]
+  ARQ06 --> BE75[BE-75 release v0.2.0]
+  BE75 & BE66 & QA18 --> QA19[QA-19 roteiro]
+  QA19 --> QA17[QA-17 usuário]
+```
+
+### Matriz de cobertura da 0.2.0
+
+| Item | Implementa | Verifica |
+|---|---|---|
+| CA-05 | DES-11, FE-22, BE-71 | QA-18, QA-17 (via QA-19) |
+| CA-82 | DES-11, FE-22, FE-23, FE-24, BE-71, BE-72, BE-73 | QA-18, SG-11, QA-17 (via QA-19) |
+| RN-35 | DES-11, FE-22, FE-23, FE-24, BE-71, BE-72, BE-73 | QA-18, SG-11, QA-17 |
+| RN-14 (inclui fechar o launcher) | FE-22, FE-23 | QA-18 |
+| RN-34, CA-81 (posição dos botões) | FE-23 | QA-18, DES-13 |
+| RN-07, CA-80 (teclado) | FE-24 | QA-18 |
+| CA-53 (atualizar mantém dados) | BE-63, BE-64, BE-68 | SG-11, QA-17 (via QA-19) |
+| CA-76, RN-30 (SHA-256) | BE-67, BE-75 | QA-19 |
+| E-24, E-25 | Sem código: o launcher está fechado (RN-35) | QA-18 (E-25), QA-17 (E-24 exige controle) |
+| E-26, R-12 | Sem código: comportamento de E-07 (D-54) | QA-18, QA-17 |
+| E-27, R-13 | Sem código | QA-18, QA-17 |
+| R-10 | FE-23 (aviso de como reabrir) | QA-18 |
+| R-11 | BE-63 | SG-11, QA-18 |
+| D-49, D-52 (nome e logo) | BE-61, BE-62, BE-65, BE-66, BE-67, BE-69, BE-70, BE-74, FE-20, FE-21, DES-11 | QA-18, DES-13, ARQ-06 |
+| D-50, D-53 | FE-22 | QA-18 |
+| D-51 | BE-71, BE-72, BE-73 | QA-18, SG-11 |
+| D-54 | Sem código (reabre como E-07) | QA-18, QA-17 |
+| D-55 | DES-11, FE-23 | QA-18, DES-12 |
+| D-56 | BE-61, BE-63 | SG-11, ARQ-06 |
+| D-57 | BE-64, BE-68, BE-71, BE-75 | SG-11, QA-17 (via QA-19) |
+| SEC-BUG-05, SEC-20, INV-06 | BE-63 | SG-11, ARQ-06 |
+| SEC-29, SEC-32, INV-09 | BE-64 | SG-11 |
+| SEC-18 | BE-66, BE-71 | SG-11 |
+| SEC-28, INV-03 | BE-71 | SG-11, ARQ-06 |
+| INV-05 | BE-72, BE-73 | SG-11, ARQ-06 |
+| SEC-26 | BE-67, BE-75 | QA-19 |
+| SEC-07, SEC-01 (UI) | FE-20, FE-23 | QA-18 |
+
+Nenhum CA, RN ou SEC da 0.2.0 ficou sem tarefa de implementação e de verificação. E-24 a E-27 e D-54 descrevem o que acontece com o launcher fechado ou reaberto sem sessão; não pedem código, só verificação.
+
+### Pergunta aberta
+
+- **D-58** (origem: microcopy, "dúvida 1"; bloqueia FE-23 e DES-12): com "Iniciar com o Windows" desligado, reiniciar o PC não reabre o launcher. O diálogo deve trocar a segunda frase por "Para reabrir, use o atalho do SofaLauncher (com teclado ou mouse)." (e, com jogo, "Para reabrir, use o atalho do SofaLauncher.")? Recomendação: sim, usar a variante; o texto fixo promete algo que não acontece nesse caso. A outra opção é manter um texto só, como pede o CA-82 hoje, aceitando a imprecisão.

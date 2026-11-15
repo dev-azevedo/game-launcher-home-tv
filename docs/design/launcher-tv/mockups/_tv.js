@@ -1,4 +1,4 @@
-/* Sofá, protótipo da UI de TV (mockup). Referência visual, não é código de produção.
+/* SofaLauncher, protótipo da UI de TV (mockup). Referência visual, não é código de produção.
    Todo dado externo (nome de jogo, caminho, nome de monitor) entra como texto (textContent), como manda SEC-07. */
 (function(){
 'use strict';
@@ -282,7 +282,7 @@ function report(){
 
 /* ---------- componentes visuais ---------- */
 function header(){
-  return h('div.hdr',{},h('img.logo',{src:BRAND+'logo-horizontal.svg',alt:'Sofá'}),
+  return h('div.hdr',{},h('img.logo',{src:BRAND+'logo-horizontal.svg',alt:'SofaLauncher'}),
     h('div.chips',{},
       h('span.chip',{'data-chip':'sync',style:'display:none'},ic('refresh','s'),h('span',{text:'Atualizando biblioteca…'})),
       h('span.chip',{'data-chip':'ctrl'},ic('gamepad','s'),h('span',{text:'Controle conectado'})),
@@ -347,7 +347,7 @@ function menuL(c){
 /* ---------- abertura ---------- */
 function boot(){
   return {name:'Abertura',kind:'screen',focus:null,noBack:true,rows:function(){return []},
-    build:function(){ return h('div.layer.boot'+(C.bootHold==='yes'?'.hold':''),{},h('img.splash',{src:BRAND+'splash.svg',alt:'Sofá'}),
+    build:function(){ return h('div.layer.boot'+(C.bootHold==='yes'?'.hold':''),{},h('img.splash',{src:BRAND+'splash.svg',alt:'SofaLauncher'}),
       h('div.st',{role:'status'},h('div.bar',{},h('i')),h('span',{text:'Carregando biblioteca…'}))) }};
 }
 
@@ -523,11 +523,11 @@ function ingame(){
   var x=gameById(S.session.id);
   return {name:'Jogo (simulado)',kind:'screen',inert:true,focus:null,rows:function(){return []},
     build:function(){ return h('div.layer.fakegame',{},h('div.art',{style:x.cover==='art'?'background-image:'+artUrl(x.hue,x.seed):'background:#1b1540'}),h('div.vig'),h('div.hud',{},h('i'),h('i')),
-      h('div.sim',{},ic('gamepad','s'),h('span',{text:'Simulação: o jogo está na frente e o Sofá em segundo plano. Segure View + Menu por 1,5 s (no teclado, V + M).'})),h('div.ring',{},h('i'))) }};
+      h('div.sim',{},ic('gamepad','s'),h('span',{text:'Simulação: o jogo está na frente e o SofaLauncher em segundo plano. Segure View + Menu por 1,5 s (no teclado, V + M).'})),h('div.ring',{},h('i'))) }};
 }
 function sessionPanel(fallback){
   var x=gameById(S.session.id);
-  var note=fallback?'O Windows não deixou o Sofá passar na frente. O jogo foi minimizado. Voltar ao jogo restaura a janela.':(S.session.elevated?'Este jogo roda como administrador. A combinação de retorno pode falhar nele.':null);
+  var note=fallback?'O Windows não deixou o SofaLauncher passar na frente. O jogo foi minimizado. Voltar ao jogo restaura a janela.':(S.session.elevated?'Este jogo roda como administrador. A combinação de retorno pode falhar nele.':null);
   var mins=Math.round((Date.now()-S.session.since)/60000),since=mins<1?'Jogando agora':mins<60?'Jogando há '+mins+' min':'Jogando há '+Math.floor(mins/60)+' h '+(mins%60)+' min';
   var L=menuL({name:'Jogo em andamento',focus:'back',
     head:h('div.panel-hero',{},h('div.thumb',{},h('div',{style:'position:absolute;inset:0;background-size:cover;'+(x.cover==='art'?'background-image:'+artUrl(x.hue,x.seed):'background:linear-gradient(165deg,#322a68,#1b1540)')})),
@@ -542,7 +542,7 @@ function sessionPanel(fallback){
   return L;
 }
 function closeConfirm(x){
-  return dlg({name:'Fechar jogo',icon:'power',tone:'danger',title:'Fechar '+x.name+'?',body:['O Sofá pede ao jogo para fechar.'],warn:'O progresso não salvo pode ser perdido.',focus:'cancel',
+  return dlg({name:'Fechar jogo',icon:'power',tone:'danger',title:'Fechar '+x.name+'?',body:['O SofaLauncher pede ao jogo para fechar.'],warn:'O progresso não salvo pode ser perdido.',focus:'cancel',
     buttons:[B('cancel','Cancelar',function(){pop()},{back:true}),B('ok','Fechar jogo',function(){ doClose(x) },{kind:'danger',icon:'power'})]});
 }
 function doClose(x){
@@ -565,7 +565,7 @@ function switchDlg(nw){
     buttons:[B('cancel','Cancelar',function(){pop()},{back:true}),B('ok','Fechar e abrir',function(){ var x=cur; S.session=null; S.stack.pop().el.remove(); push(closingSwap(x,nw)) },{kind:'danger'})]});
 }
 function closingSwap(old,nw){
-  var l=dlg({name:'Fechando',cover:old,title:'Fechando '+old.name+'…',body:['Depois o Sofá abre '+nw.name+'.'],spin:'Fechando',guard:600,buttons:[B('x','Voltar',function(){pop()},{back:true})]});
+  var l=dlg({name:'Fechando',cover:old,title:'Fechando '+old.name+'…',body:['Depois o SofaLauncher abre '+nw.name+'.'],spin:'Fechando',guard:600,buttons:[B('x','Voltar',function(){pop()},{back:true})]});
   timer(function(){ if(top()===l){ pop(); startLaunch(nw) } },1800); return l;
 }
 function adminDlg(x){
@@ -597,7 +597,7 @@ function errDlg(code,x){
       buttons:[B('back','Ir para a biblioteca',function(){ toHome(x.id) },{back:true}),B('retry','Tentar de novo',function(){ pop(); C.fgDenied='no'; returnToGame() },{kind:'primary'})]} },
     ForceDenied:function(){ return {icon:'shield',tone:'danger',cover:x,title:nm,body:['Não foi possível fechar '+nm+'. O jogo roda como administrador. Feche pelo menu do próprio jogo.'],focus:'back',
       buttons:[B('back','Voltar',function(){ S.session.state='running'; pop() },{back:true})]} },
-    Busy:function(){ return {icon:'alert',title:'Um momento',body:['O Sofá ainda está terminando outra ação. Tente de novo em instantes.'],focus:'back',buttons:[V]} }
+    Busy:function(){ return {icon:'alert',title:'Um momento',body:['O SofaLauncher ainda está terminando outra ação. Tente de novo em instantes.'],focus:'back',buttons:[V]} }
   };
   var c=map[code](); c.name='Aviso: '+code; return dlg(c);
 }
@@ -605,7 +605,7 @@ function errDlg(code,x){
 /* ---------- menu rápido ---------- */
 function quick(o){
   o=o||{};
-  var items=['vol','mute','off','restart','suspend','settings','exit'];
+  var items=['vol','mute','off','restart','suspend','exit','settings'];
   var L={name:'Menu rápido',kind:'overlay',focus:S.audio==='none'?'off':'vol'};
   var dis={vol:S.audio==='none',mute:S.audio==='none',suspend:C.suspend==='no'};
   L.rows=function(){ return items.filter(function(i){return !dis[i]}).map(function(i){return [i]}) };
@@ -620,7 +620,7 @@ function quick(o){
   }
   L.build=function(){
     var m=h('div.menu.right',{role:'menu','aria-label':'Menu rápido'},
-      h('div.mh',{},h('img',{src:BRAND+'logo-horizontal.svg',alt:'Sofá',style:'height:calc(44*var(--u))'}),
+      h('div.mh',{},h('img',{src:BRAND+'logo-horizontal.svg',alt:'SofaLauncher',style:'height:calc(44*var(--u))'}),
         S.session?h('span.pill.amber',{style:'margin-left:auto',text:'Em andamento'}):null),
       volRow(),
       row('mute',S.muted?'mute':'vol','Mudo',h('span.sw'+(S.muted?'.on':'')),false),
@@ -628,8 +628,9 @@ function quick(o){
       h('div.sep'),
       row('off','power','Desligar',null,true),row('restart','restart','Reiniciar',null,true),
       row('suspend','moon','Suspender',null,true,dis.suspend?'Suspensão indisponível neste PC':null),
+      row('exit','exit','Fechar o launcher'),
       h('div.sep'),
-      row('settings','sliders','Configurações'),row('exit','exit','Sair do launcher'),
+      row('settings','sliders','Configurações'),
       hints([['dpad','Ajustar volume'],['A','Escolher'],['B','Fechar']]));
     return h('div.layer',{},h('div.scrim-l'),m);
   };
@@ -654,8 +655,8 @@ function quick(o){
 }
 function power(kind){
   var m={shutdown:['Desligar o PC?','O Windows desliga do jeito normal. Se outro app tiver trabalho não salvo, o Windows avisa.','Desligar','power','Desligando…','O Windows está encerrando.'],
-    restart:['Reiniciar o PC?','O Windows reinicia do jeito normal.'+(S.autostart?' O Sofá abre de novo quando você entrar.':''),'Reiniciar','restart','Reiniciando…','O Windows está reiniciando.'],
-    suspend:['Suspender o PC?','O PC entra em suspensão. Ao acordar, o Sofá volta para esta tela.','Suspender','moon','Suspendendo…','O PC está entrando em suspensão.']}[kind];
+    restart:['Reiniciar o PC?','O Windows reinicia do jeito normal.'+(S.autostart?' O SofaLauncher abre de novo quando você entrar.':''),'Reiniciar','restart','Reiniciando…','O Windows está reiniciando.'],
+    suspend:['Suspender o PC?','O PC entra em suspensão. Ao acordar, o SofaLauncher volta para esta tela.','Suspender','moon','Suspendendo…','O PC está entrando em suspensão.']}[kind];
   var x=S.session&&gameById(S.session.id);
   return dlg({name:'Confirmar energia',icon:m[3],tone:'danger',title:m[0],body:[m[1]],warn:x?x.name+' está aberto. O progresso não salvo pode ser perdido.':null,focus:'cancel',
     buttons:[B('cancel','Cancelar',function(){pop()},{back:true}),B('ok',m[2],function(){
@@ -663,12 +664,14 @@ function power(kind){
 }
 function exitDlg(){
   var x=S.session&&gameById(S.session.id);
-  return dlg({name:'Sair do Sofá',icon:'exit',tone:'danger',title:'Sair do Sofá?',body:['O Sofá fecha e o Windows mostra a área de trabalho.'],warn:x?x.name+' continuará aberto.':null,warnTone:'amber',focus:'cancel',
-    buttons:[B('cancel','Cancelar',function(){pop()},{back:true}),B('ok','Sair do Sofá',function(){
+  var reopen=x?'Para reabrir, use o atalho do SofaLauncher ou reinicie o PC depois de sair do jogo.':'Para reabrir, use o atalho do SofaLauncher (com teclado ou mouse) ou reinicie o PC.';
+  return dlg({name:'Fechar o launcher',icon:'exit',title:'Fechar o launcher?',body:[x?'Só o SofaLauncher fecha.':'O SofaLauncher fecha e o Windows mostra a área de trabalho.',reopen],warn:x?x.name+' continuará aberto. Nenhum progresso se perde.':null,warnTone:'amber',focus:'cancel',
+    buttons:[B('cancel','Cancelar',function(){pop()},{back:true}),B('ok','Fechar o launcher',function(){
       resetStack(); push({name:'Área de trabalho',kind:'screen',focus:'again',noBack:true,rows:function(){return [['again']]},
-        build:function(){ return h('div.layer.bye',{},h('div',{},h('div',{text:'Simulação: o Sofá fechou e o Windows mostra a área de trabalho.'}),btn('again','Abrir o Sofá','primary'))) },
-        on:{Confirm:function(){ apply(C) }}}) },{kind:'danger',icon:'exit'})]});
+        build:function(){ return h('div.layer.bye',{},h('div',{},h('div',{text:'Simulação: o SofaLauncher fechou e o Windows mostra a área de trabalho.'+(x?' '+x.name+' segue aberto.':'')}),btn('again','Abrir o SofaLauncher','primary'))) },
+        on:{Confirm:function(){ apply(C) }}}) },{icon:'exit'})]});
 }
+
 
 /* ---------- configurações ---------- */
 function monitors(){
@@ -685,8 +688,8 @@ function settings(o){
     function mi(id,icon,label,small,right,disabled){ ids.push(id); return h('div.mi.focusable',{'data-fid':id,role:'button','aria-disabled':disabled?'true':null},ic(icon),h('div.grow',{},h('span.clamp1',{text:label,style:'display:block'}),small?h('span.small',{text:small}):null),right||null) }
     if(L.tab==='tela'){
       var M=monitors(); S.monitor=M.sel;
-      p.append(h('h3',{text:'Monitor do launcher'}),h('div.lead',{text:'O Sofá abre em tela cheia no monitor escolhido.'}));
-      if(M.missing)p.append(h('div.callout',{role:'status'},ic('alert'),h('span',{text:'O monitor escolhido não está conectado. O Sofá está no monitor principal e volta ao monitor escolhido quando ele reconectar.'})));
+      p.append(h('h3',{text:'Monitor do launcher'}),h('div.lead',{text:'O SofaLauncher abre em tela cheia no monitor escolhido.'}));
+      if(M.missing)p.append(h('div.callout',{role:'status'},ic('alert'),h('span',{text:'O monitor escolhido não está conectado. O SofaLauncher está no monitor principal e volta ao monitor escolhido quando ele reconectar.'})));
       p.append(h('div.list',{'data-scroll':''},M.list.map(function(m){ return mi('p:'+m.id,'monitor',m.n,(m.main?'Principal':null),m.id===M.sel?h('span.tagsm',{},h('span',{text:'Em uso '}),ic('check','s')):null) })));
       if(M.list.length===1)p.append(h('div.sub',{text:'Só há um monitor conectado.'}));
     } else if(L.tab==='biblioteca'){
@@ -697,11 +700,11 @@ function settings(o){
         mi('p:add','plus','Adicionar jogo','Escolha um arquivo .exe em um disco deste PC.',ic('chevron'))));
     } else if(L.tab==='geral'){
       p.append(h('h3',{text:'Geral'}),h('div.list',{'data-scroll':''},
-        mi('p:auto','power','Iniciar com o Windows','Abre o Sofá quando você entra no Windows. Vale só para o seu usuário.',h('span.sw'+(S.autostart?'.on':''),{role:'switch','aria-checked':String(S.autostart)})),
+        mi('p:auto','power','Iniciar com o Windows','Abre o SofaLauncher quando você entra no Windows. Vale só para o seu usuário.',h('span.sw'+(S.autostart?'.on':''),{role:'switch','aria-checked':String(S.autostart)})),
         L.autoErr?h('div.errline',{role:'alert'},ic('alert','s'),h('span',{text:'Não foi possível alterar a inicialização com o Windows. Tente de novo.'})):null,
-        h('div.callout',{style:'margin-top:var(--space-2)'},ic('gamepad'),h('span',{text:'Para ligar o PC e jogar sem teclado, configure o logon automático ou o Windows Hello no Windows. O Sofá começa na área de trabalho.'})),
-        h('div.callout',{},ic('shield'),h('span',{text:'O Sofá nunca roda como administrador. Jogos que exigem administrador pedem confirmação no Windows, com teclado ou mouse.'}))),
-        h('div.sub',{text:'Sofá 1.0.0 · Fontes Sora e Figtree sob licença OFL'}));
+        h('div.callout',{style:'margin-top:var(--space-2)'},ic('gamepad'),h('span',{text:'Para ligar o PC e jogar sem teclado, configure o logon automático ou o Windows Hello no Windows. O SofaLauncher começa na área de trabalho.'})),
+        h('div.callout',{},ic('shield'),h('span',{text:'O SofaLauncher nunca roda como administrador. Jogos que exigem administrador pedem confirmação no Windows, com teclado ou mouse.'}))),
+        h('div.sub',{text:'SofaLauncher 0.2.0 · Fontes Sora e Figtree sob licença OFL'}));
     } else {
       var hd=S.hidden;
       p.append(h('h3',{text:'Itens ocultos'}));
@@ -732,7 +735,7 @@ function settings(o){
     Back:function(l){ if(l.zone==='pane'){ l.zone='tabs'; l.focus='t:'+l.tab; rerenderHints(l); applyFocus(true) } else pop() },
     Confirm:function(id,l){
       if(l.zone==='tabs'){ if(l.paneIds.length){ l.zone='pane'; l.focus=l.paneIds[0]; rerenderHints(l); applyFocus(true) } return }
-      if(id.indexOf('p:m')===0){ var m=monitors().list.filter(function(x){return 'p:'+x.id===id})[0]; S.monitor=m.id; C.monitors=C.monitors==='ausente'?'dois':C.monitors; swapPane(); applyFocus(true); toast('Sofá movido para '+m.n+'.') }
+      if(id.indexOf('p:m')===0){ var m=monitors().list.filter(function(x){return 'p:'+x.id===id})[0]; S.monitor=m.id; C.monitors=C.monitors==='ausente'?'dois':C.monitors; swapPane(); applyFocus(true); toast('SofaLauncher movido para '+m.n+'.') }
       else if(id==='p:refresh')doRefresh();
       else if(id==='p:add')openFolder('');
       else if(id==='p:auto'){ if(C.autostartFail==='yes'){ l.autoErr=true } else { l.autoErr=false; S.autostart=!S.autostart } swapPane(); applyFocus(true) }
@@ -772,7 +775,7 @@ function folder(path0){
   L.build=function(){
     var es=entries(),crumb=h('div.crumb',{},ic(L.path===''?'drive':'folder'),h('span',{text:L.path===''?'Este computador':L.path}));
     var body;
-    if(L.err)body=h('div.empty-s',{role:'alert'},ic('alert','xl'),h('b',{text:L.err==='AccessDenied'?'Sem permissão para abrir esta pasta':'Não encontramos esta pasta'}),h('span',{text:L.err==='AccessDenied'?'O Windows não deixa o Sofá ver o que há aqui.':'Ela pode ter sido removida, ou o disco foi desconectado.'}),btn('fback','Voltar','','chevron'));
+    if(L.err)body=h('div.empty-s',{role:'alert'},ic('alert','xl'),h('b',{text:L.err==='AccessDenied'?'Sem permissão para abrir esta pasta':'Não encontramos esta pasta'}),h('span',{text:L.err==='AccessDenied'?'O Windows não deixa o SofaLauncher ver o que há aqui.':'Ela pode ter sido removida, ou o disco foi desconectado.'}),btn('fback','Voltar','','chevron'));
     else if(!es.length)body=h('div.empty-s',{},ic('folder','xl'),h('b',{text:'Nenhuma pasta ou .exe aqui'}),h('span',{text:'Esta pasta não tem pastas nem arquivos .exe.'}),btn('fback','Voltar'));
     else body=h('div.list',{'data-scroll':''},es.map(function(e,i){
       return h('div.mi.focusable',{'data-fid':'f:'+i,role:'button'},ic(e.k==='Drive'?'drive':e.k==='Dir'?'folder':'exe'),h('div.grow',{},h('span.clamp1',{text:e.n,style:'display:block'})),e.k==='Exe'?h('span.tagsm',{text:'Adicionar'}):ic('chevron')) }));

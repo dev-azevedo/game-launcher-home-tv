@@ -9,8 +9,8 @@
 | Marca | `docs/brand/sofa/` (tokens, fontes woff2, ícones) |
 | Branch | `feature/launcher-tv-20261113` (base `main`) |
 | Repo | único: núcleo Rust (`src-tauri/` + `crates/`) e UI (`ui/`) |
-| ADRs | 0001 a 0006 em `docs/adr/` |
-| Data | 2026-11-14 (rev. 8: D-43, fallback do desinstalador restrito a dois arquivos e código de saída do purge, ADR-0006; SEC-BUG-01, membros do jogo no modo Job, ADR-0005; D-44, desligamento híbrido, desvio 5 revertido); 2026-11-14 (rev. 7: revisão de código ARQ-05 rodada 1, desvios 1 a 8 aceitos, seção 13); 2026-11-13 (rev. 6: cenário A da escada aprovado, P-08 b, P-09 a, SEC-19 aceito; rev. 5: resultado dos spikes técnicos SP-01, SP-02, SP-06, SP-07, SP-08 em `docs/arch/spikes/`; rev. 4: D-29 a D-35, sem spike com o usuário, Win10 como alvo principal; rev. 2: decisões do usuário P-01 a P-07 + SEC-xx; rev. 3: SEC-28 detalhado, SEC-31, SEC-32, DR-03, termos "Ocultar"/"Itens ocultos") |
+| ADRs | 0001 a 0007 em `docs/adr/` (0007 accepted: nome visível SofaLauncher, D-49, D-56) |
+| Data | 2026-11-15 (rev. 9: D-49 a D-51, seção 14, ADR-0007); 2026-11-14 (rev. 8: D-43, fallback do desinstalador restrito a dois arquivos e código de saída do purge, ADR-0006; SEC-BUG-01, membros do jogo no modo Job, ADR-0005; D-44, desligamento híbrido, desvio 5 revertido); 2026-11-14 (rev. 7: revisão de código ARQ-05 rodada 1, desvios 1 a 8 aceitos, seção 13); 2026-11-13 (rev. 6: cenário A da escada aprovado, P-08 b, P-09 a, SEC-19 aceito; rev. 5: resultado dos spikes técnicos SP-01, SP-02, SP-06, SP-07, SP-08 em `docs/arch/spikes/`; rev. 4: D-29 a D-35, sem spike com o usuário, Win10 como alvo principal; rev. 2: decisões do usuário P-01 a P-07 + SEC-xx; rev. 3: SEC-28 detalhado, SEC-31, SEC-32, DR-03, termos "Ocultar"/"Itens ocultos") |
 
 Neste documento, "back" é o **núcleo** (Rust) e "front" é a **UI** (React no WebView2). O "contrato de API" é o conjunto de **comandos Tauri** (UI → núcleo) e **eventos** (núcleo → UI). Os termos de domínio seguem a seção 4 da spec. A seção 4 deste documento é a **baseline de comandos e capabilities** usada na verificação de SEC-03/SEC-05.
 
@@ -319,6 +319,18 @@ O repo não tem código para reaproveitar, então o reuso é de bibliotecas e do
 | Grade virtualizada | `@tanstack/react-virtual` | MIT |
 | Testes / E2E | Vitest, Testing Library, `mockIPC`, `tauri-driver` + WebdriverIO | MIT |
 | **Marca** | `docs/brand/sofa/tokens.css`, `tokens.json`, `assets/fonts/*.woff2` (OFL 1.1), `assets/*.svg`, `assets/icon.ico`, `assets/png/icon-512.png` | OFL / do projeto |
+
+### Reuso pós-0.1.0 (D-49 a D-57, seção 14)
+
+| O quê | Caminho | Como entra |
+|---|---|---|
+| Comando `app_exit` (#30) | `src-tauri/src/commands/settings.rs` | Reaproveitado sem mudar assinatura: "Fechar o launcher" chama o mesmo comando. Só a descrição no contrato cita CA-82 e RN-35 |
+| `exit_hook` | `src-tauri/src/lib.rs` (`setup`), `src-tauri/src/state.rs` | Reaproveitado: já drena o `AsyncLog` e chama `handle.exit(0)`. Ganha só uma linha de log "fechar o launcher" (estado da sessão e `GameId`) antes do flush |
+| `ExitDialog` (sobre `ConfirmDialog`) | `ui/src/features/quickmenu/ExitDialog.tsx`, `ui/src/shared/ui/ConfirmDialog.tsx` | Reaproveitado: "Cancelar" em foco, aviso de jogo aberto por `openGameName`. Mudam o título, o rótulo e o texto (com o aviso de como reabrir, D-55) |
+| `QuickMenu` | `ui/src/features/quickmenu/QuickMenu.tsx` | Estendido: o item sai da lista `app` e entra no fim da lista `energy` como `MenuItemSpec`, abrindo o mesmo `confirmDialog` `{ confirm: 'exit' }` (D-50, D-53) |
+| Guard `INV-05` | `scripts/ci-guards.ps1` (tabela de padrões) | Estendido: entra o padrão `\bJOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE\b` com `Allow = @()`, no mesmo formato de `TerminateJobObject` |
+| Teste `win-integration` do Job | `crates/launcher-win/tests/session_runtime.rs` (helper `sofa-test-game.exe` e asserção por código de saída do handle, BE-51) | Novo caso no arquivo existente: o jogo de teste entra no Job, o Job é fechado (`drop`) e o processo continua vivo |
+| Limpeza de atalho | `IsShortcutTarget` e `UnpinShortcut` em `src-tauri/windows/installer.nsi` | Reaproveitados na instalação para apagar o `Sofá.lnk` legado (D-57) |
 
 ### Criado do zero (e por quê)
 
@@ -764,3 +776,69 @@ Desvios da rodada 3 aceitos (template próprio, `$PLUGINSDIR` e `$INSTDIR` no gu
 **Rodada 4 (2026-11-15), parcial**: leva 6. Fecharam o ARQ-BUG-15 (o fim da sessão no modo Job agora vem de uma espera registrada no handle de cada membro, que posta `MemberExited` na porta, sem prazo fixo e sem `Mutex` preso) e o ARQ-BUG-16 (pasta fixa `$PROGRAMFILES64\Sofa`, sem página de pasta, `/D=` recusado). BE-51 e BE-52 aceitos. Novo, baixo e sem bloquear o QA-17: ARQ-BUG-17 (reuso de PID em `scan_job` e falha silenciosa do `RegisterWaitForSingleObject`).
 
 Falta para fechar: BE-43 com o padrão final dos degraus no ADR-0003, QA-13 e ARQ-BUG-17 (rodada 5). Instalar e desinstalar de verdade, integridade Medium, DLL plantada e Windows 10 limpo seguem no QA-17.
+
+---
+
+## 14. Mudanças pós-0.1.0 (D-49, D-50, D-51; rev. 9, 2026-11-15)
+
+Análise de impacto depois da versão de teste 0.1.0. Esta seção não muda nenhum comando, evento, DTO nem código de erro: a lista fechada da 4.1 segue com 30 comandos.
+
+### 14.1 D-49: nome SofaLauncher (ADR-0007, `accepted` por D-56 e D-57)
+
+Regra: **muda o que o usuário lê, fica o que o sistema usa para achar o app.**
+
+| Onde está o nome | Hoje | Recomendação | Por quê |
+|---|---|---|---|
+| `tauri.conf.json` `productName` | `Sofa` | **muda** para `SofaLauncher` | Vira o `ProductName` e o `FileDescription` do `sofa.exe` (Gerenciador de Tarefas, aba Inicializar) e o nome do instalador |
+| `tauri.conf.json` `publisher`, `copyright`, `shortDescription` | `Sofá` | **muda** | "Aplicativos instalados" e propriedades do arquivo |
+| `tauri.conf.json` `identifier` | `app.sofa.launcher` | **fica** | Define a pasta de dados, `HKLM\Software\app.sofa.launcher` (`MANUKEY`, `InstallDefaults`), o mutex `app.sofa.launcher-sim`, o AUMID (`BUNDLEID`) e o alvo do purge (`data_dir_policy::APP_IDENTIFIER`, SEC-25) |
+| `tauri.conf.json` `mainBinaryName` / `sofa.exe` | `sofa` | **fica** | Ação do Run e da tarefa já gravadas, `autostart::exe_matches`, linha de comando do purge no desinstalador, `CheckIfAppIsRunning`, `OldMainBinaryName` |
+| `installer.nsi` `DISPLAYNAME` (atalhos, `DisplayName`, títulos) | `Sofá` | **muda** para `SofaLauncher` (também no `harness.nsi`) | Visível |
+| `installer.nsi` `UNINSTKEY` | `Uninstall\${PRODUCTNAME}` | **fixar o literal** `Uninstall\Sofa` | Com o `productName` novo, a chave mudaria: duas entradas em "Aplicativos instalados", e o `PageReinstall` deixaria de conferir e chamar o desinstalador antigo (SEC-BUG-05) |
+| Pasta `$PROGRAMFILES64\Sofa`, `INSTALLDIRNAME`, `SofaFixInstallDir` | `Sofa` | **fica** | Uma pasta nova cai no resultado 2 do `SofaFixInstallDir` e aborta o instalador sobre a 0.1.0. Pasta ASCII e fixa é o que o SEC-BUG-05 exige |
+| Run `Sofa`, `StartupApproved\Run` `Sofa`, tarefa `Sofa Autostart (<SID>)` | — | **fica** | Só o Agendador e o `regedit` mostram. O Gerenciador de Tarefas mostra o `FileDescription` (que muda). Trocar o nome exige limpar o valor antigo em todos os perfis (BE-42) |
+| Pasta de dados `%LOCALAPPDATA%\app.sofa.launcher` (+ `EBWebView`) | — | **fica** | Sem migração. Não há dado em `%APPDATA%` |
+| Mutex da instância única | `app.sofa.launcher-sim` | **fica** | Deriva do `identifier`. O purge confere o mutex para sair com código 4 (SEC-BUG-03) |
+| Logs `sofa.log`, `sofa.N.log`, `%TEMP%\sofa-purge.log` | — | **fica** | São internos. O `coletar-logs.ps1` só troca o texto exibido ("SofaLauncher"); caminhos e `sofa.txt` ficam |
+| `PortugueseBR.nsh`, `microcopy.md`, textos da UI (`ExitDialog`, `power.ts`, `errors.ts`, Configurações, `Brand.tsx` `alt`, `index.html` `<title>`), título da janela em `window.rs` | `Sofá`/`Sofa` | **muda** | Visível. O texto vem do designer (microcopy). As strings que já usam `${DISPLAYNAME}` mudam sozinhas |
+| `test-installer.ps1` (acento em `DISPLAYNAME`/`ProductName`), `command_list.rs` (`productName == "Sofa"`) | — | **ajusta** | Passam a travar `SofaLauncher`, o literal de `UNINSTKEY`, `identifier` e `mainBinaryName`. O guard `NSIS-BOM` fica, porque outras strings do instalador seguem com acento |
+| `ci-guards.ps1` | `app.sofa.launcher` no padrão de NSIS que apaga dados | **fica** | O identificador não muda |
+| Release (`ci-release.ps1`) | `Sofa_${version}_x64-setup.exe`, notas "Sofa" | **muda** para `SofaLauncher_${version}_x64-setup.exe` e notas novas; `sofa-releases` fica | Visível |
+| Crates `sofa`/`sofa_lib`, variáveis NSIS `Sofa*`, IDs de string `sofa*`, comentários e mensagens de log | — | **fica** | Renomear em massa é ruído sem efeito para o usuário |
+| `docs/brand/sofa/` | — | **fica** (Q-18) | O logo SL entra nos assets desta pasta |
+
+**Quem já instalou a 0.1.0** (até dois PCs): instala a 0.2.0 por cima. Com pasta, `UNINSTKEY`, `MANUPRODUCTKEY` e binário iguais, o `PageReinstall` confere a pasta fixa e roda o `uninstall.exe /UPDATE` dela (SEC-BUG-05 intacto). Dados e autostart ficam (CA-53). O desinstalador em `/UPDATE` não remove o atalho `Sofá.lnk`. Por isso a instalação nova apaga `Sofá.lnk` do menu Iniciar e da área de trabalho, mas só se `IsShortcutTarget` confirmar que ele aponta para `$INSTDIR\sofa.exe` (mesmo macro e mesmo `UnpinShortcut` do desinstalador). **Sem migração de dados nem de pasta.** A versão sobe para 0.2.0 (com a mesma versão, o `PageReinstall` desinstala de verdade). Caminho decidido em **D-57**. O plano B (desinstalar com "Manter dados" e religar o autostart à mão) fica só como contingência.
+
+### 14.2 D-50 e D-51: "Fechar o launcher" no grupo de energia
+
+**Contrato: reuso do `app_exit` (#30), sem comando novo.** Ele já faz o que o D-51 pede (CA-05: fecha só o launcher, o jogo continua). Não passa por `power_prepare`/ticket, porque não é ação de energia (RN-35) e não mexe no PC. O dev-backend só atualiza a descrição do #30 no `docs/api/` para citar CA-82 e RN-35.
+
+**UI** (`ui/src/features/quickmenu/`): o item entra no fim da lista `energy` do `QuickMenu.tsx` com o rótulo "Fechar o launcher" e abre o `ExitDialog` existente (`ConfirmDialog`, `defaultFocus="cancel"`, aviso de jogo aberto via `openGameName`, sem o aviso de progresso perdido do CA-48). Só o texto muda, conforme a microcopy. **D-53:** "Fechar o launcher" **substitui** "Sair do launcher" (o item `exit` sai da lista `app`): um item, um diálogo, um comando. **D-55:** o diálogo avisa como reabrir (atalho, menu Iniciar ou próximo login com "Iniciar com o Windows"); texto final na microcopy. O teclado de emergência já cobre o item, porque é um `MenuItemSpec` como os outros.
+
+**Núcleo: o que acontece com a sessão e o Job.**
+- O `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` **não** está ligado. `job.rs` cria o Job e só associa a completion port. Não há `SetInformationJobObject` com `JOBOBJECT_EXTENDED_LIMIT_INFORMATION` (conferido no código). Quando o processo do launcher sai, o kernel fecha o handle do Job. O Job segue existindo enquanto o jogo estiver nele, e o jogo continua rodando. As esperas `RegisterWaitForSingleObject` e a thread da porta morrem com o processo, sem efeito no jogo.
+- Não é preciso soltar a sessão explicitamente. Chamar `force_close`, pedir fechamento ou mexer no primeiro plano viola o CA-82, item 3. O "último jogado" já foi gravado na confirmação da sessão (RN-05, CA-75). Não há estado de sessão persistido para limpar.
+- **Guard novo (lacuna encontrada):** hoje nada no CI impede alguém de ligar o `KILL_ON_JOB_CLOSE` depois, e o D-51 depende disso. Sugestão: entrada `INV-05` no `ci-guards.ps1` com padrão `\bJOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE\b` e `Allow = @()`. O comentário em `job.rs` usa a forma curta e não casa com o padrão. Também vale um teste `win-integration`: o jogo de teste entra no Job, o handle do Job é fechado (`drop`) e o processo do jogo continua vivo (código de saída pelo handle, como no BE-51).
+
+**Encerramento limpo.** O `exit_hook` atual (`lib.rs`) já drena o `AsyncLog` (`logging::flush(300 ms)`) e chama `handle.exit(0)`. Falta só uma linha de log antes do flush, `info` "fechar o launcher", com o estado da sessão e o `GameId` (sem caminho, SEC-18), para o QA ver no `coletar-logs`. Configurações e biblioteca não têm escrita pendente: cada comando grava na hora, com troca atômica (`MoveFileExW` `WRITE_THROUGH`, ADR-0004). Uma escrita de capa interrompida deixa no máximo um temporário, que a próxima gravação substitui. O autostart não é tocado (CA-82, item 5).
+
+**Instância única ao reabrir com o jogo rodando.** O mutex `app.sofa.launcher-sim` sai com o processo, então a reabertura é uma primeira instância normal: ninguém responde `WM_COPYDATA` e nada muda no plugin. **D-54:** o jogo é tratado como **aberto fora do launcher (E-07)**. A sessão começa em `Idle`, sem card "Em andamento" e sem combinação de retorno. O jogo fica no topo dos recentes pelo CA-75. Retomar a sessão exigiria persistir o PID e o tempo de criação e reanexar ao Job (ou à varredura por pasta). Isso é estado novo em disco, com risco de reuso de PID (o mesmo do ARQ-BUG-17), para um caso raro. Fica como candidato da versão seguinte, junto com o E-07.
+
+**D-57 (antes Q-17): não trazer o jogo à frente antes de sair.** Ao fechar a janela do launcher, o Windows ativa a próxima janela da ordem Z, que normalmente é o jogo que estava atrás. Chamar a escada de primeiro plano na saída acrescenta um caminho do `ForegroundBroker` (INV-03, SEC-28) sem necessidade. O QA-17 observa o resultado.
+
+### 14.3 Invariantes tocados
+
+| Invariante | Como a mudança respeita |
+|---|---|
+| INV-02 | Nenhum comando novo: `app_exit` (#30) é reutilizado |
+| INV-03 | O fechamento não chama `ForegroundBroker` nem `AutostartRegistry` |
+| INV-05 | Nada é encerrado. O guard proposto trava `KILL_ON_JOB_CLOSE` |
+| INV-06, SEC-BUG-05 | A pasta fixa, o `UNINSTKEY` e o binário ficam iguais. A conferência do desinstalador antigo segue valendo |
+| INV-09 | O caminho da pasta de dados não muda. A limpeza do atalho antigo no instalador fica fora da pasta de dados e é protegida por `IsShortcutTarget` |
+
+### 14.4 Riscos e perguntas
+
+- **R-11:** a 0.2.0 sem o literal de `UNINSTKEY` gera duas entradas em "Aplicativos instalados" e perde a conferência do SEC-BUG-05. Mitigação: teste do `test-installer.ps1` sobre o valor.
+- **R-12:** com a sessão anterior órfã (Q-15 = E-07), iniciar de novo o mesmo jogo pode cair em `NotConfirmed` se o jogo só traz a própria janela. Comportamento já previsto para o E-07. O QA-17 observa.
+- **R-13:** reabrir enquanto o processo antigo ainda está saindo (desmontagem do WebView2) pode entregar o `WM_COPYDATA` a uma janela que está fechando, e nada aparece. Probabilidade baixa (o `exit` leva menos de 1 s). Basta abrir de novo.
+- Decididos pelo usuário: D-53 (substitui "Sair do launcher"), D-54 (E-07), D-55 (o diálogo avisa como reabrir), D-56 (ADR-0007 aceito) e D-57 (não trazer o jogo; atualização por cima, 0.2.0, limpeza do `Sofá.lnk`). Nenhuma pergunta aberta nesta seção.

@@ -1,4 +1,4 @@
-/* Gamepad API (mapeamento "standard" do Xbox) -> intenções do Sofá. Só para o mockup.
+/* Gamepad API (mapeamento "standard" do Xbox) -> intenções do SofaLauncher. Só para o mockup.
    Direções repetem após 400 ms (CA-07); zona morta de 25% (RN-06); gatilhos contam 1 vez por puxada (RN-23). */
 (function(){
   var BTN={0:'Confirm',1:'Back',9:'Menu',8:'View',4:'PagePrev',5:'PageNext',12:'Up',13:'Down',14:'Left',15:'Right'};

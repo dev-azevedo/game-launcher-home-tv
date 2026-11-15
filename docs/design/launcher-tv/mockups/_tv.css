@@ -1,4 +1,4 @@
-/* Sofá, mockup da UI de TV. Usa os tokens da marca sem copiar: ../../../brand/sofa/tokens.css
+/* SofaLauncher, mockup da UI de TV. Usa os tokens da marca sem copiar: ../../../brand/sofa/tokens.css
    Referência visual, não é código de produção. */
 @property --spot-x{syntax:"<percentage>";inherits:true;initial-value:30%}
 

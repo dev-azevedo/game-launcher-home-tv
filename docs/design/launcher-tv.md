@@ -1,4 +1,4 @@
-# Design: launcher-tv (Sofá)
+# Design: launcher-tv (SofaLauncher)
 
 | Campo | Valor |
 |---|---|
@@ -7,7 +7,7 @@
 | Marca | `docs/brand/sofa/` (direção A, "Palco") |
 | Mockups | `docs/design/launcher-tv/mockups/index.html` |
 | Microcopy | `docs/design/launcher-tv/microcopy.md` |
-| Status | Mockups aprovados pelo usuário (DES-08 feito). Catálogo de erros fechado contra o contrato rev. 2 (DES-07 feito) |
+| Status | Revisão pós-0.1.0 (seção 17: nome SofaLauncher e "Fechar o launcher") feita nos mockups, aguardando aprovação. Antes dela: mockups aprovados pelo usuário (DES-08 feito). Catálogo de erros fechado contra o contrato rev. 2 (DES-07 feito) |
 
 Os mockups moram em `mockups/`, não direto em `docs/design/launcher-tv/` como diz a tabela de tarefas. As telas que a tabela chama de `home.html`, `opcoes-jogo.html`, `sessao.html`, `menu-rapido.html`, `configuracoes.html`, `navegador-pastas.html` e `componentes.html` estão em `mockups/` com os mesmos nomes.
 
@@ -42,7 +42,7 @@ flowchart TD
   P -->|Fechar jogo| FC[Confirmar] --> FE[Fechando] -->|10 s| FF[Forçar fechamento] --> H
   P -->|Ir para a biblioteca| H
   P -->|Menu| Q
-  Q --> PW[Confirmar energia] & CF[Configurações] & SX[Confirmar sair]
+  Q --> PW[Confirmar energia] & CF[Configurações] & SX[Confirmar fechar o launcher]
   CF --> NP[Navegador de pastas] --> AC[Confirmar adicionar]
   H -->|A com jogo aberto em outro| SW[Confirmar troca]
 ```
@@ -64,7 +64,7 @@ Todas em `mockups/<arquivo>.html`. A coluna "Estados" lista o que o playground a
 | Todos os jogos | `home.html` | CA-22, 60, 64 | `GameGrid` (7 colunas, virtualizada) | 80 jogos |
 | Opções do jogo | `opcoes-jogo.html` | CA-21, 61, 62, RN-04, 14, 22 | `MenuList`, `RenameDialog`, `ConfirmDialog` | com e sem "Restaurar nome original", nome vazio recusado, confirmar ocultar |
 | Fluxo de jogo | `sessao.html` | CA-26, 28, 29, 31, 32, 34, 35, 36, 63, 71, 73, E-10 | `ConfirmDialog`, `LaunchingOverlay`, `SessionPanel` | abrindo, arquivo sumiu, pasta de rede, não confirmado, loja ausente, administrador, UAC, troca de jogo, painel (normal, minimizado, administrador), fechar, fechando, forçar, forçar sem permissão, voltar recusado |
-| Menu rápido | `menu-rapido.html` | CA-05, 37, 38, 39, 42, 43, 47, 48, RN-14 | `QuickMenu`, `Slider`, `Switch`, `ConfirmDialog` | normal, com jogo aberto, sem áudio, sem suspensão, confirmar desligar, reiniciar e suspender (com e sem jogo aberto), sair |
+| Menu rápido | `menu-rapido.html` | CA-05, CA-82, RN-34, RN-35, 37, 38, 39, 42, 43, 47, 48, RN-14 | `QuickMenu`, `Slider`, `Switch`, `ConfirmDialog` | normal, com jogo aberto, sem áudio, sem suspensão, confirmar desligar, reiniciar e suspender (com e sem jogo aberto), fechar o launcher (sem e com jogo aberto) |
 | Configurações | `configuracoes.html` | CA-04, 19, 20, 66, 67, 70 | `SettingsTabs`, `SettingsPane`, `MenuItem` | monitores (dois, um, ausente), biblioteca, geral (ligado, desligado, falha), ocultos (4, nenhum, 30) |
 | Navegador de pastas | `navegador-pastas.html` | CA-19, 20, 71, 72, SEC-09 | `FolderBrowser`, `ConfirmDialog` | unidades, pasta, vazia, sem permissão, 60 itens, adicionar, duplicado, inválido |
 | Avisos | `avisos.html` | CA-13, 14, 15, 28, 29, 42, 47, 71, 72, 73 | os mesmos | reúne os avisos dos outros arquivos |
@@ -89,7 +89,7 @@ Movimento: D-pad ou analógico. Ao segurar, repete após 400 ms. Os extremos nã
 | Erro com recuperação | opção segura (Voltar) | ←→ | executa | Voltar | nada | nada | |
 | Abrindo e Fechando | Voltar / Ir para a biblioteca | só ele | executa | o mesmo botão | nada | nada | A fica travado por 600 ms |
 | Painel do jogo | Voltar ao jogo | ↑↓ | executa | Voltar ao jogo (CA-34) | menu rápido | nada | |
-| Menu rápido | Volume (sem áudio: Desligar) | ↑↓; ←→ no Volume muda 5 pontos | executa | fecha | fecha | nada | LT e RT ignorados (CA-65) |
+| Menu rápido | Volume (sem áudio: Desligar). Ordem: Volume, Mudo, Desligar, Reiniciar, Suspender, Fechar o launcher, Configurações | ↑↓; ←→ no Volume muda 5 pontos | executa | fecha | fecha | nada | LT e RT ignorados (CA-65) |
 | Configurações, abas | aba "Tela" | ↑↓ troca a aba e o painel | entra no painel | sai | nada | nada | → entra no painel |
 | Configurações, painel | primeiro item | ↑↓ | executa | volta às abas | nada | nada | ← volta às abas |
 | Navegador de pastas | primeira entrada; pasta vazia ou sem acesso: Voltar | ↑↓ | abre pasta ou escolhe .exe | pasta anterior; na raiz, sai | nada | nada | |
@@ -138,7 +138,7 @@ Em Configurações > Tela o monitor mostra só nome, "Principal" e "Em uso" (sem
 
 Medidas próprias do mockup, em unidades `calc(N * var(--u))`: card 220 × 330, espaço entre cards 20, cabeçalho 64, rodapé de dicas 56, item de menu 80 de altura, botão 84, menu rápido 760 de largura, diálogo 1040.
 
-Tinturas de apoio (14% de opacidade sobre a superfície) para os círculos de ícone: `--brand-primary`, `--brand-danger`, `--brand-success`. A janela do UAC é desenhada em cinza claro de propósito: ela é do Windows, não do Sofá.
+Tinturas de apoio (14% de opacidade sobre a superfície) para os círculos de ícone: `--brand-primary`, `--brand-danger`, `--brand-success`. A janela do UAC é desenhada em cinza claro de propósito: ela é do Windows, não do SofaLauncher.
 
 ## 7. Componentes
 
@@ -234,7 +234,7 @@ Troca de foco por D-pad repetido não anima além da escala (uso de centenas de 
 - Confirmações sempre com `defaultFocus` explícito. Diálogos de espera (Abrindo, Fechando) ignoram A por 600 ms.
 - Rolagem: manter o card em foco inteiro dentro da área visível com 10 px de folga.
 - Linha de capas: o card em foco centraliza, exceto nas pontas.
-- A combinação de retorno não tem UI no jogo (o Sofá está em segundo plano). O quadro "Simulação" do mockup não existe no produto.
+- A combinação de retorno não tem UI no jogo (o SofaLauncher está em segundo plano). O quadro "Simulação" do mockup não existe no produto.
 - Ordem de revisão visual (DES-09): comparar com `mockups/` nas duas resoluções e com movimento reduzido.
 
 ## 12. Decisões de design
@@ -283,3 +283,29 @@ Validados em conjunto com o front. Textos finais em `microcopy.md`, seção 3.
 5. **"Jogando há N min"**: reiniciar após Fechando e depois Cancelar na oferta de forçar mostra "Jogando agora" para um jogo aberto há horas, o que é errado. Não precisa de pedido ao back: o front guarda o primeiro `since` de `Running` do mesmo jogo e só o descarta quando a sessão volta a `Idle`.
 6. **Catálogo de erros** fechado: 26 de 26 códigos do contrato rev. 2, com texto igual ao de `errors.ts`.
 7. **`GameFileMissing`** mostra o nome do jogo, sem o caminho, porque o caminho não cruza a IPC (SEC-03). A frase do CA-28 ("em <caminho>") fica diferente da spec. Pendência de spec para o PO.
+
+## 17. Revisão pós-0.1.0 (D-49, D-50, D-51, D-52, D-53, D-55)
+
+Atualizada em 2026-11-15. Texto final em `microcopy.md`; mockups em `mockups/` (menu rápido e fechar o launcher em `menu-rapido.html`).
+
+### 17.1 Nome e logo (D-49, D-52)
+- Nome visível: **SofaLauncher**, uma palavra, sem acento, em todo texto de tela. Sem "Sofá" em lugar nenhum (microcopy, mockups, instalador).
+- Logo: o controle de videogame âmbar sob o cone de luz, em selo violeta. Vem pronto de `docs/brand/sofa/assets/` (`logo-horizontal.svg` no cabeçalho e no menu rápido, `splash.svg` na abertura). Nenhuma cor ou fonte nova.
+- **SL** é sigla de texto, Sora 800, só para espaço estreito (título de janela, tooltip, identificador curto). Nunca dentro do símbolo (não lê em 16 px). A interface de TV não tem espaço estreito, então não usa SL.
+- O logo mais largo (870 × 128, contra o símbolo de play antigo) cabe no cabeçalho de 48 px de altura (326 px de largura a 1080p) e no topo do menu rápido (44 px, 299 px de 760).
+- Instalador: nome visível SofaLauncher. A pasta `Program Files\Sofa`, a chave `Uninstall\Sofa`, `sofa.exe` e `app.sofa.launcher` ficam (ADR-0007). Strings na seção 4 do `microcopy.md`.
+
+### 17.2 Fechar o launcher (D-50, D-51, D-53, D-55)
+- **Onde:** grupo de energia do menu rápido, depois de Desligar, Reiniciar e Suspender. "Sair do launcher" sai do menu (recomendação Q-14 da arquitetura; mockup já assim). Configurações fica sozinha no grupo de baixo.
+- **Aparência do item:** ícone de saída neutro, sem vermelho. Os três itens vizinhos afetam o PC e seguem vermelhos. Este só fecha o app e, com jogo, não perde progresso.
+- **Diálogo:** reusa o `ExitDialog` (`ConfirmDialog`). Cancelar à esquerda e em foco, Fechar o launcher à direita (RN-34, D-47). B cancela. Botão de ação sem vermelho, pelo mesmo motivo do item.
+- **Dois textos:** sem jogo aberto e com jogo aberto. Ambos explicam como reabrir pelo atalho do SofaLauncher ou reiniciando o PC, sem dizer que o controle reabre. Com jogo, aviso âmbar com o nome do jogo e "Nenhum progresso se perde", sem o aviso de progresso perdido do CA-48 (CA-82, item 3).
+- **Teclado de emergência (CA-82, item 4):** sem tecla nova. F1 (ou tecla de aplicativo) abre o menu; ↓ chega ao item (5 passos a partir de Volume, 4 sem suspensão; sem áudio o foco já começa em Desligar, 3 passos); Enter abre o diálogo com Cancelar em foco; → passa para "Fechar o launcher" e Enter confirma; Esc ou Backspace cancelam, igual ao B. De Configurações, ↑ chega ao item em um passo. Dois Enter seguidos não fecham nada, porque o foco inicial é Cancelar. Não justifiquei tecla nova: o item é uma linha comum da lista e herda o mapa da seção 8.
+- **Depois de fechar:** o Windows mostra a área de trabalho. O mockup simula isso com uma tela "Simulação" e um botão "Abrir o SofaLauncher". Esse quadro não existe no produto.
+- **Estados do diálogo:** sem jogo aberto (`exit`), com jogo aberto (`exit-session`). Reduzir movimento e 4K iguais aos outros diálogos.
+
+### 17.3 Dúvidas abertas para o Produto
+1. Com "Iniciar com o Windows" desligado, reiniciar o PC não reabre o launcher. Texto proposto na seção "Menu rápido" do `microcopy.md` (variante só com o atalho). Vale a variante?
+2. Reiniciar com jogo aberto fecha o jogo. O texto com jogo diz "depois de sair do jogo". Confirma?
+3. Q-16: o diálogo não cita a combinação de retorno, só diz que o atalho precisa de teclado ou mouse (sem jogo). Basta?
+4. Rodapé de Configurações mostra "SofaLauncher 0.2.0" no mockup (versão da arquitetura). O número real vem do build.
