@@ -716,8 +716,8 @@ public static class SofaReparse {
             }
             $t = [System.IO.File]::ReadAllText($gen.FullName, [System.Text.Encoding]::UTF8)
             $a = [string][char]0xE1
-            Assert-True ($t.Contains('!define MANUFACTURER "Sof' + $a + '"')) 'publisher com acento ausente'
-            Assert-True ($t.Contains('!define COPYRIGHT "Copyright (c) Sof' + $a + '"')) 'copyright com acento ausente'
+            Assert-True ($t.Contains('!define MANUFACTURER "SofaLauncher"')) 'publisher SofaLauncher ausente (BE-61)'
+            Assert-True ($t.Contains('!define COPYRIGHT "Copyright (c) SofaLauncher"')) 'copyright SofaLauncher ausente (BE-61)'
             Assert-True ($t.Contains('!define DISPLAYNAME "Sof' + $a + '"')) 'nome exibido com acento ausente'
         }
         Test-Case 'script gerado: chaves tecnicas iguais as da 0.1.0 (UNINSTKEY literal Uninstall\Sofa, R-11)' {
@@ -752,7 +752,7 @@ public static class SofaReparse {
                 $a = [string][char]0xE1
                 Assert-Eq $vi.ProductName ('Sof' + $a) 'ProductName'
                 Assert-Eq $vi.FileDescription ('Sof' + $a) 'FileDescription'
-                Assert-Eq $vi.LegalCopyright ('Copyright (c) Sof' + $a) 'LegalCopyright'
+                Assert-Eq $vi.LegalCopyright 'Copyright (c) SofaLauncher' 'LegalCopyright'
             }
         }
         $sevenZip = @("$env:ProgramFiles\7-Zip\7z.exe", "${env:ProgramFiles(x86)}\7-Zip\7z.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1

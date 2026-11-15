@@ -191,8 +191,16 @@ fn bundle_e_nsis_por_maquina_com_bootstrapper_embutido() {
     let bundle = &conf["bundle"];
     assert_eq!(bundle["active"], true);
     assert_eq!(bundle["targets"], serde_json::json!(["nsis"]), "sem MSI");
-    assert_eq!(conf["mainBinaryName"], "sofa");
-    assert_eq!(conf["productName"], "Sofa", "pasta e instalador ASCII");
+    // D-49, D-56, ADR-0007: muda o nome que o usuario le; os identificadores tecnicos ficam.
+    assert_eq!(conf["productName"], "SofaLauncher", "nome visivel, ASCII");
+    assert_eq!(
+        conf["identifier"], "app.sofa.launcher",
+        "pasta de dados, chave HKLM e mutex"
+    );
+    assert_eq!(
+        conf["mainBinaryName"], "sofa",
+        "sofa.exe, Run e tarefa do autostart"
+    );
     let nsis = &bundle["windows"]["nsis"];
     assert_eq!(nsis["installMode"], "perMachine", "Q-09");
     assert_eq!(nsis["displayLanguageSelector"], false);
