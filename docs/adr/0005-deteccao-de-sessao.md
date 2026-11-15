@@ -1,7 +1,7 @@
 ---
 status: accepted (fechado pelo SP-02; lojas e jogos reais no QA-17)
 date: 2026-11-13
-revised: 2026-11-13 (P-02; SEC-15/16/17 e AF-01; rev. 4: D-35, tolerâncias configuráveis; rev. 5: resultado do SP-02); 2026-11-14 (rev. 6: SEC-BUG-01, membros do jogo no modo Job, sem `TerminateJobObject`)
+revised: 2026-11-13 (P-02; SEC-15/16/17 e AF-01; rev. 4: D-35, tolerâncias configuráveis; rev. 5: resultado do SP-02); 2026-11-14 (rev. 6: SEC-BUG-01, membros do jogo no modo Job, sem `TerminateJobObject`); 2026-11-15 (rev. 7: ARQ-BUG-14, modo Job sem snapshot e sem releitura periódica; SEC-BUG-04, pasta do jogo manual com SEC-16)
 feature: launcher-tv
 ---
 
@@ -16,14 +16,16 @@ RN-10 define o fim da sessão como "nenhum processo associado ao jogo segue roda
 - `CreateProcessW` **suspenso** (sem shell, `bInheritHandles=FALSE`, SEC-10) → `AssignProcessToJobObject` → `ResumeThread`. O Job Object fica ligado a uma completion port.
 - O Job Object serve para **rastrear** a árvore de processos do jogo, não para encerrá-la. Sem `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`: fechar o Sofá não fecha o jogo.
 - **Membros do jogo (rev. 6, SEC-BUG-01).** Nem todo processo do Job é do jogo. Um `.exe` da Steam cadastrado à mão com a Steam fechada faz o `steam.exe` nascer filho do jogo, dentro do Job. Um jogo que abre uma URL com o navegador fechado faz o mesmo com o navegador. Por isso cada PID do Job passa pelo **mesmo `classify`** do modo varredura (`domain/process_policy`):
-  - `install_dir` = pasta do exe (jogo manual) ou pasta do jogo (GOG);
-  - processo fora dessa pasta não é membro;
+  - `install_dir` = pasta do exe (jogo manual) ou pasta do jogo (GOG), **se passar em SEC-16** (`check_install_dir`: profundidade mínima e pastas proibidas). Se reprovar (rev. 7, SEC-BUG-04: `D:\jogo.exe` daria a pasta `D:`), a associação é só pelo **caminho exato do exe** (imagem = exe do jogo), no modo Job e na varredura do jogo manual elevado;
+  - processo fora dessa pasta (ou fora do exe exato) não é membro;
   - valem as exclusões de SEC-17 (Sofá e seus WebView2, processos e pasta das lojas, `explorer.exe`, outra sessão ou usuário, processo que não abre com `QUERY_LIMITED | SYNCHRONIZE`).
   
   Um PID do Job que não passa no `classify` é **acompanhante**: não recebe `WM_CLOSE`, não é encerrado e não mantém a sessão viva.
 - **Como o conjunto é mantido.** As mensagens da completion port já tratadas em `job.rs` alimentam o conjunto:
-  - em `JOB_OBJECT_MSG_NEW_PROCESS`, o PID é aberto com `PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE`. `IsProcessInJob(handle, job)` confirma que o handle é mesmo do processo do Job (fecha a corrida de reuso de PID). O tempo de criação é guardado e o `classify` decide se o processo é membro ou acompanhante;
-  - em `EXIT_PROCESS` e `ABNORMAL_EXIT_PROCESS`, e por segurança a cada varredura de `Running`, a lista do Job (`JobObjectBasicProcessIdList`) é relida e conferida contra o conjunto.
+  - a cada mensagem da porta (`NEW_PROCESS`, `EXIT_PROCESS`, `ABNORMAL_EXIT_PROCESS` e as demais), a thread da sonda relê a lista do Job (`JobObjectBasicProcessIdList`) e, para cada PID ainda desconhecido, abre o processo com `PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE`. `IsProcessInJob(handle, job)` confirma que o handle é mesmo do processo do Job (fecha a corrida de reuso de PID). O tempo de criação é guardado e o `classify` decide se o processo é membro ou acompanhante. Quem já saiu (handle sinalizado) deixa o conjunto;
+  - **rev. 7 (ARQ-BUG-14): o modo Job não tira snapshot ToolHelp e não tem varredura periódica.** A única leitura do sistema é a lista do Job, que é curta e custa microssegundos. `own_child_pids` fica vazio (o WebView2 do Sofa nunca entra no Job do jogo) e não há cache de não membros (um PID reaproveitado dentro do Job nunca fica de fora por avaliação antiga). A "releitura a cada varredura de `Running`" das revisões anteriores não existe: o modo Job só reage às mensagens da porta;
+  - a porta avisa a saída de um processo **antes** de o objeto dele sinalizar. Na `EXIT_PROCESS` de um membro, a thread espera até 500 ms o handle dele sinalizar antes de reler o conjunto; sem isso, o fim da sessão não seria avisado quando só sobrasse um acompanhante, porque nenhuma outra mensagem viria;
+  - `pids()`, "Fechar" e "Forçar" usam só os **membros já conhecidos** (o cache que a thread da sonda mantém), sem snapshot nem leitura do Job. O caso de uso os chama com o `Mutex` da sessão preso, então nada pesado pode rodar ali. O conjunto vale desde o aviso de início (`process_seen`), que é quando o caso de uso o consulta.
   
   O handle de cada membro fica aberto no conjunto, como no modo varredura (SEC-15).
 - **Fim.** A sessão vai para `Ending` quando **não sobra membro do jogo**, mesmo que haja acompanhantes vivos (a Steam ou o navegador). `JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO` continua sendo um sinal de fim (~1 ms, SP-02, S5), mas não é mais o único. A tolerância de `endGraceSeconds` vale igual (E-14).

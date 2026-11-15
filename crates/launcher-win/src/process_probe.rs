@@ -5,7 +5,9 @@
 //!   (entrada e saida de processo chegam pela porta, sem polling nem CPU). Cada PID do Job passa
 //!   pelo mesmo `classify` da varredura (SEC-17) e so os membros do jogo contam para o fim da
 //!   sessao, para "Fechar" e para "Forcar", por handle e tempo de criacao. Nunca ha
-//!   `TerminateJobObject` (SEC-BUG-01, ADR-0005 rev. 6).
+//!   `TerminateJobObject` (SEC-BUG-01, ADR-0005 rev. 6). **Sem snapshot ToolHelp** (ARQ-BUG-14): a
+//!   unica leitura e `JobObjectBasicProcessIdList`, feita pela thread da sonda a cada mensagem da
+//!   porta; `pids`, `request_close` e `force_close` so usam os membros ja conhecidos.
 //! - **Varredura** (Steam, Epic e jogo elevado, que fica fora do Job por UIPI): snapshot ToolHelp
 //!   so de PIDs novos (cache por PID, revalidado a cada ~60 s), handle
 //!   `PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE` com tempo de criacao, associacao por
@@ -55,6 +57,8 @@ use crate::windows_enum::{hwnd as to_hwnd, top_level_windows};
 /// Nao membros sao reavaliados a cada ~60 s (reuso de PID, ADR-0005).
 const REVALIDATE_AFTER: Duration = Duration::from_secs(60);
 const MAX_WAIT_HANDLES: usize = 63;
+/// Folga maxima para o handle de um processo que a porta do Job ja disse que saiu.
+const EXIT_SIGNAL_WAIT_MS: u32 = 500;
 
 // ---------------------------------------------------------------------------- handles
 
@@ -172,6 +176,8 @@ struct Scanner {
     cache: HashMap<u32, CacheEntry>,
     ctx: SessionContext,
     own_sid: Option<Vec<u8>>,
+    /// Quantos snapshots ToolHelp esta varredura tirou (testes: o modo Job nunca tira, ARQ-BUG-14).
+    snapshots: usize,
 }
 
 impl Scanner {
@@ -190,6 +196,7 @@ impl Scanner {
                 store_dirs,
             },
             own_sid,
+            snapshots: 0,
         }
     }
 
@@ -243,27 +250,15 @@ impl Scanner {
         set.into_iter().collect()
     }
 
-    /// Uma varredura do sistema. Devolve se ha membros.
+    /// Uma varredura do sistema (Steam, Epic e jogo elevado). Devolve se ha membros.
     fn scan(&mut self) -> bool {
-        self.scan_with(None, None)
-    }
-
-    /// Modo Job: avalia so os PIDs que o Job lista agora e confirma `IsProcessInJob` no handle.
-    fn scan_job(&mut self, job: &Job) -> bool {
-        let only: HashSet<u32> = job.pids().into_iter().collect();
-        self.scan_with(Some(&only), Some(job))
-    }
-
-    fn scan_with(&mut self, only: Option<&HashSet<u32>>, job: Option<&Job>) -> bool {
         let procs = Self::snapshot();
+        self.snapshots += 1;
         self.ctx.own_child_pids = self.own_webview_processes(&procs);
         let live: HashSet<u32> = procs.iter().map(|(p, _, _)| *p).collect();
 
         for &(pid, parent, _) in &procs {
             if pid == 0 || pid == 4 || pid == self.ctx.own_pid || self.members.contains_key(&pid) {
-                continue;
-            }
-            if only.is_some_and(|set| !set.contains(&pid)) {
                 continue;
             }
             if let Some(c) = self.cache.get(&pid) {
@@ -278,46 +273,81 @@ impl Scanner {
                     checked: Instant::now(),
                 },
             );
-            // SAFETY: handle devolvido e fechado por `Owned` (ou aqui, se nao for membro).
-            let handle = match unsafe {
-                OpenProcess(
-                    PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
-                    false,
-                    pid,
-                )
-            } {
-                Ok(h) => Owned(h),
-                Err(_) => continue, // protegido ou de sistema: nunca entra (SEC-17)
-            };
-            if job.is_some_and(|j| !j.contains(handle.0)) {
-                continue; // PID reaproveitado: nao e o processo que o Job listou
-            }
-            let Some(image) = image_path(handle.0) else {
-                continue;
-            };
-            let same_user = match (&self.own_sid, user_sid(handle.0)) {
-                (Some(mine), Some(theirs)) => sids_equal(mine, &theirs),
-                // Token ilegivel com os direitos minimos: nao arrisca (SEC-17).
-                _ => false,
-            };
-            let info = ProcessInfo {
-                pid,
-                parent_pid: Some(parent),
-                image_path: image,
-                session_id: session_of(pid).unwrap_or(u32::MAX),
-                same_user,
-                openable: true,
-            };
-            if classify(&info, &self.ctx).is_ok() {
-                if let Some(creation) = creation_time(handle.0) {
-                    self.members.insert(pid, Member { handle, creation });
-                }
-            }
+            self.evaluate(pid, Some(parent), None);
         }
 
         self.cache.retain(|p, _| live.contains(p));
         self.members.retain(|_, m| !is_signaled(m.handle.0));
         !self.members.is_empty()
+    }
+
+    /// Modo Job: **sem snapshot do sistema** (ARQ-BUG-14). Le so a lista do Job, avalia cada PID
+    /// ainda desconhecido (`IsProcessInJob` no handle aberto e o mesmo `classify`) e tira dos
+    /// membros quem ja saiu. Nao ha cache de nao membros: a lista do Job e curta e um PID
+    /// reaproveitado dentro do Job nunca fica de fora por causa de uma avaliacao antiga.
+    /// `own_child_pids` fica vazio: o WebView2 do Sofa nunca entra no Job do jogo.
+    fn scan_job(&mut self, job: &Job) -> bool {
+        for pid in job.pids() {
+            if pid == 0 || pid == 4 || pid == self.ctx.own_pid || self.members.contains_key(&pid) {
+                continue;
+            }
+            self.evaluate(pid, None, Some(job));
+        }
+        self.members.retain(|_, m| !is_signaled(m.handle.0));
+        !self.members.is_empty()
+    }
+
+    /// A porta avisa a saida **antes** de o objeto do processo sinalizar. Sem o snapshot, que dava
+    /// essa folga sem querer, o membro que saiu ainda pareceria vivo e o fim da sessao nao seria
+    /// avisado (nenhuma outra mensagem viria se so restar um acompanhante). Espera, por pouco
+    /// tempo, o handle do membro sinalizar.
+    fn wait_member_exit(&self, pid: u32) {
+        if let Some(m) = self.members.get(&pid) {
+            // SAFETY: handle de membro vivo no conjunto (tem SYNCHRONIZE).
+            unsafe {
+                WaitForSingleObject(m.handle.0, EXIT_SIGNAL_WAIT_MS);
+            }
+        }
+    }
+
+    /// Abre o processo, confere o dono e a sessao e, se o `classify` aceitar, guarda o handle e o
+    /// tempo de criacao como membro. Com `job`, confirma antes que o handle e mesmo do Job.
+    fn evaluate(&mut self, pid: u32, parent: Option<u32>, job: Option<&Job>) {
+        // SAFETY: handle devolvido e fechado por `Owned` (ou aqui, se nao for membro).
+        let handle = match unsafe {
+            OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
+                false,
+                pid,
+            )
+        } {
+            Ok(h) => Owned(h),
+            Err(_) => return, // protegido ou de sistema: nunca entra (SEC-17)
+        };
+        if job.is_some_and(|j| !j.contains(handle.0)) {
+            return; // PID reaproveitado: nao e o processo que o Job listou
+        }
+        let Some(image) = image_path(handle.0) else {
+            return;
+        };
+        let same_user = match (&self.own_sid, user_sid(handle.0)) {
+            (Some(mine), Some(theirs)) => sids_equal(mine, &theirs),
+            // Token ilegivel com os direitos minimos: nao arrisca (SEC-17).
+            _ => false,
+        };
+        let info = ProcessInfo {
+            pid,
+            parent_pid: parent,
+            image_path: image,
+            session_id: session_of(pid).unwrap_or(u32::MAX),
+            same_user,
+            openable: true,
+        };
+        if classify(&info, &self.ctx).is_ok() {
+            if let Some(creation) = creation_time(handle.0) {
+                self.members.insert(pid, Member { handle, creation });
+            }
+        }
     }
 
     fn member_pids(&self) -> Vec<u32> {
@@ -500,24 +530,25 @@ pub struct WinWatch {
 }
 
 impl WinWatch {
-    /// Conjunto de membros em dia. No modo Job rele a lista do Job antes (a mensagem da porta
-    /// pode ainda nao ter sido tratada pela thread da sonda).
-    fn members_fresh(&self) -> std::sync::MutexGuard<'_, Scanner> {
-        let (scanner, job) = match &self.mode {
-            Mode::Job(job, s) => (s, Some(job)),
-            Mode::Scan(s) => (s, None),
+    /// Membros ja conhecidos, sem varrer nada. A thread da sonda os mantem em dia (mensagens do
+    /// Job no modo Job, varredura periodica no outro): quem chama (o caso de uso, com o `Mutex`
+    /// da sessao preso) nao paga snapshot nem leitura do Job (ARQ-BUG-14).
+    fn members(&self) -> std::sync::MutexGuard<'_, Scanner> {
+        let scanner = match &self.mode {
+            Mode::Job(_, s) | Mode::Scan(s) => s,
         };
-        let mut guard = scanner.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(job) = job {
-            guard.scan_job(job);
-        }
-        guard
+        scanner.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Quantos snapshots ToolHelp esta sonda tirou. So para teste: o modo Job nunca tira.
+    pub fn snapshots_taken(&self) -> usize {
+        self.members().snapshots
     }
 }
 
 impl SessionWatch for WinWatch {
     fn pids(&self) -> Vec<u32> {
-        self.members_fresh().member_pids()
+        self.members().member_pids()
     }
 
     fn request_close(&self) -> Result<(), AppError> {
@@ -526,7 +557,7 @@ impl SessionWatch for WinWatch {
     }
 
     fn force_close(&self) -> Result<(), AppError> {
-        self.members_fresh().terminate_members()
+        self.members().terminate_members()
     }
 }
 
@@ -572,10 +603,13 @@ fn job_loop(
             break;
         }
         // O `Mutex` do scanner solta antes de avisar o sink (que pega o `Mutex` da sessao).
-        let has_members = scanner
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .scan_job(job);
+        let has_members = {
+            let mut s = scanner.lock().unwrap_or_else(PoisonError::into_inner);
+            if let JobMessage::ExitProcess(pid) = message {
+                s.wait_member_exit(pid);
+            }
+            s.scan_job(job)
+        };
         if matches!(message, JobMessage::NewProcess(_)) && first_pending {
             first_pending = false;
             if !has_members && !present {
@@ -651,6 +685,19 @@ impl SessionProbe for WinSessionProbe {
         sink: Arc<dyn ProbeSink>,
         config: ProbeConfig,
     ) -> Result<Box<dyn SessionWatch>, AppError> {
+        Ok(Box::new(self.watch_win(plan, generation, sink, config)?))
+    }
+}
+
+impl WinSessionProbe {
+    /// Igual a `SessionProbe::watch`, mas devolve o tipo concreto (testes leem `snapshots_taken`).
+    pub fn watch_win(
+        &self,
+        plan: WatchPlan,
+        generation: u64,
+        sink: Arc<dyn ProbeSink>,
+        config: ProbeConfig,
+    ) -> Result<WinWatch, AppError> {
         // SAFETY: evento de reset manual, nao sinalizado; fechado por `Owned`.
         let stop = Arc::new(Owned(
             unsafe { CreateEventW(None, true, false, PCWSTR::null()) }
@@ -676,12 +723,12 @@ impl SessionProbe for WinSessionProbe {
                 .name("session-probe-job".into())
                 .spawn(move || job_loop(&j, &sc, generation, sk.as_ref(), &st))
                 .map_err(|_| AppError::Internal)?;
-            return Ok(Box::new(WinWatch {
+            return Ok(WinWatch {
                 mode: Mode::Job(job, scanner),
                 stop,
                 stopping,
                 thread: Some(thread),
-            }));
+            });
         }
 
         let Some(scope) = scope_of(plan.scan_dir, plan.exact_exe) else {
@@ -708,11 +755,11 @@ impl SessionProbe for WinSessionProbe {
                 )
             })
             .map_err(|_| AppError::Internal)?;
-        Ok(Box::new(WinWatch {
+        Ok(WinWatch {
             mode: Mode::Scan(scanner),
             stop,
             stopping,
             thread: Some(thread),
-        }))
+        })
     }
 }

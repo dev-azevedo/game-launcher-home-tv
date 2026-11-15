@@ -31,7 +31,8 @@ const MSG_ABNORMAL_EXIT_PROCESS: u32 = 8;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JobMessage {
     NewProcess(u32),
-    ExitProcess,
+    /// Saiu o processo com esse PID (saida normal ou anormal).
+    ExitProcess(u32),
     /// Nenhum processo ativo no Job.
     ActiveZero,
     Other,
@@ -104,7 +105,9 @@ impl Job {
         }
         match bytes {
             MSG_NEW_PROCESS => JobMessage::NewProcess(overlapped as usize as u32),
-            MSG_EXIT_PROCESS | MSG_ABNORMAL_EXIT_PROCESS => JobMessage::ExitProcess,
+            MSG_EXIT_PROCESS | MSG_ABNORMAL_EXIT_PROCESS => {
+                JobMessage::ExitProcess(overlapped as usize as u32)
+            }
             MSG_ACTIVE_PROCESS_ZERO => JobMessage::ActiveZero,
             _ => JobMessage::Other,
         }

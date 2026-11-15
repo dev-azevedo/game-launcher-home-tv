@@ -201,6 +201,10 @@ fn exe_em_pasta_com_e_comercial_e_aspas_inicia_o_arquivo_certo_e_o_pai_e_o_sofa(
     let t = target(&exe, &["sleep", "1500"]);
     let sink = Arc::new(Sink::default());
     let (watch, _) = watch_job(&t, &sink);
+    // `pids()` devolve os membros ja conhecidos (ARQ-BUG-14): vale depois do aviso de inicio, que
+    // e quando o caso de uso o chama (`Running`).
+    sink.wait("seen", 1, Duration::from_secs(3))
+        .expect("inicio");
     let pids = watch.pids();
     assert_eq!(pids.len(), 1, "um processo no Job: {pids:?}");
     assert_eq!(
@@ -415,6 +419,71 @@ fn forcar_no_job_so_encerra_membros_e_poupa_o_que_esta_fora_da_pasta() {
         alive_by_name("acompanhante-sofa-qa.exe"),
         "fora da pasta do jogo: nao e membro, nao e encerrado"
     );
+}
+
+/// ARQ-BUG-14: no modo Job nada tira snapshot ToolHelp. Nem a thread da sonda (rajada de processos
+/// novos e saidas) nem `pids`, `request_close` e `force_close`, que o caso de uso chama com o
+/// `Mutex` da sessao preso. O controle, a varredura por pasta, tira snapshots.
+#[test]
+fn modo_job_nao_tira_snapshot_do_sistema_e_pids_devolve_os_membros_conhecidos() {
+    let sb = Sandbox::new();
+    let exe = sb.game(r"Jogos\Jogo Job\game.exe");
+    let filho = sb.game(r"Jogos\Jogo Job\filho.exe");
+    // O jogo abre um filho que vive 800 ms; o pai sai em 1500 ms: ha mensagens de processo novo
+    // e de saida ao longo da sessao.
+    let t = target(&exe, &["spawn", &filho.to_string_lossy(), "800", "1500"]);
+    let started = WinGameStarter
+        .start(&t, StartVerb::Normal)
+        .expect("iniciar");
+    let plan = WatchPlan {
+        game: t.game.clone(),
+        job: started.job,
+        scan_dir: t.install_dir.clone(),
+        exact_exe: None,
+        steam_app_id: None,
+    };
+    let sink = Arc::new(Sink::default());
+    let s: Arc<dyn ProbeSink> = sink.clone();
+    let watch = WinSessionProbe::with_store_dirs(vec![])
+        .watch_win(plan, 1, s, cfg())
+        .unwrap();
+    sink.wait("seen", 1, Duration::from_secs(3))
+        .expect("inicio");
+
+    // Os membros conhecidos saem do cache, sem trabalho do sistema: o conjunto nao e vazio.
+    let t0 = Instant::now();
+    let pids = watch.pids();
+    let took = t0.elapsed();
+    assert!(!pids.is_empty(), "o jogo e membro conhecido");
+    assert!(took < Duration::from_millis(15), "pids() barato: {took:?}");
+    let _ = watch.request_close(); // sem janela: so confere que nao tira snapshot
+    sink.wait("gone", 1, Duration::from_secs(6)).expect("fim");
+    watch.force_close().expect("nenhum membro: nada a encerrar");
+    assert_eq!(
+        watch.snapshots_taken(),
+        0,
+        "modo Job nao chama CreateToolhelp32Snapshot"
+    );
+    // Deixa o filho acabar sozinho para a pasta de teste poder ser apagada.
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while alive_by_name("filho.exe") && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+
+    // Controle: a varredura por pasta tira snapshots (o contador funciona).
+    let plan = WatchPlan {
+        game: GameId::parse("steam:620").unwrap(),
+        job: None,
+        scan_dir: t.install_dir.clone(),
+        exact_exe: None,
+        steam_app_id: None,
+    };
+    let s: Arc<dyn ProbeSink> = sink.clone();
+    let scan = WinSessionProbe::with_store_dirs(vec![])
+        .watch_win(plan, 1, s, cfg())
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    assert!(scan.snapshots_taken() > 0, "a varredura usa snapshot");
 }
 
 /// SEC-BUG-04, modo Job: com a pasta reprovada em SEC-16 (aqui, sem `scan_dir`), so a imagem igual
