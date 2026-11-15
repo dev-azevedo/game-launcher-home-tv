@@ -2,7 +2,7 @@
 #
 # Cada regra diz: padrao proibido, arquivos "donos" onde ele pode aparecer, e o INV/SEC que protege.
 # Varre `crates/**/src/**/*.rs` e `src-tauri/src/**/*.rs` (nao varre `tests/`), pulando linhas de
-# comentario e o modulo `#[cfg(test)]` do fim do arquivo. Manifestos (`.manifest`, `.xml`, `.rc`) e scripts NSIS (`.nsi`, `.nsh`) tem regras
+# comentario e os itens marcados com `#[cfg(test)]` (so o item, nao o resto do arquivo). Manifestos (`.manifest`, `.xml`, `.rc`) e scripts NSIS (`.nsi`, `.nsh`) tem regras
 # proprias. Uso: `. scripts/ci-guards.ps1; Invoke-Guards -Root <raiz>`.
 
 Set-StrictMode -Version 2.0
@@ -37,6 +37,24 @@ $script:GuardRules = @(
     @{ Id = 'INV-09'; Pattern = '\bDeleteFileW\b';                  Allow = @('crates/launcher-win/src/purge.rs') },
     @{ Id = 'INV-09'; Pattern = '\bfs::rename\b';                   Allow = @('crates/launcher-win/src/persistence/json.rs', 'crates/launcher-win/src/logging.rs', 'crates/launcher-win/src/cover_cache.rs') },
     @{ Id = 'INV-09'; Pattern = '\bMoveFileExW\b';                  Allow = @('crates/launcher-win/src/persistence/json.rs') },
+    # INV-09 (ARQ-BUG-06): criar e gravar tambem so nos donos
+    @{ Id = 'INV-09'; Pattern = '\bfs::write\b';                    Allow = @('crates/launcher-win/src/bin/sofa_test_game.rs', 'crates/launcher-win/src/persistence/json.rs', 'crates/launcher-win/src/logging.rs', 'crates/launcher-win/src/cover_cache.rs', 'crates/launcher-win/src/purge.rs') },
+    @{ Id = 'INV-09'; Pattern = '\bFile::create(_new)?\b';          Allow = @('crates/launcher-win/src/persistence/json.rs', 'crates/launcher-win/src/logging.rs', 'crates/launcher-win/src/cover_cache.rs', 'crates/launcher-win/src/purge.rs') },
+    @{ Id = 'INV-09'; Pattern = '\bOpenOptions\b';                  Allow = @('crates/launcher-win/src/persistence/json.rs', 'crates/launcher-win/src/logging.rs', 'crates/launcher-win/src/cover_cache.rs', 'crates/launcher-win/src/purge.rs') },
+    @{ Id = 'INV-09'; Pattern = '\bcreate_dir(_all)?\b';            Allow = @('crates/launcher-win/src/persistence/json.rs', 'crates/launcher-win/src/logging.rs', 'crates/launcher-win/src/cover_cache.rs', 'crates/launcher-win/src/purge.rs') },
+    @{ Id = 'INV-09'; Pattern = '\bfs::copy\b';                     Allow = @('crates/launcher-win/src/persistence/json.rs', 'crates/launcher-win/src/cover_cache.rs') },
+    @{ Id = 'INV-09'; Pattern = '\bCreateFileW\b';                  Allow = @('crates/launcher-win/src/purge.rs') },
+    @{ Id = 'INV-09'; Pattern = '\bSetFileInformationByHandle\b';   Allow = @('crates/launcher-win/src/purge.rs') },
+    # INV-05 / SEC-15: encerrar processo so no dono (por handle e tempo de criacao)
+    @{ Id = 'INV-05'; Pattern = '\bTerminateProcess\b';             Allow = @('crates/launcher-win/src/process_probe.rs') },
+    # SEC-10 / AF-01: iniciar processo so no GameStarter; o verbo runas nunca existe
+    @{ Id = 'SEC-10'; Pattern = '\bCreateProcess(W|A|AsUserW|WithLogonW|WithTokenW)\b'; Allow = @('crates/launcher-win/src/game_starter.rs') },
+    @{ Id = 'SEC-10'; Pattern = '\bShellExecute(Ex)?[AW]\b';        Allow = @('crates/launcher-win/src/game_starter.rs') },
+    @{ Id = 'SEC-10'; Pattern = '"runas"|w!\("runas"\)';            Allow = @() },
+    # O `sofa_test_game` (binario so dos testes, fora do instalador) pode gravar arquivo e iniciar o filho de teste.
+    @{ Id = 'SEC-10'; Pattern = '\bstd::process::Command\b|\bCommand::new\b'; Allow = @('crates/launcher-win/src/bin/sofa_test_game.rs') },
+    # SEC-29: escrita no registro so no autostart (Run e StartupApproved)
+    @{ Id = 'SEC-29'; Pattern = '\bReg(SetValueEx|DeleteValue|CreateKeyEx|DeleteKey(Ex)?|SetKeyValue|DeleteKeyValue)[AW]\b'; Allow = @('crates/launcher-win/src/autostart/run_key.rs') },
     # INV-03 / SEC-22: so o AutostartRegistry registra tarefa e toca Run e StartupApproved; nunca elevada,
     # com senha, em nome de outra conta nem por schtasks.exe
     @{ Id = 'INV-03'; Pattern = '\bRegisterTaskDefinition\b';       Allow = @('crates/launcher-win/src/autostart/task_scheduler.rs') },
@@ -56,6 +74,7 @@ $script:ManifestRule = @{ Id = 'SEC-28'; Pattern = 'uiAccess\s*=\s*["'']true["''
 
 # SEC-32: executavel externo do instalador so por $SYSDIR\
 $script:NsisPattern = '\b(nsExec::\w+|ExecWait|ExecShell\w*|Exec)\b'
+$script:NsisGoodPattern = '\b(nsExec::\w+|ExecWait|ExecShell\w*|Exec)\s+(/\w+(=\S+)?\s+)*[''"`]{0,3}\$SYSDIR[\\/]'
 
 function ConvertTo-Rel([string]$Root, [string]$Path) {
     $full = (Resolve-Path -LiteralPath $Path).Path
@@ -81,6 +100,28 @@ function Test-CommentLine([string]$Line, [string]$Kind) {
     return $false
 }
 
+# Indice da ultima linha do item marcado por `#[cfg(test)]` na linha $Start (indentacao $Indent), ou -1
+# se nao achar. Item de uma linha (`...;` ou `{ ... }`) termina nela; item com corpo termina na
+# primeira linha que e so `}` na mesma indentacao do marcador (rustfmt garante isso).
+function Get-CfgTestItemEnd([string[]]$Lines, [int]$Start, [string]$Indent) {
+    for ($j = $Start + 1; $j -lt $Lines.Count; $j++) {
+        $l = $Lines[$j]
+        if ($l -match '^\s*#\[') { continue }          # outros atributos do mesmo item
+        if ($l.Trim().Length -eq 0) { continue }
+        $open = ([regex]::Matches($l, '\{')).Count
+        $close = ([regex]::Matches($l, '\}')).Count
+        if ($open -eq 0 -and $l -match ';\s*$') { return $j }
+        if ($open -gt 0 -and $open -eq $close) { return $j }
+        if ($open -gt 0) {
+            for ($k = $j + 1; $k -lt $Lines.Count; $k++) {
+                if ($Lines[$k] -ceq ($Indent + '}')) { return $k }
+            }
+            return -1
+        }
+    }
+    return -1
+}
+
 # Devolve uma lista de textos "REGRA arquivo:linha padrao". Lista vazia = limpo.
 function Invoke-Guards([string]$Root) {
     $violations = New-Object System.Collections.Generic.List[string]
@@ -88,9 +129,20 @@ function Invoke-Guards([string]$Root) {
     foreach ($f in @(Get-SourceFiles $Root @('*.rs'))) {
         $rel = ConvertTo-Rel $Root $f.FullName
         $lines = @(Get-Content -LiteralPath $f.FullName -Encoding UTF8)
+        $skipUntil = -1
         for ($i = 0; $i -lt $lines.Count; $i++) {
-            # Convencao do repo: o modulo `#[cfg(test)]` fica no fim do arquivo e nao e codigo de producao.
-            if ($lines[$i] -match '^\s*#\[cfg\(test\)\]') { break }
+            if ($i -le $skipUntil) { continue }
+            # `#[cfg(test)]` marca so o item que vem a seguir (ARQ-BUG-06): pula esse item e segue
+            # varrendo o resto, para codigo de producao depois dele nao ficar fora do grep.
+            if ($lines[$i] -match '^(\s*)#\[cfg\(test\)\]') {
+                $end = Get-CfgTestItemEnd $lines $i $Matches[1]
+                if ($end -lt 0) {
+                    $violations.Add(('CFG-TEST {0}:{1} fim do item #[cfg(test)] nao encontrado; arquivo varrido por inteiro' -f $rel, ($i + 1)))
+                } else {
+                    $skipUntil = $end
+                }
+                continue
+            }
             if (Test-CommentLine $lines[$i] 'rs') { continue }
             foreach ($rule in $script:GuardRules) {
                 if ($lines[$i] -match $rule.Pattern -and ($rule.Allow -notcontains $rel)) {
@@ -113,7 +165,9 @@ function Invoke-Guards([string]$Root) {
         $lines = @(Get-Content -LiteralPath $f.FullName -Encoding UTF8)
         for ($i = 0; $i -lt $lines.Count; $i++) {
             if (Test-CommentLine $lines[$i] 'nsis') { continue }
-            if ($lines[$i] -match $script:NsisPattern -and $lines[$i] -notmatch '\$SYSDIR[\\/]') {
+            # O `$SYSDIR\` tem que ser o proprio executavel (logo depois do comando, com aspas
+            # opcionais), nao um argumento qualquer da linha.
+            if ($lines[$i] -match $script:NsisPattern -and $lines[$i] -notmatch $script:NsisGoodPattern) {
                 $violations.Add(('SEC-32 {0}:{1} executavel externo sem $SYSDIR\ ({2})' -f $rel, ($i + 1), $Matches[0]))
             }
         }
@@ -147,11 +201,29 @@ function Invoke-GuardSelfTest {
             'ReadProcessMemory', 'WriteProcessMemory', 'LoadLibraryW', 'remove_file', 'remove_dir_all',
             'DeleteFileW', 'fs::rename', 'MoveFileExW',
             'RegisterTaskDefinition', 'CurrentVersion\Run', 'StartupApproved', 'TASK_RUNLEVEL_HIGHEST',
-            'TASK_LOGON_S4U', 'schtasks', 'ExitWindowsEx', 'SetSuspendState', 'AdjustTokenPrivileges'
+            'TASK_LOGON_S4U', 'schtasks', 'ExitWindowsEx', 'SetSuspendState', 'AdjustTokenPrivileges',
+            'fs::write', 'File::create', 'OpenOptions', 'create_dir_all', 'fs::copy', 'CreateFileW',
+            'SetFileInformationByHandle', 'TerminateProcess', 'CreateProcessW', 'ShellExecuteExW',
+            '"runas"', 'Command::new', 'RegSetValueExW', 'RegDeleteValueW'
+        )
+        # ARQ-BUG-06: `#[cfg(test)]` no meio do arquivo pula so aquele item; o codigo de producao
+        # depois dele continua varrido. O corpo do modulo de teste nao conta.
+        Set-Content -LiteralPath (Join-Path $win 'midtest.rs') -Value @(
+            'fn before() {}',
+            '#[cfg(test)]',
+            'pub(crate) mod fake {',
+            '    fn t() { remove_dir_all(p); }',
+            '}',
+            '',
+            'fn after() { DeleteFileW(p); }',
+            '#[cfg(test)]',
+            'mod tests {',
+            '    fn t2() { remove_file(p); }',
+            '}'
         )
         Set-Content -LiteralPath (Join-Path $win 'rogue.rs') -Value ($planted | ForEach-Object { "fn x() { $_(); }" })
         Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/bad.manifest') -Value '<requestedExecutionLevel level="asInvoker" uiAccess="true"/>'
-        Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/bad.nsh') -Value @('nsExec::Exec "schtasks.exe /delete"', 'ExecWait "cmd /c del x"')
+        Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/bad.nsh') -Value @('nsExec::Exec "schtasks.exe /delete"', 'ExecWait "cmd /c del x"', 'nsExec::Exec ''"cmd.exe" /c $SYSDIR\x.exe''')
         $found = @(Invoke-Guards $tmp)
         $text = $found -join "`n"
         foreach ($token in $planted) {
@@ -160,6 +232,9 @@ function Invoke-GuardSelfTest {
         foreach ($token in @('uiAccess="true"', 'nsExec::Exec', 'ExecWait')) {
             if ($text -notmatch [regex]::Escape($token)) { throw "autoteste: violacao plantada nao detectada: $token" }
         }
+        if ($text -notmatch 'midtest\.rs:7 `DeleteFileW`') { throw 'autoteste: codigo de producao depois de #[cfg(test)] no meio do arquivo nao foi varrido' }
+        if ($text -match 'midtest\.rs:(4|10) ') { throw 'autoteste: item #[cfg(test)] foi varrido (deveria ser pulado)' }
+        if ($text -notmatch 'bad\.nsh:3 ') { throw 'autoteste: $SYSDIR como argumento (nao como executavel) nao foi acusado' }
         # Os donos nao podem aparecer entre as violacoes.
         foreach ($owner in @('xinput.rs', 'foreground.rs')) {
             if ($text -match ($owner + ':\d+ `(XInputGetState|SetForegroundWindow)`')) { throw "autoteste: dono acusado indevidamente: $owner" }
