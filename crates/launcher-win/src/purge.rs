@@ -20,7 +20,8 @@
 //! - nao apaga nada fora do alvo; jogos nunca sao tocados (SEC-29).
 //!
 //! Codigos de saida (`PurgeExit`): 0 ok, 1 parcial (log em `%TEMP%\sofa-purge.log`), 2 alvo
-//! invalido ou argumento extra, 3 elevado. Dono unico da remocao recursiva (INV-09).
+//! invalido ou argumento extra, 3 elevado, 4 Sofa aberto (mutex da instancia unica; nada apagado).
+//! Dono unico da remocao recursiva (INV-09).
 
 use std::ffi::OsString;
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
@@ -472,11 +473,45 @@ fn write_log(lines: &[String]) {
     let _ = std::fs::write(path, lines.join("\r\n"));
 }
 
+/// `true` se existe o mutex da instancia unica do Sofa (`<identificador>-sim`, criado pelo
+/// plugin `tauri-plugin-single-instance`): ha um Sofa aberto nesta sessao (SEC-BUG-03). So abre
+/// para `SYNCHRONIZE`; nunca cria nem segura o mutex.
+pub fn app_is_open(identifier: &str) -> bool {
+    use windows::Win32::System::Threading::{OpenMutexW, SYNCHRONIZATION_SYNCHRONIZE};
+    let name: Vec<u16> = format!("{identifier}-sim\0").encode_utf16().collect();
+    // SAFETY: `name` termina em NUL e vive ate o fim da chamada; o handle e fechado aqui.
+    unsafe {
+        match OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, false, PCWSTR(name.as_ptr())) {
+            Ok(h) => {
+                let _ = CloseHandle(h);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+}
+
 /// O nucleo testavel: valida e apaga `<local_app_data>\<identifier>`.
 pub fn run_in(local_app_data: &str, identifier: &str, elevated: bool) -> PurgeExit {
+    run_in_with(local_app_data, identifier, elevated, false)
+}
+
+/// Como `run_in`, com o Sofa aberto informado de fora (`app_is_open` no processo real).
+pub fn run_in_with(
+    local_app_data: &str,
+    identifier: &str,
+    elevated: bool,
+    app_open: bool,
+) -> PurgeExit {
     if elevated {
         write_log(&["recusado: o Sofa esta elevado (SEC-31)".to_owned()]);
         return PurgeExit::Elevated;
+    }
+    if app_open {
+        // Com o Sofa aberto a remocao ficaria parcial (EBWebView, log) e o Sofa regravaria os
+        // arquivos: nao apaga nada (SEC-BUG-03).
+        write_log(&["recusado: o Sofa esta aberto (mutex da instancia unica)".to_owned()]);
+        return PurgeExit::AppOpen;
     }
     let Some(target) = target_dir(local_app_data, identifier) else {
         write_log(&["recusado: alvo invalido".to_owned()]);
@@ -521,7 +556,13 @@ pub fn run_main(refused: bool) -> i32 {
     let Some(lad) = known::local_app_data() else {
         return PurgeExit::InvalidTarget.code();
     };
-    run_in(&lad, APP_IDENTIFIER, is_process_elevated()).code()
+    run_in_with(
+        &lad,
+        APP_IDENTIFIER,
+        is_process_elevated(),
+        app_is_open(APP_IDENTIFIER),
+    )
+    .code()
 }
 
 #[cfg(test)]
@@ -595,6 +636,37 @@ mod tests {
         let code = run_in(&t.0.display().to_string(), id, true);
         assert_eq!(code, PurgeExit::Elevated);
         assert!(root.join("library.json").exists());
+    }
+
+    #[test]
+    fn sofa_aberto_recusa_com_codigo_4_e_nao_apaga_nada() {
+        let t = Temp::new("aberto");
+        let id = "app.sofa.launcher";
+        let root = t.0.join(id);
+        fs::create_dir_all(root.join("cache")).unwrap();
+        fs::write(root.join("library.json"), b"{}").unwrap();
+        fs::write(root.join("cache").join("x.bin"), b"x").unwrap();
+        let code = run_in_with(&t.0.display().to_string(), id, false, true);
+        assert_eq!(code, PurgeExit::AppOpen);
+        assert_eq!(code.code(), 4);
+        assert!(root.join("library.json").exists());
+        assert!(root.join("cache").join("x.bin").exists());
+    }
+
+    #[test]
+    fn app_is_open_enxerga_o_mutex_da_instancia_unica() {
+        use windows::Win32::System::Threading::CreateMutexW;
+        let id = format!("app.sofa.teste-{}", std::process::id());
+        assert!(!app_is_open(&id), "sem mutex: fechado");
+        let name: Vec<u16> = format!("{id}-sim\0").encode_utf16().collect();
+        // SAFETY: nome terminado em NUL; handle fechado ao fim do teste.
+        let h = unsafe { CreateMutexW(None, true, PCWSTR(name.as_ptr())) }.unwrap();
+        assert!(app_is_open(&id), "mutex existe: aberto");
+        // SAFETY: handle proprio.
+        unsafe {
+            let _ = CloseHandle(h);
+        }
+        assert!(!app_is_open(&id), "mutex fechado: de novo fechado");
     }
 
     #[test]

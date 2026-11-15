@@ -20,6 +20,9 @@ pub enum PurgeExit {
     InvalidTarget = 2,
     /// Rodando elevado: recusa sem apagar nada (SEC-31).
     Elevated = 3,
+    /// O Sofa esta aberto (mutex da instancia unica existe): nada e apagado (SEC-BUG-03). O
+    /// desinstalador fecha o Sofa e tenta de novo; nunca cai no fallback elevado por causa disto.
+    AppOpen = 4,
 }
 
 impl PurgeExit {
@@ -212,11 +215,12 @@ mod tests {
     }
 
     #[test]
-    fn codigos_de_saida_sao_0_a_3() {
+    fn codigos_de_saida_sao_0_a_4() {
         assert_eq!(PurgeExit::Done.code(), 0);
         assert_eq!(PurgeExit::Partial.code(), 1);
         assert_eq!(PurgeExit::InvalidTarget.code(), 2);
         assert_eq!(PurgeExit::Elevated.code(), 3);
+        assert_eq!(PurgeExit::AppOpen.code(), 4);
     }
 
     #[test]
