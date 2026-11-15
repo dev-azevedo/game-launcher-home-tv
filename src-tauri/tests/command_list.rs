@@ -181,7 +181,70 @@ fn conf_do_tauri_nao_expoe_global_nem_cria_janela_por_config() {
         conf["app"]["security"].get("assetProtocol").is_none(),
         "SEC-08: sem assetProtocol"
     );
-    assert_eq!(conf["bundle"]["active"], false, "o bundle volta no BE-37");
+}
+
+/// BE-37 (ADR-0006 1, Q-09, P-01): instalador NSIS por maquina, so NSIS (sem MSI), pasta ASCII
+/// `Sofa`, bootstrapper do WebView2 embutido, icone da marca e os arquivos do template existentes.
+#[test]
+fn bundle_e_nsis_por_maquina_com_bootstrapper_embutido() {
+    let conf: Value = serde_json::from_str(&read("tauri.conf.json")).unwrap();
+    let bundle = &conf["bundle"];
+    assert_eq!(bundle["active"], true);
+    assert_eq!(bundle["targets"], serde_json::json!(["nsis"]), "sem MSI");
+    assert_eq!(conf["mainBinaryName"], "sofa");
+    assert_eq!(conf["productName"], "Sofa", "pasta e instalador ASCII");
+    let nsis = &bundle["windows"]["nsis"];
+    assert_eq!(nsis["installMode"], "perMachine", "Q-09");
+    assert_eq!(nsis["displayLanguageSelector"], false);
+    assert_eq!(nsis["languages"], serde_json::json!(["PortugueseBR"]));
+    assert_eq!(
+        bundle["windows"]["webviewInstallMode"]["type"], "embedBootstrapper",
+        "P-01"
+    );
+    assert_eq!(nsis["installerIcon"], "../docs/brand/sofa/assets/icon.ico");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    for key in ["template", "installerHooks"] {
+        let rel = nsis[key].as_str().unwrap_or_else(|| panic!("{key}"));
+        assert!(root.join(rel).is_file(), "{key}: {rel} nao existe");
+    }
+    let lang = nsis["customLanguageFiles"]["PortugueseBR"]
+        .as_str()
+        .unwrap();
+    assert!(root.join(lang).is_file(), "{lang} nao existe");
+    assert!(root.join(nsis["installerIcon"].as_str().unwrap()).is_file());
+    // licencas OFL das fontes vao junto do instalador
+    let resources = bundle["resources"].as_object().unwrap();
+    for (src, dst) in resources {
+        assert!(root.join(src).is_file(), "{src} nao existe");
+        assert!(dst.as_str().unwrap().starts_with("licenses/"), "{dst}");
+    }
+    assert_eq!(resources.len(), 2, "OFL-Figtree e OFL-Sora");
+}
+
+/// SEC-31, SEC-32: o template do Sofa nao traz de volta a remocao recursiva de dados do Tauri nem
+/// escreve em HKCU (o instalador elevado pode ser de outra conta, E-19).
+#[test]
+fn template_do_instalador_nao_apaga_dados_nem_escreve_em_hkcu() {
+    let tpl = read("windows/installer.nsi");
+    for line in tpl.lines().filter(|l| !l.trim_start().starts_with(';')) {
+        let l = line.to_ascii_lowercase();
+        // `RMDir /r` (recursivo); `/REBOOTOK` do $INSTDIR e outra opcao
+        let words: Vec<&str> = l.split_whitespace().collect();
+        assert!(
+            !(words.first() == Some(&"rmdir") && words.contains(&"/r")),
+            "SEC-31: {line}"
+        );
+        assert!(!l.contains("deleteappdata"), "SEC-31: {line}");
+        assert!(
+            !l.contains("writereg") || !l.contains("hkcu"),
+            "E-19: {line}"
+        );
+        assert!(
+            !l.contains("deletereg") || !l.contains("hkcu"),
+            "E-19: {line}"
+        );
+    }
+    assert!(tpl.contains("RequestExecutionLevel admin"), "RN-26");
 }
 
 #[test]

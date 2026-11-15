@@ -25,9 +25,45 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "publisher": "Sofa",
+    "copyright": "Copyright (c) Sofa",
+    "category": "Game",
+    "shortDescription": "Sofá: launcher de jogos para a TV",
     "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png",
       "icons/icon.ico"
-    ]
-  }
+    ],
+    "resources": {
+      "../docs/brand/sofa/assets/fonts/OFL-Figtree.txt": "licenses/OFL-Figtree.txt",
+      "../docs/brand/sofa/assets/fonts/OFL-Sora.txt": "licenses/OFL-Sora.txt"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "template": "windows/installer.nsi",
+        "installerHooks": "windows/hooks.nsh",
+        "installMode": "perMachine",
+        "installerIcon": "../docs/brand/sofa/assets/icon.ico",
+        "languages": [
+          "PortugueseBR"
+        ],
+        "customLanguageFiles": {
+          "PortugueseBR": "windows/PortugueseBR.nsh"
+        },
+        "displayLanguageSelector": false,
+        "compression": "lzma"
+      }
+    }
+  },
+  "mainBinaryName": "sofa"
 }
