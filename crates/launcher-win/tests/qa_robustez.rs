@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use launcher_win::core::application::ports::{
-    Clock, LibraryRepository, ScanCache, SettingsRepository,
+    Clock, LibraryRepository, RecoveryReason, ScanCache, SettingsRepository, StoreError,
 };
 use launcher_win::core::domain::library::stored::{ManualGameRecord, StoredLibrary};
 use launcher_win::core::domain::library::GameId;
@@ -144,12 +144,11 @@ fn arquivo_no_lugar_e_pasta_nao_derruba_a_leitura() {
     let _ = JsonSettingsRepository::new(&dir.0, clock).load();
 }
 
-/// CA-25 e RN-18: os jogos manuais e os ocultos do usuario sobrevivem. Hoje uma falha de LEITURA
-/// (arquivo travado por antivirus, backup ou indexador) devolve a biblioteca vazia sem `recovery`
-/// e sem tocar no arquivo; na mutacao seguinte (ocultar, renomear, marcar jogado) o servico le de
-/// novo, recebe o padrao e grava `library.json` so com a mudanca nova: os jogos manuais somem.
+/// CA-25 e RN-18: os jogos manuais e os ocultos do usuario sobrevivem (QA-BUG-02, corrigido). Uma
+/// falha de LEITURA (arquivo travado por antivirus, backup ou indexador) tenta de novo; se segue
+/// falhando, devolve o padrao com `recovery = Unreadable`, nao toca no arquivo e o repositorio
+/// recusa o `save` seguinte (ocultar, renomear, marcar jogado) em vez de gravar por cima.
 #[test]
-#[ignore = "QA-BUG-02: leitura falha vira biblioteca vazia e o proximo save apaga os dados do usuario"]
 fn leitura_transitoriamente_travada_nao_pode_levar_a_perda_dos_dados_no_save_seguinte() {
     let dir = Dir::new("leitura-travada");
     let clock: Arc<dyn Clock> = Arc::new(FixedClock);
@@ -171,7 +170,11 @@ fn leitura_transitoriamente_travada_nao_pode_levar_a_perda_dos_dados_no_save_seg
         .open(dir.0.join("library.json"))
         .unwrap();
 
-    let lida = repo.load(); // leitura falha: o padrao vem vazio
+    let lida = repo.load(); // leitura falha mesmo apos as novas tentativas: o padrao vem vazio
+    assert_eq!(
+        lida.recovery.as_ref().map(|r| r.reason.clone()),
+        Some(RecoveryReason::Unreadable)
+    );
     assert!(
         lida.value.manual_games.len() == 1 || lida.recovery.is_some(),
         "falha de leitura devolveu biblioteca vazia como se fosse um arquivo novo"
@@ -182,7 +185,10 @@ fn leitura_transitoriamente_travada_nao_pode_levar_a_perda_dos_dados_no_save_seg
     depois
         .overlay
         .insert(GameId::parse("steam:620").unwrap(), Default::default());
-    let _ = repo.save(&depois);
+    assert!(
+        matches!(repo.save(&depois), Err(StoreError::Unreadable)),
+        "gravar por cima do que nao foi lido e recusado"
+    );
     drop(_trava);
 
     // Os dados originais precisam continuar recuperaveis (no proprio arquivo ou em um backup).
@@ -194,6 +200,36 @@ fn leitura_transitoriamente_travada_nao_pode_levar_a_perda_dos_dados_no_save_seg
             .map(|b| String::from_utf8_lossy(&b).contains("Meu Jogo"))
             .unwrap_or(false);
     assert!(recuperavel, "dados do usuario perdidos: {:?}", dir.names());
+}
+
+/// A trava que passa em poucas dezenas de milissegundos (varredura do antivirus) nao e erro: a
+/// leitura tenta de novo e carrega normalmente, sem `recovery`.
+#[test]
+fn trava_curta_de_leitura_e_superada_pelas_novas_tentativas() {
+    let dir = Dir::new("trava-curta");
+    let clock: Arc<dyn Clock> = Arc::new(FixedClock);
+    let repo = JsonLibraryRepository::new(&dir.0, clock);
+    let mut original = StoredLibrary::default();
+    original.manual_games.push(ManualGameRecord {
+        id: GameId::parse("manual:9f3a1c2b7d4e5a60").unwrap(),
+        name: "Meu Jogo".into(),
+        path: r"D:\Jogos\Meu Jogo\jogo.exe".into(),
+    });
+    repo.save(&original).unwrap();
+    let trava = OpenOptions::new()
+        .read(true)
+        .share_mode(0x2 | 0x4)
+        .open(dir.0.join("library.json"))
+        .unwrap();
+    let solta = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(120));
+        drop(trava);
+    });
+    let lida = repo.load();
+    solta.join().unwrap();
+    assert!(lida.recovery.is_none(), "{:?}", lida.recovery);
+    assert_eq!(lida.value.manual_games.len(), 1);
+    assert!(repo.save(&lida.value).is_ok());
 }
 
 #[test]

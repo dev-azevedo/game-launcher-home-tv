@@ -73,8 +73,11 @@ pub struct LibraryDeps {
 pub struct LibraryService {
     deps: LibraryDeps,
     state: RwLock<Arc<LibraryState>>,
-    /// Serializa ler-alterar-gravar de `library.json` e a troca do estado (INV-09).
-    write: Mutex<()>,
+    /// Copia em memoria da camada do usuario (`library.json`), carregada **uma vez** (dono unico,
+    /// ARQ-BUG-03). O `Mutex` serializa alterar-gravar e a troca do estado (INV-09). Nunca se
+    /// relê o disco a cada alteracao: arquivo mexido por fora no meio da execucao nao apaga o que
+    /// o Sofa tem em memoria.
+    write: Mutex<StoredLibrary>,
 }
 
 impl LibraryService {
@@ -84,13 +87,13 @@ impl LibraryService {
         let service = Self {
             deps,
             state: RwLock::new(Arc::new(LibraryState::default())),
-            write: Mutex::new(()),
+            write: Mutex::new(StoredLibrary::default()),
         };
         {
-            let _guard = service.write.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut guard = service.write.lock().unwrap_or_else(PoisonError::into_inner);
             let cached = service.deps.scan_cache.load();
-            let stored = service.load_stored();
-            service.install(cached, &stored, false);
+            *guard = service.load_stored();
+            service.install(cached, &guard, false);
         }
         service
     }
@@ -107,12 +110,6 @@ impl LibraryService {
         loaded.value
     }
 
-    /// Refaz o estado com `detected` e a camada do usuario atual. Chamar com `write` tomado.
-    fn rebuild(&self, detected: Vec<DetectedGame>, fresh: bool) {
-        let stored = self.load_stored();
-        self.install(detected, &stored, fresh);
-    }
-
     fn install(&self, detected: Vec<DetectedGame>, stored: &StoredLibrary, fresh: bool) {
         let entries = merge_library(detected.clone(), &stored.manual_games, &stored.overlay);
         *self.state.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(LibraryState {
@@ -122,14 +119,16 @@ impl LibraryService {
         });
     }
 
-    /// Grava `stored` e refaz o estado sobre a ultima deteccao. Chamar com `write` tomado.
-    fn commit(&self, stored: &StoredLibrary) -> Result<(), AppError> {
-        self.deps.repo.save(stored).map_err(|e| {
+    /// Grava `new`, troca a copia em memoria (`current`, o conteudo do `write`) e refaz o estado
+    /// sobre a ultima deteccao. Se a gravacao falha, nada muda em memoria.
+    fn commit(&self, current: &mut StoredLibrary, new: StoredLibrary) -> Result<(), AppError> {
+        self.deps.repo.save(&new).map_err(|e| {
             tracing::error!(erro = %e, "nao gravou library.json");
             AppError::Internal
         })?;
-        let current = self.snapshot();
-        self.install(current.detected.clone(), stored, current.fresh);
+        let snap = self.snapshot();
+        self.install(snap.detected.clone(), &new, snap.fresh);
+        *current = new;
         Ok(())
     }
 
@@ -202,9 +201,9 @@ impl LibraryService {
             }
         }
         {
-            let _guard = self.write.lock().unwrap_or_else(PoisonError::into_inner);
+            let guard = self.write.lock().unwrap_or_else(PoisonError::into_inner);
             self.deps.scan_cache.save(&detected);
-            self.rebuild(detected, true);
+            self.install(detected, &guard, true);
         }
         tracing::info!(
             jogos = self.snapshot().entries.len(),
@@ -221,17 +220,17 @@ impl LibraryService {
         id: &GameId,
         change: impl FnOnce(&mut OverlayEntry),
     ) -> Result<(), AppError> {
-        let _guard = self.write.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut guard = self.write.lock().unwrap_or_else(PoisonError::into_inner);
         if self.snapshot().get(id).is_none() {
             return Err(AppError::UnknownGame);
         }
-        let mut stored = self.load_stored();
+        let mut stored = guard.clone();
         let entry = stored.overlay.entry(id.clone()).or_default();
         change(entry);
         if *entry == OverlayEntry::default() {
             stored.overlay.remove(id);
         }
-        self.commit(&stored)
+        self.commit(&mut guard, stored)
     }
 
     fn dto_entry(&self, id: &GameId) -> Result<LibraryEntry, AppError> {
@@ -293,8 +292,8 @@ impl LibraryService {
         check_manual_exe_path(&canonical).map_err(map)?;
 
         let id = GameId::manual_from_canonical_path(&canonical);
-        let _guard = self.write.lock().unwrap_or_else(PoisonError::into_inner);
-        let mut stored = self.load_stored();
+        let mut guard = self.write.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut stored = guard.clone();
         // Mesmo ID = mesmo caminho em outra caixa (RN-03) ou colisao de 64 bits: `Duplicate`.
         if stored.manual_games.iter().any(|g| g.id == id) {
             return Err(AppError::Duplicate);
@@ -316,8 +315,8 @@ impl LibraryService {
             name,
             path: canonical,
         });
-        self.commit(&stored)?;
-        drop(_guard);
+        self.commit(&mut guard, stored)?;
+        drop(guard);
         self.notify();
         self.dto_entry(&id)
     }
@@ -540,6 +539,52 @@ mod tests {
 
     fn id(s: &str) -> GameId {
         GameId::parse(s).unwrap()
+    }
+
+    /// ARQ-BUG-03: a copia em memoria e a fonte; o arquivo adulterado por fora no meio da execucao
+    /// (aqui, trocado pelo padrao) nao apaga os outros overlays na proxima alteracao.
+    #[test]
+    fn alteracao_usa_a_copia_em_memoria_e_nao_rele_o_disco() {
+        let path = r"C:\Jogos\Foooo.exe";
+        let mut stored = StoredLibrary::default();
+        stored.manual_games.push(ManualGameRecord {
+            id: GameId::manual_from_canonical_path(path),
+            name: "Foo".into(),
+            path: path.into(),
+        });
+        stored.overlay.insert(
+            id("steam:620"),
+            OverlayEntry {
+                hidden: true,
+                ..OverlayEntry::default()
+            },
+        );
+        let r = rig_with(
+            vec![FakeScanner(
+                Origin::Steam,
+                Behavior::Games(vec![
+                    det("steam:620", "Portal 2"),
+                    det("steam:400", "Portal"),
+                ]),
+            )],
+            stored,
+        );
+        r.svc.refresh();
+        // Alguem corrompe/troca o arquivo depois da carga.
+        *r.mem.0.lock().unwrap() = StoredLibrary::default();
+
+        r.svc.rename(&id("steam:400"), "Portal Um").unwrap();
+
+        let gravado = r.mem.0.lock().unwrap().clone();
+        assert_eq!(gravado.manual_games.len(), 1, "jogo manual preservado");
+        assert!(
+            gravado.overlay[&id("steam:620")].hidden,
+            "oculto preservado"
+        );
+        assert_eq!(
+            gravado.overlay[&id("steam:400")].custom_name.as_deref(),
+            Some("Portal Um")
+        );
     }
 
     #[test]

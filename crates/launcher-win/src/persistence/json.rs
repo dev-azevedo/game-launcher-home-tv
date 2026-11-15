@@ -10,7 +10,9 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use launcher_core::application::ports::{
     Clock, LibraryRepository, Loaded, Recovery, RecoveryReason, ScanCache, SettingsRepository,
@@ -57,6 +59,26 @@ fn read_limited(path: &Path) -> io::Result<Raw> {
         Ok(Raw::TooLarge)
     } else {
         Ok(Raw::Bytes(buf))
+    }
+}
+
+/// Leituras seguidas antes de desistir de um arquivo que nao abre (trava transitoria de
+/// antivirus, backup ou indexador) e o intervalo entre elas.
+const READ_ATTEMPTS: u32 = 4;
+const READ_RETRY_DELAY: Duration = Duration::from_millis(75);
+
+/// `read_limited` com novas tentativas para erro de E/S (arquivo ausente nao e erro).
+fn read_with_retry(path: &Path) -> io::Result<Raw> {
+    let mut attempt = 1;
+    loop {
+        match read_limited(path) {
+            Err(e) if attempt < READ_ATTEMPTS => {
+                tracing::warn!(tentativa = attempt, error = %e, "leitura falhou; tentando de novo");
+                std::thread::sleep(READ_RETRY_DELAY);
+                attempt += 1;
+            }
+            other => return other,
+        }
     }
 }
 
@@ -189,7 +211,7 @@ fn load_file<T>(
     parse: impl Fn(&[u8]) -> Parsed<T>,
 ) -> Loaded<T> {
     let path = dir.join(name);
-    let reason = match read_limited(&path) {
+    let reason = match read_with_retry(&path) {
         Ok(Raw::Missing) => {
             return Loaded {
                 value: default(),
@@ -209,11 +231,16 @@ fn load_file<T>(
         },
         Ok(Raw::TooLarge) => RecoveryReason::TooLarge,
         Err(e) => {
-            // Nao deu para ler (permissao, trava): usa o padrao em memoria e NAO mexe no arquivo.
-            tracing::error!(file = name, error = %e, "falha ao ler arquivo de dados; usando padroes");
+            // Nao deu para ler nem depois de tentar de novo (permissao, trava): usa o padrao em
+            // memoria, NAO mexe no arquivo e avisa com `Unreadable` para o chamador nao gravar
+            // por cima (QA-BUG-02).
+            tracing::error!(file = name, error = %e, "falha ao ler arquivo de dados; usando padroes sem gravar");
             return Loaded {
                 value: default(),
-                recovery: None,
+                recovery: Some(Recovery {
+                    reason: RecoveryReason::Unreadable,
+                    backup_name: None,
+                }),
                 warnings: Vec::new(),
             };
         }
@@ -250,6 +277,9 @@ fn load_file<T>(
 pub struct JsonLibraryRepository {
     dir: PathBuf,
     clock: Arc<dyn Clock>,
+    /// A ultima carga nao conseguiu ler `library.json`: o conteudo do disco e desconhecido, entao
+    /// `save` recusa (nunca grava por cima do que nao foi lido).
+    unreadable: Arc<AtomicBool>,
 }
 
 impl JsonLibraryRepository {
@@ -258,13 +288,14 @@ impl JsonLibraryRepository {
         Self {
             dir: dir.into(),
             clock,
+            unreadable: Arc::new(AtomicBool::new(false)),
         }
     }
 }
 
 impl LibraryRepository for JsonLibraryRepository {
     fn load(&self) -> Loaded<StoredLibrary> {
-        load_file(
+        let loaded = load_file(
             &self.dir,
             LIBRARY_FILE,
             self.clock.as_ref(),
@@ -277,10 +308,20 @@ impl LibraryRepository for JsonLibraryRepository {
                     Parsed::Invalid
                 }
             },
-        )
+        );
+        let unreadable = matches!(
+            &loaded.recovery,
+            Some(r) if r.reason == RecoveryReason::Unreadable
+        );
+        self.unreadable.store(unreadable, Ordering::Release);
+        loaded
     }
 
     fn save(&self, library: &StoredLibrary) -> Result<(), StoreError> {
+        if self.unreadable.load(Ordering::Acquire) {
+            tracing::error!("library.json nao foi lido na carga; gravacao recusada");
+            return Err(StoreError::Unreadable);
+        }
         atomic_write(&self.dir, LIBRARY_FILE, &serialize_library(library))
     }
 }

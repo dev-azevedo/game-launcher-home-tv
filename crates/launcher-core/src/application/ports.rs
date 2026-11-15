@@ -67,6 +67,10 @@ pub enum RecoveryReason {
     TooLarge,
     /// JSON invalido, campo desconhecido, versao desconhecida ou limite excedido.
     Invalid,
+    /// Nao deu para ler (antivirus, backup ou indexador seguraram o arquivo) mesmo depois de
+    /// tentar de novo. O arquivo **nao** foi tocado e o valor devolvido e so o padrao em memoria:
+    /// o repositorio recusa `save` nessa execucao para nao gravar por cima (QA-BUG-02).
+    Unreadable,
 }
 
 /// O arquivo anterior foi renomeado para `backup_name` (nome do arquivo, sem pasta).
@@ -91,6 +95,8 @@ pub enum StoreError {
     Io(#[from] std::io::Error),
     #[error("conteudo acima do limite de {0} bytes")]
     TooLarge(usize),
+    #[error("arquivo ilegivel na carga: gravacao recusada para nao perder os dados do usuario")]
+    Unreadable,
 }
 
 /// Dono unico de `library.json` (INV-03, INV-09).
