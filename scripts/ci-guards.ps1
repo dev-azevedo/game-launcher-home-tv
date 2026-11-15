@@ -72,9 +72,13 @@ $script:GuardRules = @(
 # uiAccess="true" nunca, em manifesto nenhum (SEC-20, SEC-28)
 $script:ManifestRule = @{ Id = 'SEC-28'; Pattern = 'uiAccess\s*=\s*["'']true["'']' }
 
-# SEC-32: executavel externo do instalador so por $SYSDIR\
+# SEC-32: executavel externo do instalador so por caminho absoluto de pasta que o instalador
+# controla: `$SYSDIR\` (sistema), `$PLUGINSDIR\` (pasta temporaria exclusiva do instalador, onde vai
+# o bootstrapper do WebView2) ou `$INSTDIR\` (o desinstalador da versao anterior). Nome relativo,
+# `$TEMP\` e executavel lido de variavel continuam proibidos. O caminho tem que ser o proprio
+# executavel (logo depois do comando, com aspas opcionais), nao um argumento qualquer da linha.
 $script:NsisPattern = '\b(nsExec::\w+|ExecWait|ExecShell\w*|Exec)\b'
-$script:NsisGoodPattern = '\b(nsExec::\w+|ExecWait|ExecShell\w*|Exec)\s+(/\w+(=\S+)?\s+)*[''"`]{0,3}\$SYSDIR[\\/]'
+$script:NsisGoodPattern = '\b(nsExec::\w+|ExecWait|ExecShell\w*|Exec)\s+(/\w+(=\S+)?\s+)*[''"`]{0,3}\$(SYSDIR|PLUGINSDIR|INSTDIR)[\\/]'
 
 # SEC-31 / SEC-32 (DR-06, SG-09): o plugin `System` chama a API do Windows direto e escapa do padrao
 # acima. Iniciar processo, abrir shell, apagar e mover arquivo por `System::Call` so no `.nsh` do
@@ -135,6 +139,32 @@ function Get-CfgTestItemEnd([string[]]$Lines, [int]$Start, [string]$Indent) {
     return -1
 }
 
+# Regras de NSIS (SEC-31, SEC-32) sobre as linhas de UM arquivo. `$Rel` e o caminho relativo ao repo
+# (a lista de donos do System::Call usa esse caminho). Vale para os `.nsi`/`.nsh` do repo e para o
+# `installer.nsi` gerado pelo Tauri (BE-39: scripts/ci.ps1 -Release).
+function Get-NsisViolations([string]$Rel, [string[]]$Lines) {
+    $out = New-Object System.Collections.Generic.List[string]
+    for ($i = 0; $i -lt $Lines.Count; $i++) {
+        if (Test-CommentLine $Lines[$i] 'nsis') { continue }
+        if ($Lines[$i] -match $script:NsisPattern -and $Lines[$i] -notmatch $script:NsisGoodPattern) {
+            $out.Add(('SEC-32 {0}:{1} executavel externo sem caminho absoluto ($SYSDIR\, $PLUGINSDIR\ ou $INSTDIR\) ({2})' -f $Rel, ($i + 1), $Matches[0]))
+        }
+        if ($Lines[$i] -match $script:NsisSystemCallPattern -and ($script:NsisSystemCallOwners -notcontains $Rel)) {
+            $out.Add(('SEC-32 {0}:{1} System::Call com `{2}` fora do .nsh do desinstalador revisado' -f $Rel, ($i + 1), $Matches[2]))
+        }
+        if ($Lines[$i] -match $script:NsisDataDeletePattern) {
+            $out.Add(('SEC-31 {0}:{1} `{2}` do NSIS sobre a pasta de dados do usuario (use o purge do usuario)' -f $Rel, ($i + 1), $Matches[1]))
+        }
+    }
+    return $out.ToArray()
+}
+
+# Script NSIS gerado pelo Tauri (target/<triple>/release/nsis/<arch>/installer.nsi): mesmas regras.
+function Invoke-GeneratedNsisGuard([string]$Path) {
+    $lines = @(Get-Content -LiteralPath $Path -Encoding UTF8)
+    return @(Get-NsisViolations ('generated/' + (Split-Path -Leaf $Path)) $lines)
+}
+
 # Devolve uma lista de textos "REGRA arquivo:linha padrao". Lista vazia = limpo.
 function Invoke-Guards([string]$Root) {
     $violations = New-Object System.Collections.Generic.List[string]
@@ -176,20 +206,7 @@ function Invoke-Guards([string]$Root) {
     foreach ($f in @(Get-SourceFiles $Root @('*.nsi', '*.nsh'))) {
         $rel = ConvertTo-Rel $Root $f.FullName
         $lines = @(Get-Content -LiteralPath $f.FullName -Encoding UTF8)
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            if (Test-CommentLine $lines[$i] 'nsis') { continue }
-            # O `$SYSDIR\` tem que ser o proprio executavel (logo depois do comando, com aspas
-            # opcionais), nao um argumento qualquer da linha.
-            if ($lines[$i] -match $script:NsisPattern -and $lines[$i] -notmatch $script:NsisGoodPattern) {
-                $violations.Add(('SEC-32 {0}:{1} executavel externo sem $SYSDIR\ ({2})' -f $rel, ($i + 1), $Matches[0]))
-            }
-            if ($lines[$i] -match $script:NsisSystemCallPattern -and ($script:NsisSystemCallOwners -notcontains $rel)) {
-                $violations.Add(('SEC-32 {0}:{1} System::Call com `{2}` fora do .nsh do desinstalador revisado' -f $rel, ($i + 1), $Matches[2]))
-            }
-            if ($lines[$i] -match $script:NsisDataDeletePattern) {
-                $violations.Add(('SEC-31 {0}:{1} `{2}` do NSIS sobre a pasta de dados do usuario (use o purge do usuario)' -f $rel, ($i + 1), $Matches[1]))
-            }
-        }
+        foreach ($v in @(Get-NsisViolations $rel $lines)) { $violations.Add($v) }
     }
     # Sem a virgula: a lista e desenrolada na saida e o chamador usa @(...) para contar.
     return $violations.ToArray()
@@ -208,7 +225,9 @@ function Invoke-GuardSelfTest {
         Set-Content -LiteralPath (Join-Path $win 'foreground.rs') -Value @('// SendInput so aqui', 'fn b() { SetForegroundWindow(h); AllowSetForegroundWindow(0); }')
         Set-Content -LiteralPath (Join-Path $win 'clean.rs') -Value @('// EWX_FORCE nao e usado', 'fn c() { EWX_POWEROFF; }', '#[cfg(test)]', 'mod tests { fn t() { remove_dir_all(p); } }')
         Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/ok.manifest') -Value '<requestedExecutionLevel level="asInvoker" uiAccess="false"/>'
-        Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/ok.nsh') -Value @('; ExecWait sem SYSDIR em comentario', 'nsExec::Exec ''"$SYSDIR\schtasks.exe" /?''')
+        Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/ok.nsh') -Value @('; ExecWait sem SYSDIR em comentario', 'nsExec::Exec ''"$SYSDIR\schtasks.exe" /?''',
+            'ExecWait ''"$PLUGINSDIR\web.exe" /silent /install'' $1',
+            'ExecWait ''"$INSTDIR\uninstall.exe" /UPDATE _?=$INSTDIR'' $0')
         # NSIS: o dono revisado pode chamar API pelo System; Delete e RMDir fora da pasta de dados
         # e comentario sobre a pasta de dados passam em qualquer arquivo.
         New-Item -ItemType Directory -Force -Path (Join-Path $tmp 'src-tauri/windows') | Out-Null
@@ -257,7 +276,7 @@ function Invoke-GuardSelfTest {
         )
         Set-Content -LiteralPath (Join-Path $win 'rogue.rs') -Value ($planted | ForEach-Object { "fn x() { $_(); }" })
         Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/bad.manifest') -Value '<requestedExecutionLevel level="asInvoker" uiAccess="true"/>'
-        Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/bad.nsh') -Value @('nsExec::Exec "schtasks.exe /delete"', 'ExecWait "cmd /c del x"', 'nsExec::Exec ''"cmd.exe" /c $SYSDIR\x.exe''')
+        Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/bad.nsh') -Value @('nsExec::Exec "schtasks.exe /delete"', 'ExecWait "cmd /c del x"', 'nsExec::Exec ''"cmd.exe" /c $SYSDIR\x.exe''', 'ExecWait ''"$TEMP\web.exe" /install'' $1', 'ExecWait ''"$R1" /x'' $0')
         # NSIS: System::Call fora do dono (uma linha por API) e Delete/RMDir sobre a pasta de dados.
         $nsisApis = @('CreateProcessW', 'ShellExecuteW', 'DeleteFileW', 'RemoveDirectoryW', 'SHFileOperationW', 'MoveFileExW', 'DeleteFileA')
         Set-Content -LiteralPath (Join-Path $tmp 'src-tauri/bad-system.nsh') -Value @(
@@ -291,6 +310,8 @@ function Invoke-GuardSelfTest {
         if ($text -notmatch 'midtest\.rs:7 `DeleteFileW`') { throw 'autoteste: codigo de producao depois de #[cfg(test)] no meio do arquivo nao foi varrido' }
         if ($text -match 'midtest\.rs:(4|10) ') { throw 'autoteste: item #[cfg(test)] foi varrido (deveria ser pulado)' }
         if ($text -notmatch 'bad\.nsh:3 ') { throw 'autoteste: $SYSDIR como argumento (nao como executavel) nao foi acusado' }
+        if ($text -notmatch 'bad\.nsh:4 ') { throw 'autoteste: executavel em $TEMP nao foi acusado' }
+        if ($text -notmatch 'bad\.nsh:5 ') { throw 'autoteste: executavel lido de variavel nao foi acusado' }
         foreach ($api in $nsisApis) {
             if ($text -notmatch ('bad-system\.nsh:\d+ System::Call com `' + $api + '`')) { throw "autoteste: System::Call com $api fora do dono nao foi acusado" }
         }
@@ -301,6 +322,7 @@ function Invoke-GuardSelfTest {
         if ($text -notmatch 'SEC-31 src-tauri/windows/uninstall-hooks\.nsh:2 ') { throw 'autoteste: o dono do System::Call tambem nao pode apagar a pasta de dados pelo NSIS' }
         if ($text -match 'uninstall-hooks\.nsh:1 ') { throw 'autoteste: dono do System::Call acusado indevidamente' }
         if ($text -match 'ok-system\.nsh') { throw 'autoteste: arquivo NSIS limpo acusado' }
+        if ($text -match 'ok\.nsh') { throw 'autoteste: $PLUGINSDIR e $INSTDIR como executavel foram acusados indevidamente' }
         # Os donos nao podem aparecer entre as violacoes.
         foreach ($owner in @('xinput.rs', 'foreground.rs')) {
             if ($text -match ($owner + ':\d+ `(XInputGetState|SetForegroundWindow)`')) { throw "autoteste: dono acusado indevidamente: $owner" }
