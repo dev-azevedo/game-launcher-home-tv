@@ -42,8 +42,8 @@ export function HideConfirmDialog({ active, entry, parentKey }: Props) {
       onConfirm={() => void confirm()}
       onCancel={() => remove(entry.key)}
     >
-      O jogo sai da biblioteca e não volta nas atualizações. Nenhum arquivo é apagado. Para restaurar, abra
-      Configurações e escolha Itens ocultos.
+      <p>O jogo sai da biblioteca e não volta nas atualizações. Nenhum arquivo é apagado.</p>
+      <p>Para restaurar, abra Configurações e escolha Itens ocultos.</p>
     </ConfirmDialog>
   );
 }

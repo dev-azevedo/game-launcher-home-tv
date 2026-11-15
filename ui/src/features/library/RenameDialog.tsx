@@ -4,7 +4,9 @@ import { useNavigation } from '@/app/navigation/store';
 import { errorCopyFor } from '@/shared/domain/errors';
 import { useBackHandler } from '@/shared/input/activation';
 import { errorOf, ipc } from '@/shared/ipc';
+import { DialogSide } from '@/shared/ui/DialogSide';
 import { Focusable, FocusLayer } from '@/shared/ui/Focusable';
+import { Icon } from '@/shared/ui/Icon';
 import { selectGameById, useLibrary } from './store';
 
 interface Props {
@@ -58,6 +60,7 @@ export default function RenameDialog({ active, entry, parentKey }: Props) {
       <div className="center">
         <div className="scrim-l" />
         <div className="dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+          <DialogSide icon="pencil" />
           <div className="dc">
             <h2 id={titleId}>Renomear jogo</h2>
             {game?.originalName ? <div className="body">Nome original: {game.originalName}</div> : null}
@@ -100,6 +103,7 @@ export default function RenameDialog({ active, entry, parentKey }: Props) {
                 onFocus={leaveField}
                 onActivate={() => void save()}
               >
+                <Icon name="check" />
                 Salvar
               </Focusable>
             </div>

@@ -1,12 +1,21 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { ScreenEntry } from '@/app/navigation/screens';
 import { useNavigation } from '@/app/navigation/store';
 import { useSession } from '@/features/session/store';
 import { errorCopyFor } from '@/shared/domain/errors';
 import { errorOf, ipc } from '@/shared/ipc';
+import { originLabel } from '@/shared/ui/Badges';
+import { ButtonHints } from '@/shared/ui/ButtonHints';
+import { CoverImage } from '@/shared/ui/Cover';
 import { FocusLayer } from '@/shared/ui/Focusable';
 import { MenuList, type MenuItemSpec } from '@/shared/ui/MenuList';
+import { lastPlayedLabel } from './domain';
 import { selectGameById, useLibrary } from './store';
+
+const HINTS = [
+  { glyphs: ['A' as const], label: 'Escolher' },
+  { glyphs: ['B' as const], label: 'Voltar' },
+];
 
 interface GameOptionsProps {
   active: boolean;
@@ -22,6 +31,7 @@ export function GameOptions({ active, entry }: GameOptionsProps) {
   const game = useLibrary(selectGameById(gameId));
   const play = useSession((s) => s.play);
   const { push, remove } = useNavigation.getState();
+  const [now] = useState(() => Date.now());
   const gone = !game;
 
   // O jogo saiu da biblioteca com a lista aberta: fecha a camada.
@@ -87,9 +97,18 @@ export function GameOptions({ active, entry }: GameOptionsProps) {
         <div className="scrim-l" />
         <div className="menu options">
           <div className="mh">
-            <h2 className="clamp2">{game.name}</h2>
+            <div className="thumb sm">
+              <CoverImage gameId={game.cover ? game.id : null} name={game.name} />
+            </div>
+            <div className="mh-text">
+              <h2 className="clamp2">{game.name}</h2>
+              <div className="sub">
+                {originLabel(game.origin)} · {lastPlayedLabel(game.lastPlayedAt, now)}
+              </div>
+            </div>
           </div>
           <MenuList label={`Opções de ${game.name}`} items={items} />
+          <ButtonHints hints={HINTS} />
         </div>
       </div>
     </FocusLayer>

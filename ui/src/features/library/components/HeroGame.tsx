@@ -17,7 +17,7 @@ export function HeroGame({ game, allGames = false, now }: HeroGameProps) {
         {game ? (
           <>
             <span className="pill">{originLabel(game.origin)}</span>
-            <span>{game.inProgress ? 'Em andamento. A volta ao jogo.' : lastPlayedLabel(game.lastPlayedAt, now)}</span>
+            <span>{game.inProgress ? 'Em andamento. Aperte A para voltar ao jogo.' : lastPlayedLabel(game.lastPlayedAt, now)}</span>
           </>
         ) : allGames ? (
           <span>Biblioteca</span>

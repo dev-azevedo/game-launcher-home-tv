@@ -49,6 +49,15 @@ describe('opcoes do jogo (CA-79, RN-33)', () => {
     expect(document.querySelectorAll('[data-focused="true"]')).toHaveLength(1);
   });
 
+  it('cabecalho com miniatura, nome e "Origem · Jogado ..." e dicas A e B no rodape (DES-BUG-03)', async () => {
+    await openOptions(game({ lastPlayedAt: Date.now() }));
+    const menu = document.querySelector('.menu.options') as HTMLElement;
+    expect(menu.querySelector('.mh .thumb.sm')).not.toBeNull();
+    expect(menu.querySelector('.mh h2')).toHaveTextContent('Vale dos Ventos');
+    expect(menu.querySelector('.mh .sub')).toHaveTextContent('Steam · Jogado hoje');
+    expect(menu.querySelector('.hints')).toHaveTextContent(/Escolher.*Voltar/);
+  });
+
   it('"Restaurar nome original" so aparece com nome alterado (CA-62)', async () => {
     await openOptions(game({ originalName: 'Vale do Vento' }));
     expect(screen.getByText('Restaurar nome original')).toBeInTheDocument();
@@ -88,6 +97,11 @@ describe('opcoes do jogo (CA-79, RN-33)', () => {
     await screen.findByRole('alertdialog');
     await waitFor(() => expect(screen.getByRole('button', { name: 'Cancelar' })).toHaveAttribute('data-focused', 'true'));
     expect(core.count('game_hide')).toBe(0);
+    // DES-BUG-05: dois paragrafos, como no microcopy.
+    const paragraphs = screen.getByRole('alertdialog').querySelectorAll('.body p');
+    expect(paragraphs).toHaveLength(2);
+    expect(paragraphs[0]).toHaveTextContent('Nenhum arquivo é apagado.');
+    expect(paragraphs[1]).toHaveTextContent('Para restaurar, abra Configurações e escolha Itens ocultos.');
     press(() => setFocus('dlg-confirm'));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Ocultar' })).toHaveAttribute('data-focused', 'true'));
     press(activateFocused);
@@ -111,6 +125,13 @@ describe('renomear (CA-61)', () => {
       setter.call(input, value);
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
+
+  it('lapis no cabecalho e check no botao Salvar (DES-BUG-07)', async () => {
+    await openRename();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.querySelector('.side .badge-ic .ic')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Salvar' }).querySelector('.ic')).not.toBeNull();
+  });
 
   it('comeca com o nome atual; Enter salva com o nome novo', async () => {
     const core = mockCore({ game_rename: game({ name: 'Novo nome' }) });
