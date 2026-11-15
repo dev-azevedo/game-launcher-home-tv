@@ -13,8 +13,13 @@
   7. cargo deny check (SEC-24, SEC-30: sem cliente HTTP, licencas, advisories)
   8. npm audit dos pacotes de producao da UI (precisa de rede; -SkipAudit pula)
   9. npm run check da UI (typecheck, lint, testes; -SkipUi pula)
+  10. SO com -Release (BE-39, D-34): build de release em MSVC e instalador NSIS, na pasta de releases
+      (veja scripts/ci-release.ps1): cargo test no MSVC, relatorios de cargo deny e npm audit, tauri build,
+      trava do ARQ-BUG-08 (exatamente um RT_MANIFEST no sofa.exe), guards no installer.nsi gerado, testes
+      do instalador sem instalar (scripts/test-installer.ps1), SHA256SUMS.txt e README.txt.
 
-  Sai com codigo 0 so se tudo passar. Toolchain: o do rust-toolchain.toml.
+  Sai com codigo 0 so se tudo passar. Toolchain: o do rust-toolchain.toml (o dev passa no `-gnu`; o
+  release usa a toolchain MSVC da mesma versao, ADR-0001).
 
 .PARAMETER SkipAudit
   Nao roda o npm audit (offline). Registre o motivo no commit/release.
@@ -22,6 +27,17 @@
   Nao roda o npm run check da UI (quando so o back mudou e a UI esta em edicao).
 .PARAMETER SelfTestOnly
   Roda so o autoteste dos guards.
+.PARAMETER Release
+  Depois dos passos acima, gera o release MSVC (instalador + SHA256SUMS.txt) em <ReleasesDir><versao>.
+.PARAMETER SkipDevChecks
+  Com -Release: pula os passos 1 a 9 (use quando acabou de rodar o CI normal no mesmo commit).
+.PARAMETER ReleasesDir
+  Pasta de releases local (D-34). Padrao: ..\sofa-releases, ao lado do repo (fora do git).
+.PARAMETER SkipMsvcTests
+  Com -Release: nao roda `cargo test --workspace` no MSVC (so a trava do manifesto e os testes do instalador).
+.PARAMETER AllowUntagged
+  Com -Release: permite build sem a tag v<versao> no HEAD e com arvore suja (build de teste; fica marcado
+  em BUILD-INFO.txt). Release oficial exige a tag (RN-30).
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File scripts/ci.ps1
@@ -30,13 +46,19 @@
 param(
     [switch]$SkipAudit,
     [switch]$SkipUi,
-    [switch]$SelfTestOnly
+    [switch]$SelfTestOnly,
+    [switch]$Release,
+    [switch]$SkipDevChecks,
+    [string]$ReleasesDir,
+    [switch]$SkipMsvcTests,
+    [switch]$AllowUntagged
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $root
 . (Join-Path $PSScriptRoot 'ci-guards.ps1')
+. (Join-Path $PSScriptRoot 'ci-release.ps1')
 
 $script:failed = New-Object System.Collections.Generic.List[string]
 
@@ -64,7 +86,7 @@ Invoke-Step 'autoteste dos guards' {
     Write-Host ("  {0} violacoes plantadas detectadas, arvore limpa sem alarme" -f $n)
 }
 
-if (-not $SelfTestOnly) {
+if (-not $SelfTestOnly -and -not ($Release -and $SkipDevChecks)) {
     Invoke-Step 'guards de arquitetura e seguranca' {
         $v = @(Invoke-Guards $root)
         if ($v.Count -gt 0) {
@@ -108,6 +130,21 @@ if (-not $SelfTestOnly) {
             Push-Location (Join-Path $root 'ui')
             try { npm run check } finally { Pop-Location }
         }
+    }
+}
+
+if ($Release -and -not $SelfTestOnly) {
+    if ($script:failed.Count -gt 0) {
+        Write-Host "`n=== release: NAO gerado (o CI acima falhou)" -ForegroundColor Red
+    }
+    else {
+        # cada passo do release para os seguintes se algum falhar; o instalador so vai para a pasta no fim
+        $stepGuard = {
+            param($n, $b)
+            if ($script:failed.Count -gt 0) { Write-Host ("`n=== {0}: PULADO (passo anterior falhou)" -f $n) -ForegroundColor Yellow }
+            else { Invoke-Step $n $b }
+        }
+        Invoke-Release -Root $root -ReleasesDir $ReleasesDir -SkipMsvcTests:$SkipMsvcTests -SkipAudit:$SkipAudit -AllowUntagged:$AllowUntagged -Step $stepGuard
     }
 }
 

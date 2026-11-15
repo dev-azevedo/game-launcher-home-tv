@@ -23,6 +23,7 @@ powershell -ExecutionPolicy Bypass -File scripts/ci.ps1               # tudo
 powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 -SkipAudit    # sem rede (registre o motivo)
 powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 -SkipUi       # só o back
 powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 -SelfTestOnly # só o autoteste dos guards
+powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 -Release      # CI + release MSVC (instalador e SHA256SUMS)
 ```
 
 Passos, nesta ordem (para no fim com código 1 se qualquer um falhar):
@@ -52,7 +53,46 @@ Passos, nesta ordem (para no fim com código 1 se qualquer um falhar):
 Para adicionar uma regra de guard, edite `$GuardRules` em `scripts/ci-guards.ps1` e acrescente o
 token ao autoteste.
 
+## Release e instalador (BE-37 a BE-39, BE-42, BE-46)
+
+O CI de dev continua no `-gnu` e **não** ganhou passo MSVC por padrão: o `-gnu` é rápido, e o MSVC
+só é necessário para o que é distribuído (loader do WebView2 estático, CFG, um único `RT_MANIFEST`;
+ADR-0001). O MSVC entra em `scripts/ci.ps1 -Release`, que depois dos passos acima gera o release em
+`..\sofa-releases\v<versão>` (ao lado do repo, fora do git; troque com `-ReleasesDir`):
+
+1. `cargo test --workspace` no MSVC (`-SkipMsvcTests` pula), na toolchain MSVC **da versão fixada** em
+   `rust-toolchain.toml` (ou `stable-...-msvc` se for a mesma versão; senão o script diz o comando
+   `rustup toolchain install`).
+2. Relatórios de `cargo deny` e `npm audit` (produção, nível alto) em `relatorios\`.
+3. `tauri build --target x86_64-pc-windows-msvc --bundles nsis` (a CLI vem do `ui/package.json`, sem
+   scripts de instalação): NSIS por máquina, `Program Files\Sofa`, bootstrapper do WebView2 embutido.
+4. **Trava do ARQ-BUG-08**: `src-tauri/tests/manifest_resource.rs` lê o diretório de recursos do
+   `sofa.exe` MSVC e exige exatamente um `RT_MANIFEST` (`asInvoker`, `uiAccess="false"`, Common
+   Controls v6). No `-gnu` o mesmo teste só avisa (o MinGW soma o manifesto dele ao nosso).
+5. Guards de NSIS (SEC-31, SEC-32) no `installer.nsi` gerado.
+6. `scripts/test-installer.ps1`: testes do instalador e do desinstalador **sem instalar nada**, sem
+   elevação, em pastas temporárias (veja abaixo).
+7. Copia o instalador, gera `SHA256SUMS.txt` (formato do `sha256sum -c`), `README.txt` com o
+   `Get-FileHash` e `BUILD-INFO.txt`, e confere o hash recalculando.
+
+Release oficial sai **de uma tag** `v<versão>` com a árvore limpa (RN-30); `-AllowUntagged` permite um
+build de teste, marcado como tal em `BUILD-INFO.txt`. O instalador não é assinado (D-11): quem recebe
+confere o SHA-256. O `target\`, `*-setup.exe` e `SHA256SUMS.txt` estão no `.gitignore`; binário nunca
+entra no git.
+
+`scripts/test-installer.ps1` (também roda sozinho, depois de um `tauri build`, que baixa o NSIS):
+compila com o `makensis` do Tauri o harness `src-tauri/windows/tests/harness.nsi`, que roda as mesmas
+funções de `uninstall-hooks.nsh`, e um stub de `sofa.exe`. Cobre: SID, decisão por código de saída
+do purge (0 a 4, não lido, ainda rodando), purge de ponta a ponta (filho do Explorer, integridade
+Medium, mesmo usuário), caminho alternativo com o `CreateProcessW` forçado a falhar, fallback restrito
+(só `library.json` e `settings.json`; raiz e arquivos como junction, ponto de reanálise, pasta, hard
+link, somente leitura, em uso; junction trocada em laço) e a remoção da tarefa de autostart por SID.
+Symlink de verdade exige privilégio: num PowerShell elevado o script o inclui sozinho. O que só vale
+instalando (UAC de outra conta, ACL, `HKU` de outros perfis, DLL plantada) fica no QA-17.
+
 ## Toolchain
 
 `rust-toolchain.toml` fixa o toolchain estável (piso 1.77.2, SEC-24). Na máquina de desenvolvimento
-atual o alvo é `x86_64-pc-windows-gnu` com `windows` 0.58; o release usa MSVC (ver `Cargo.toml`).
+atual o alvo é `x86_64-pc-windows-gnu` com `windows` 0.58; o release usa MSVC (ver `Cargo.toml` e a
+seção "Release e instalador"). Com o VS 2022 instalado, o `rustup` acha o linker MSVC sozinho; não
+ponha o MinGW na frente do `PATH` ao compilar para MSVC.

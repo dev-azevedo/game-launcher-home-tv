@@ -360,3 +360,55 @@ As seções 1 a 9 valem como estão. Esta seção registra o que a UI e o QA obs
 - O alvo é calculado no processo: `FOLDERID_LocalAppData` + `app.sofa.launcher` (fixo no build, conferido contra o `tauri.conf.json`). Travas (SEC-25), lidas do handle aberto sem seguir link: não é ponto de reanálise, o caminho final está exatamente um nível abaixo de `%LOCALAPPDATA%` e contém `library.json` ou `settings.json`.
 - Remoção por handle (`FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS`, atributos do handle, caminho final do filho dentro do caminho final do pai, `FileDispositionInfoEx` com fallback): ponto de reanálise é apagado sem descer; pastas são abertas sem `FILE_SHARE_DELETE` enquanto percorridas.
 - Remoção parcial (ex.: arquivo de `EBWebView\` em uso): o resto sai e o código é 1. Como `library.json` e `settings.json` já saíram, uma segunda rodada recusa (código 2): o que sobrar é o "resto documentado" do desinstalador (ADR-0006 §6b).
+
+## 11. Notas de implementação (BE-37, BE-38, BE-39, BE-42, BE-46; rev. 6, sem mudança de comandos, eventos, DTOs nem códigos)
+
+O instalador, o desinstalador e o release não têm IPC. Esta seção é o contrato do que o instalador **grava, lê e executa**, e dos pontos em que a implementação detalhou ou divergiu do ADR-0006 rev. 6.
+
+### Instalador (BE-37)
+
+- Artefato: `Sofa_<versão>_x64-setup.exe` (NSIS 3.13 do Tauri, `installMode: perMachine`, pede UAC). Pasta `%ProgramFiles%\Sofa` (ASCII); nome exibido **"Sofá"** (atalho, "Aplicativos instalados", telas) vem do template, porque `productName` fica "Sofa" para o nome do arquivo e da pasta. Binário `sofa.exe`, identificador `app.sofa.launcher`.
+- Template próprio `src-tauri/windows/installer.nsi`, fork do template do Tauri 2.12.4 (diferenças listadas no cabeçalho do arquivo). Arquivos: `hooks.nsh` (`installerHooks`), `install-hooks.nsh`, `uninstall-hooks.nsh` (dono do guard de `System::Call`; a lista `NsisSystemCallOwners` ficou como estava), `PortugueseBR.nsh` (todas as telas).
+- **Grava só** (SEC-29): a pasta de instalação, os atalhos (menu Iniciar de todos os usuários; o da área de trabalho é opção da página final, **desmarcada**), a entrada de "Aplicativos instalados" e `HKLM\Software\app.sofa.launcher`:
+
+  | Valor | Tipo | Conteúdo |
+  |---|---|---|
+  | (padrão) e `InstallLocation` | REG_SZ | pasta de instalação, sem aspas |
+  | `InstallDefaults` | REG_DWORD | `1` ou `0`, o que a caixa "Iniciar com o Windows" disse. O app só trata DWORD 0/1 (SEC-21) |
+
+  Visão de 64 bits (`SetRegView 64`), a mesma que o app lê. **Não grava** em `HKCU`, não cria tarefa nem `Run`, não mexe em ACL (a pasta herda `Program Files`: Users só lê e executa, SEC-20) e não escreve na pasta de dados.
+- Página "Iniciar com o Windows" (depois da pasta, antes de instalar): caixa **marcada** e a orientação de RN-19. Ao reinstalar, a caixa parte do `InstallDefaults` gravado (só o DWORD 0 desmarca); sem tela (`/S`, `/P`, `/UPDATE`) vale o que já estava gravado, ou 1.
+- Abrir ao terminar: caixa da página final (marcada) com `nsis_tauri_utils::RunAsUser`: o app abre com o token do shell do usuário interativo (Medium), nunca como filho do instalador elevado (SEC-21).
+- WebView2 (P-01): bootstrapper embutido, executado de `$PLUGINSDIR` (não de `$TEMP`), só se o runtime faltar e fora de atualização. Falha (sem internet) mostra o texto de CA-50 sem alteração: "Não foi possível baixar o WebView2. Conecte o PC à internet e tente de novo."
+- Atualizar por cima (CA-53): o desinstalador anterior roda sempre com `/UPDATE`, que **não** apaga dados, não remove tarefa/`Run` e não apaga a chave do HKLM; o instalador novo grava de novo o mesmo `InstallDefaults`. Escolher "desinstalar" na mesma versão roda o desinstalador de verdade (sem `/UPDATE`).
+- Licenças OFL (Figtree e Sora) em `<pasta>\licenses\`. Sem MSI, sem página de licença, sem seletor de idioma.
+- Textos novos das telas (ainda não estavam no `microcopy.md`; revisão de design pendente): "Iniciar com o Windows" / "Escolha se o Sofá abre sozinho quando você entra no Windows." / "Vale para cada pessoa que usar o Sofá neste PC. Dá para mudar depois, em Configurações." / "Para usar o Sofá só com o controle, deixe o Windows entrar sozinho na área de trabalho: entrada automática, PIN ou Windows Hello. Isso é uma configuração do Windows, fora do Sofá, e o instalador não altera o seu login." / "Manter dados (biblioteca e configurações)". Mensagens do desinstalador: ver `PortugueseBR.nsh` (`sofaPurge*`).
+
+### Desinstalador (BE-38, BE-42)
+
+Ordem no `Section Uninstall`: **1.** fecha o Sofá (verificação do template, RestartManager; se não fechar, a desinstalação aborta e nada é apagado); **2.** `un.SofaBeforeUninstall` (só fora de `/UPDATE`); **3.** apaga os binários; **4.** apaga `HKLM\Software\app.sofa.launcher`.
+
+- **Autostart de todos os perfis (BE-42, SEC-32)**, sempre fora de `/UPDATE`: para cada chave da `ProfileList` com SID em `^S-1-5-21(-[0-9]{1,10}){4}$` (validado caractere a caractere; outro formato é ignorado sem executar nada): `"$SYSDIR\schtasks.exe" /Delete /TN "Sofa Autostart (<SID>)" /F` (caminho absoluto, sem `cmd`; no stub de 32 bits `$SYSDIR` é `SysWOW64`, que opera o mesmo Agendador) e remoção do valor `Sofa` em `HKU\<SID>\...\Run` e `...\Explorer\StartupApproved\Run` (só hive carregado; hive descarregado deixa entrada órfã que o Windows ignora). Escolhido o `schtasks.exe` por SID, não o COM por prefixo: enumerar o Agendador por COM exigiria vtable de `ITaskService` com `VARIANT` por valor pelo plugin `System`, que o NSIS não faz com segurança.
+- **"Manter dados"** marcada por padrão (CA-68); sem tela, vale "manter". Desmarcada, o desinstalador **decide** e o `sofa.exe --purge-user-data` (BE-41) apaga:
+  1. Usuário interativo (DR-03, E-19): abre o Explorer da sessão (`GetShellWindow`, `PROCESS_CREATE_PROCESS | PROCESS_QUERY_LIMITED_INFORMATION`, sem `SeDebugPrivilege`). O SID vem do token do Explorer e, de outra fonte, do usuário da sessão deste processo (`WTSQuerySessionInformationW` + `LookupAccountNameW`); se as duas respondem e divergem, ou nenhuma responde, nada é apagado. O `LocalAppData` é `ProfileImagePath` (da `ProfileList`, nunca o `%LOCALAPPDATA%` do processo elevado) + `\AppData\Local`.
+  2. Purge: `CreateProcessW` com `PROC_THREAD_ATTRIBUTE_PARENT_PROCESS` = Explorer, `bInheritHandles = FALSE`, linha de comando constante `"<pasta>\sofa.exe" --purge-user-data`; espera até 60 s e lê `GetExitCodeProcess`. Se o `OpenProcess` ou o `CreateProcessW` falhar, cai no `RunAsUser` do plugin + `FindProcess` em laço de 60 s (código **não lido**).
+  3. Decisão:
+
+  | Resultado do purge | O desinstalador |
+  |---|---|
+  | código 0 | nada mais |
+  | 1 (parcial) ou 3 (elevado) | fallback restrito; mostra a pasta |
+  | 2 (alvo inválido) ou 4 (Sofá aberto) | **não** apaga nada; mostra a pasta |
+  | não lido, ou outro valor | fallback restrito; mostra a pasta |
+  | ainda rodando depois de 60 s (qualquer código) | **não** apaga nada; mostra a pasta |
+  | perfil interativo não resolvido | **não** apaga nada; informa `app.sofa.launcher` em `AppData\Local` do usuário |
+
+  "Mostra a pasta" = aviso com o texto e o caminho + `explorer.exe` aberto **como o usuário** (`RunAsUser`, caminho absoluto), nunca um Explorer elevado. Sem tela (`/S`), só o aviso é omitido; nada é apagado a mais.
+- **Fallback restrito (D-43)**, elevado, **no máximo `library.json` e `settings.json`** na raiz, pelo nome exato (sem curinga, subpasta, recursão nem `Delete` do NSIS): (1) o `LocalAppData` do perfil é aberto e o caminho final tem que ser o mesmo texto do perfil (sem junction no caminho; perfil redirecionado de propósito cai em "nada apagado"); (2) a raiz é aberta **sem `FILE_SHARE_DELETE`** (`OPEN_REPARSE_POINT | BACKUP_SEMANTICS`) e tem que ser pasta, não ponto de reanálise, com caminho final = `LocalAppData\app.sofa.launcher`; (3) cada arquivo é aberto com `DELETE | FILE_READ_ATTRIBUTES` e `OPEN_REPARSE_POINT`; pelo handle: não é link nem pasta, caminho final = raiz final + nome, raiz final relida inalterada; (4) exclusão **pelo handle** (`FileDispositionInfoEx` com POSIX e ignora somente leitura; `FileDispositionInfo` no Windows anterior ao 1709). Hard link: some só o nome da raiz.
+- Desvios e detalhes do ADR-0006: (a) o ADR dá o `System` como caminho do `CreateProcessW`; implementado como descrito, com o filho herdando o token do Explorer. A conferência **elevada** (integridade Medium do filho, usuário do Explorer e não da conta do UAC, `OpenProcess` com UAC de outra conta) só vale instalando: QA-17. (b) o guard de SEC-32 passou a aceitar executável por `$PLUGINSDIR\` e `$INSTDIR\` além de `$SYSDIR\` (bootstrapper do WebView2 e desinstalador anterior); `$TEMP\`, nome relativo e variável continuam proibidos. (c) o template do Tauri tinha migração de WiX (`ExecWait` de `msiexec` lido do registro), WebView2 por download e instalador offline: saíram (o Sofá nunca foi MSI). (d) o desinstalador anterior só roda se estiver em `$INSTDIR` (instalação anterior em outra pasta, ex.: `/D=` diferente, mostra o erro de desinstalação em vez de rodar por caminho lido do registro).
+
+### Release e travas (BE-39, BE-46)
+
+- `scripts/ci.ps1 -Release` (detalhes no README): MSVC na versão fixada, `cargo test` no MSVC, relatórios, `tauri build`, trava do manifesto, guards no `installer.nsi` gerado, testes do instalador, `SHA256SUMS.txt` (formato `sha256sum -c`, hash em minúsculas, dois espaços, LF) e `README.txt` com `Get-FileHash`. O CI de dev segue no `-gnu` e **não** ganhou passo MSVC por padrão (decisão documentada no README).
+- **BE-46 (ARQ-BUG-08)**: `src-tauri/tests/manifest_resource.rs` lê o diretório de recursos do PE (tipo 24, por ID e idioma). MSVC: exatamente um `RT_MANIFEST`, ID 1, com `asInvoker`, `uiAccess="false"` e Common Controls v6, senão reprova. `-gnu`: só avisa (o `sofa.exe` de dev tem 2: 763 e 599 bytes, ID 1, idioma 1033) e exige que nenhum peça elevação. `SOFA_MANIFEST_EXE=<exe>` aponta o teste para o `sofa.exe` de release. O teste prova que reprova: PE sintético com um manifesto passa; com dois, sem Common Controls, com `requireAdministrator`, com `uiAccess="true"` ou com ID 2, reprova.
+- Testes do instalador: `scripts/test-installer.ps1` (ver README). O que não roda aqui e vai para o QA-17: instalar, desinstalar, UAC de outra conta, `RunAsUser` e `CreateProcessW` com Explorer como pai estando elevado, `icacls` da pasta, `HKU` de outros perfis, DLL plantada ao lado do instalador e do `sofa.exe`, Windows 10 22H2 limpo (sem WebView2), upgrade por cima (CA-53), symlink real (script elevado).
