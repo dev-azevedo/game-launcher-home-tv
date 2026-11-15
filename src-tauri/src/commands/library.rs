@@ -80,23 +80,15 @@ pub async fn library_refresh(
 ) -> Result<(), ErrorDto> {
     guard("library_refresh", || {
         no_args(&request)?;
-        // `Busy` tem prioridade sobre `Internal`: a porta vem antes do servico.
-        let permit = state.library_gate.try_enter()?;
-        let svc = service(&state, "library_refresh")?;
-        std::thread::Builder::new()
-            .name("library-refresh".into())
-            .spawn(move || {
-                let _permit = permit;
-                if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| svc.refresh())).is_err()
-                {
-                    tracing::error!("panico na atualizacao da biblioteca");
-                }
-            })
-            .map(|_| ())
-            .map_err(|error| {
-                tracing::error!(%error, "nao conseguiu criar a thread de varredura");
-                AppError::Internal
-            })
+        // `Busy` tem prioridade sobre `Internal`: a porta vem antes do servico. O corpo (porta,
+        // thread, `catch_unwind`, log) e o de `spawn_refresh`; `marks::navigable` so conta a 1a vez.
+        match state.library.get().cloned() {
+            Some(svc) => spawn_refresh(&state, svc),
+            None => {
+                drop(state.library_gate.try_enter()?);
+                Err(not_wired("library_refresh"))
+            }
+        }
     })
 }
 

@@ -158,7 +158,11 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
         Ok(t) => threads.push(Box::new(t)),
         Err(error) => tracing::error!(%error, "thread de entrada nao iniciou"),
     }
-    match SystemEvents::spawn(Arc::new(TauriSystemEvents::new(app.clone())), true) {
+    // Sem o hook de primeiro plano (ARQ-BUG-05): `ForegroundChanged` nao tem consumidor no MVP e
+    // o hook abria o processo da frente a cada troca de janela do sistema (superficie de SEC-28).
+    // Lembrete para quem ligar de novo: `WINEVENT_SKIPOWNPROCESS` nao avisa quando o Sofa volta
+    // para a frente.
+    match SystemEvents::spawn(Arc::new(TauriSystemEvents::new(app.clone())), false) {
         Ok(t) => threads.push(Box::new(t)),
         Err(error) => tracing::error!(%error, "thread de eventos do sistema nao iniciou"),
     }
