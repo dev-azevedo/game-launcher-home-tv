@@ -9,7 +9,8 @@
     2. cargo test no MSVC (pula com -SkipMsvcTests; -FullMsvcTests inclui os testes do jogo de teste, que o Defender barra)
     3. relatorios: cargo deny e npm audit de producao (anexados ao release)
     4. `tauri build --target x86_64-pc-windows-msvc --bundles nsis` (NSIS perMachine, bootstrapper do WebView2)
-    5. TRAVA ARQ-BUG-08: o sofa.exe MSVC com exatamente um RT_MANIFEST valido (tests/manifest_resource.rs)
+    5. TRAVAS do sofa.exe MSVC: exatamente um RT_MANIFEST valido (tests/manifest_resource.rs, ARQ-BUG-08) e Control
+       Flow Guard + ASLR + DEP no PE (tests/pe_hardening.rs, SEC-BUG-06)
     6. guards de NSIS no installer.nsi gerado
     7. testes do instalador e do desinstalador sem instalar (scripts/test-installer.ps1)
     8. copia o instalador para <releases>\v<versao>\, gera SHA256SUMS.txt, README.txt e BUILD-INFO.txt
@@ -126,10 +127,10 @@ function Invoke-Release {
             try { & (Join-Path $Root 'ui\node_modules\.bin\tauri.cmd') build --target $target --bundles nsis } finally { Pop-Location }
         }
 
-        & $Step 'trava ARQ-BUG-08: exatamente um RT_MANIFEST no sofa.exe MSVC' {
+        & $Step 'travas do sofa.exe MSVC: um RT_MANIFEST (ARQ-BUG-08) e Control Flow Guard (SEC-BUG-06)' {
             if (-not (Test-Path -LiteralPath $exe)) { throw "sofa.exe do release nao encontrado em $exe" }
             $env:SOFA_MANIFEST_EXE = $exe
-            try { cargo test --target $target -p sofa --test manifest_resource } finally { Remove-Item Env:\SOFA_MANIFEST_EXE -ErrorAction SilentlyContinue }
+            try { cargo test --target $target -p sofa --test manifest_resource --test pe_hardening } finally { Remove-Item Env:\SOFA_MANIFEST_EXE -ErrorAction SilentlyContinue }
         }
 
         & $Step 'guards de NSIS no installer.nsi gerado' {

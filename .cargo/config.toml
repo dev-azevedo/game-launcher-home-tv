@@ -1,0 +1,12 @@
+# Endurecimento do binario de release (SEC-BUG-06, SEC-23, ADR-0006).
+#
+# Control Flow Guard no alvo MSVC: o rustc nao liga por padrao. Sem a flag, o `sofa.exe` sai sem
+# IMAGE_DLLCHARACTERISTICS_GUARD_CF, e uma corrupcao de memoria (codigo `unsafe` de FFI, WebView2)
+# fica mais facil de explorar. Vale so para o MSVC (o `-gnu` do dia a dia nunca e distribuido e o
+# MinGW nao tem CFG); build scripts e proc macros compilam para o host e nao entram.
+#
+# A trava esta em `src-tauri/tests/pe_hardening.rs`: `scripts/ci.ps1 -Release` confere a flag no PE
+# do release. ATENCAO: a variavel de ambiente RUSTFLAGS, se definida, SUBSTITUI este arquivo; o
+# release nao a define, e o teste reprova se a flag sumir.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "control-flow-guard"]
