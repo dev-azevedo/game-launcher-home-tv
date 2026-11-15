@@ -1,6 +1,18 @@
 import type { InputIntent, IntentEvent, IntentSource } from './intents';
 
-/** Teclado de emergencia (RN-07): setas = D-pad, Enter = A, Esc = B, tecla de aplicativo ou F1 = Menu. */
+/**
+ * Teclado de emergencia (RN-07, CA-80, D-45): cada acao do controle tem uma tecla, menos a combinacao
+ * de retorno (View + Menu), que so existe no controle.
+ *
+ * | Tecla                    | Intencao             | Controle                       |
+ * | Setas                    | Up/Down/Left/Right   | D-pad                          |
+ * | Enter                    | Confirm              | A                              |
+ * | Esc ou Backspace         | Back                 | B                              |
+ * | F1 ou tecla de aplicativo| Menu                 | Menu (menu rapido)             |
+ * | F2                       | View                 | View (opcoes do jogo)          |
+ * | PgUp / PgDn              | PagePrev / PageNext  | LB / RB (pular linhas)         |
+ * | [ / ]                    | VolumeDown / VolumeUp| LT / RT (volume)               |
+ */
 const KEY_TO_INTENT: Record<string, InputIntent> = {
   ArrowUp: 'Up',
   ArrowDown: 'Down',
@@ -8,8 +20,14 @@ const KEY_TO_INTENT: Record<string, InputIntent> = {
   ArrowRight: 'Right',
   Enter: 'Confirm',
   Escape: 'Back',
+  Backspace: 'Back',
   ContextMenu: 'Menu',
   F1: 'Menu',
+  F2: 'View',
+  PageUp: 'PagePrev',
+  PageDown: 'PageNext',
+  '[': 'VolumeDown',
+  ']': 'VolumeUp',
 };
 
 /** Dentro de um campo de texto so Enter, Esc e setas verticais saem do campo (handoff 9). */
