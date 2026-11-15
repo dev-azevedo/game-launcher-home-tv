@@ -205,8 +205,8 @@ pub trait SessionWatch: Send {
     fn pids(&self) -> Vec<u32>;
     /// `WM_CLOSE` nas janelas de topo da sessao (pedido normal, RN-12).
     fn request_close(&self) -> Result<(), AppError>;
-    /// Encerra o conjunto: `TerminateJobObject` ou handle guardado com tempo de criacao
-    /// conferido (SEC-15). So depois de `force_close` confirmado (INV-05).
+    /// Encerra so os membros do jogo, cada um por handle guardado com tempo de criacao
+    /// conferido (SEC-15, SEC-BUG-01: nunca o Job inteiro). So depois de `force_close` confirmado (INV-05).
     fn force_close(&self) -> Result<(), AppError>;
 }
 

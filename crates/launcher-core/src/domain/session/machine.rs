@@ -74,7 +74,7 @@ pub enum SessionEffect {
     MarkPlayed(GameId),
     /// `WM_CLOSE` nas janelas da sessao (pedido normal).
     RequestClose,
-    /// Encerra os processos da sessao (handle guardado ou `TerminateJobObject`). So apos `force_close`.
+    /// Encerra os processos da sessao (so os membros, por handle e tempo de criacao). So apos `force_close`.
     ForceClose,
     /// Traz o jogo da sessao para a frente ("Voltar ao jogo").
     FrontGame,

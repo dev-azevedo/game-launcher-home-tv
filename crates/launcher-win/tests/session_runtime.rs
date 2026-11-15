@@ -126,7 +126,8 @@ fn watch_job(t: &LaunchTarget, sink: &Arc<Sink>) -> (Box<dyn SessionWatch>, Inst
     let plan = WatchPlan {
         game: t.game.clone(),
         job: started.job,
-        scan_dir: None,
+        // Pasta do jogo: o `classify` dos PIDs do Job precisa dela (SEC-BUG-01).
+        scan_dir: t.install_dir.clone(),
         steam_app_id: None,
     };
     assert!(plan.job.is_some(), "exe iniciado pelo Sofa entra no Job");
@@ -325,6 +326,96 @@ fn job_inclui_o_filho_e_so_avisa_o_fim_quando_o_ultimo_sai() {
     );
 }
 
+/// `true` se existe processo vivo com esse nome de imagem.
+fn alive_by_name(name: &str) -> bool {
+    use windows::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+        TH32CS_SNAPPROCESS,
+    };
+    // SAFETY: snapshot fechado ao fim; `entry` com `dwSize` correto.
+    unsafe {
+        let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).unwrap();
+        let mut entry = PROCESSENTRY32W {
+            dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+            ..Default::default()
+        };
+        let mut found = false;
+        let mut ok = Process32FirstW(snap, &mut entry).is_ok();
+        while ok {
+            let len = entry.szExeFile.iter().position(|c| *c == 0).unwrap();
+            if String::from_utf16_lossy(&entry.szExeFile[..len]).eq_ignore_ascii_case(name) {
+                found = true;
+                break;
+            }
+            ok = Process32NextW(snap, &mut entry).is_ok();
+        }
+        let _ = CloseHandle(snap);
+        found
+    }
+}
+
+/// SEC-BUG-01: um `steam.exe` que nasce filho do jogo, dentro do Job, nao e membro: nao segura a
+/// sessao aberta e nao e encerrado por "Forcar".
+#[test]
+fn job_com_filho_steam_exe_termina_sem_ele_e_forcar_nao_o_encerra() {
+    let sb = Sandbox::new();
+    let exe = sb.game(r"Jogos\Jogo Steam\game.exe");
+    let steam = sb.game(r"Jogos\Jogo Steam\steam.exe");
+    // Pai sai em 600 ms; o "steam.exe" filho vive 8 s (folga para antivirus e carga do CI).
+    let t = target(&exe, &["spawn", &steam.to_string_lossy(), "8000", "600"]);
+    let sink = Arc::new(Sink::default());
+    let (watch, t0) = watch_job(&t, &sink);
+    sink.wait("seen", 1, Duration::from_secs(3))
+        .expect("inicio");
+    let gone = sink
+        .wait("gone", 1, Duration::from_secs(6))
+        .expect("fim sem esperar o steam.exe");
+    assert!(
+        gone.duration_since(t0) < Duration::from_millis(6000),
+        "o steam.exe nao e membro, mas a sessao so acabou em {:?}",
+        gone.duration_since(t0)
+    );
+    watch.force_close().expect("nenhum membro: nada a encerrar");
+    assert!(
+        alive_by_name("steam.exe"),
+        "Forcar nunca encerra o steam.exe"
+    );
+    // Deixa o filho acabar sozinho (8 s) para a pasta de teste poder ser apagada.
+    let deadline = Instant::now() + Duration::from_secs(12);
+    while alive_by_name("steam.exe") && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// SEC-BUG-01: processo do Job fora da pasta do jogo e acompanhante: nao e encerrado.
+#[test]
+fn forcar_no_job_so_encerra_membros_e_poupa_o_que_esta_fora_da_pasta() {
+    let sb = Sandbox::new();
+    let exe = sb.game(r"Jogos\Jogo Tres\game.exe");
+    let outside = sb.game("Fora/acompanhante-sofa-qa.exe");
+    let t = target(
+        &exe,
+        &["spawn", &outside.to_string_lossy(), "6000", "30000"],
+    );
+    let sink = Arc::new(Sink::default());
+    let (watch, _) = watch_job(&t, &sink);
+    sink.wait("seen", 1, Duration::from_secs(3))
+        .expect("inicio");
+    // O filho nasce (o antivirus pode demorar na primeira execucao do arquivo novo).
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while !alive_by_name("acompanhante-sofa-qa.exe") {
+        assert!(Instant::now() < deadline, "o acompanhante nao abriu");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    watch.force_close().expect("encerra o membro");
+    sink.wait("gone", 1, Duration::from_secs(3))
+        .expect("fim apos forcar");
+    assert!(
+        alive_by_name("acompanhante-sofa-qa.exe"),
+        "fora da pasta do jogo: nao e membro, nao e encerrado"
+    );
+}
+
 #[test]
 fn varredura_por_pasta_ignora_homonimo_fora_da_pasta_e_ve_o_fim() {
     let sb = Sandbox::new();
@@ -454,7 +545,7 @@ fn o_proprio_sofa_e_o_webview2_dele_nunca_entram_mas_a_steam_iniciada_por_ele_si
 // ----------------------------------------------------------------- BE-21: forcar fechar
 
 #[test]
-fn force_close_do_job_encerra_tudo_e_a_sonda_avisa() {
+fn force_close_do_job_encerra_os_membros_e_a_sonda_avisa() {
     let sb = Sandbox::new();
     let exe = sb.game(r"Jogos\Teimoso\game.exe");
     let t = target(&exe, &["sleep", "30000"]);
@@ -463,7 +554,7 @@ fn force_close_do_job_encerra_tudo_e_a_sonda_avisa() {
     sink.wait("seen", 1, Duration::from_secs(3))
         .expect("inicio");
     assert_eq!(sink.count("gone"), 0);
-    watch.force_close().expect("TerminateJobObject");
+    watch.force_close().expect("encerra os membros");
     sink.wait("gone", 1, Duration::from_secs(3))
         .expect("fim apos forcar");
 }

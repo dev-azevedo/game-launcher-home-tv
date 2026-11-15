@@ -1,6 +1,7 @@
-//! Job Object com completion port (BE-16/BE-17, ADR-0005). O jogo iniciado pelo Sofa entra num
-//! Job; o fim do ultimo processo chega como `JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO` (~1 ms), com
-//! filhos incluidos e sem polling. **Sem** `KILL_ON_JOB_CLOSE`: fechar o Sofa nao fecha o jogo
+//! Job Object com completion port (BE-16/BE-17, ADR-0005 rev. 6). O jogo iniciado pelo Sofa entra
+//! num Job que so **rastreia**: entrada e saida de processos chegam pela porta, sem polling, e a
+//! sonda decide quem e membro do jogo (`classify`). O Job nunca e usado para encerrar nada:
+//! `TerminateJobObject` e proibido (SEC-BUG-01, INV-05). **Sem** `KILL_ON_JOB_CLOSE`: fechar o Sofa nao fecha o jogo
 //! (CA-05, RN-16).
 
 use std::ffi::c_void;
@@ -8,9 +9,9 @@ use std::ffi::c_void;
 use windows::core::Result as WinResult;
 use windows::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
 use windows::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, JobObjectAssociateCompletionPortInformation,
-    JobObjectBasicProcessIdList, QueryInformationJobObject, SetInformationJobObject,
-    TerminateJobObject, JOBOBJECT_ASSOCIATE_COMPLETION_PORT,
+    AssignProcessToJobObject, CreateJobObjectW, IsProcessInJob,
+    JobObjectAssociateCompletionPortInformation, JobObjectBasicProcessIdList,
+    QueryInformationJobObject, SetInformationJobObject, JOBOBJECT_ASSOCIATE_COMPLETION_PORT,
 };
 use windows::Win32::System::Threading::INFINITE;
 use windows::Win32::System::IO::{
@@ -153,10 +154,12 @@ impl Job {
         Vec::new()
     }
 
-    /// `TerminateJobObject`: so por `force_close` confirmado (INV-05, RN-12).
-    pub fn terminate(&self) -> WinResult<()> {
-        // SAFETY: `job` valido; o handle foi criado com todos os direitos.
-        unsafe { TerminateJobObject(self.job, 1) }
+    /// `true` se o processo (handle ja aberto pelo chamador) pertence a este Job. Fecha a corrida
+    /// de reuso de PID entre a lista do Job e a abertura do handle.
+    pub fn contains(&self, process: HANDLE) -> bool {
+        let mut inside = windows::Win32::Foundation::BOOL(0);
+        // SAFETY: `process` valido do chamador; `inside` e um local valido.
+        unsafe { IsProcessInJob(process, self.job, &mut inside).is_ok() && inside.as_bool() }
     }
 }
 

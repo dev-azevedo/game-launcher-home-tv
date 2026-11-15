@@ -254,7 +254,7 @@ impl SessionService {
         self.deps.foreground.allow_others();
         let generation = self.lock().generation;
         match self.deps.starter.start(target, verb) {
-            Ok(started) => self.attach(target, started, verb, generation),
+            Ok(started) => self.attach(target, started, generation),
             Err(StartError::NeedsElevation { fingerprint }) => {
                 let mut g = self.lock();
                 let now = self.deps.clock.now();
@@ -293,17 +293,14 @@ impl SessionService {
         &self,
         target: &LaunchTarget,
         started: Started,
-        verb: StartVerb,
         generation: u64,
     ) -> Result<(), AppError> {
         let (scan_dir, steam_app_id) = match &target.spec {
             LaunchSpec::SteamUri { app_id } => (target.install_dir.clone(), Some(*app_id)),
             LaunchSpec::EpicUri { .. } => (target.install_dir.clone(), None),
-            // Jogo elevado fica fora do Job (UIPI): so varredura por pasta (ADR-0005).
-            LaunchSpec::Exe { .. } if verb == StartVerb::Elevated || started.job.is_none() => {
-                (target.install_dir.clone(), None)
-            }
-            LaunchSpec::Exe { .. } => (None, None),
+            // Jogo elevado fica fora do Job (UIPI): so varredura por pasta (ADR-0005). Com Job, a
+            // pasta serve ao `classify` dos PIDs do Job (SEC-BUG-01, SEC-17): so membros contam.
+            LaunchSpec::Exe { .. } => (target.install_dir.clone(), None),
         };
         let plan = WatchPlan {
             game: target.game.clone(),

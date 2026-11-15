@@ -1,8 +1,11 @@
 //! `SessionProbe` Win32 (BE-17, ADR-0005, SEC-15, SEC-16, SEC-17).
 //!
 //! Duas estrategias atras da mesma interface:
-//! - **Job** (manual e GOG): o Job Object do `CreateProcessW` com completion port; o fim chega por
-//!   `ACTIVE_PROCESS_ZERO`, sem polling nem CPU.
+//! - **Job** (manual e GOG): o Job Object do `CreateProcessW` com completion port so **rastreia**
+//!   (entrada e saida de processo chegam pela porta, sem polling nem CPU). Cada PID do Job passa
+//!   pelo mesmo `classify` da varredura (SEC-17) e so os membros do jogo contam para o fim da
+//!   sessao, para "Fechar" e para "Forcar", por handle e tempo de criacao. Nunca ha
+//!   `TerminateJobObject` (SEC-BUG-01, ADR-0005 rev. 6).
 //! - **Varredura** (Steam, Epic e jogo elevado, que fica fora do Job por UIPI): snapshot ToolHelp
 //!   so de PIDs novos (cache por PID, revalidado a cada ~60 s), handle
 //!   `PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE` com tempo de criacao, associacao por
@@ -240,14 +243,27 @@ impl Scanner {
         set.into_iter().collect()
     }
 
-    /// Uma varredura. Devolve se ha membros.
+    /// Uma varredura do sistema. Devolve se ha membros.
     fn scan(&mut self) -> bool {
+        self.scan_with(None, None)
+    }
+
+    /// Modo Job: avalia so os PIDs que o Job lista agora e confirma `IsProcessInJob` no handle.
+    fn scan_job(&mut self, job: &Job) -> bool {
+        let only: HashSet<u32> = job.pids().into_iter().collect();
+        self.scan_with(Some(&only), Some(job))
+    }
+
+    fn scan_with(&mut self, only: Option<&HashSet<u32>>, job: Option<&Job>) -> bool {
         let procs = Self::snapshot();
         self.ctx.own_child_pids = self.own_webview_processes(&procs);
         let live: HashSet<u32> = procs.iter().map(|(p, _, _)| *p).collect();
 
         for &(pid, parent, _) in &procs {
             if pid == 0 || pid == 4 || pid == self.ctx.own_pid || self.members.contains_key(&pid) {
+                continue;
+            }
+            if only.is_some_and(|set| !set.contains(&pid)) {
                 continue;
             }
             if let Some(c) = self.cache.get(&pid) {
@@ -273,6 +289,9 @@ impl Scanner {
                 Ok(h) => Owned(h),
                 Err(_) => continue, // protegido ou de sistema: nunca entra (SEC-17)
             };
+            if job.is_some_and(|j| !j.contains(handle.0)) {
+                continue; // PID reaproveitado: nao e o processo que o Job listou
+            }
             let Some(image) = image_path(handle.0) else {
                 continue;
             };
@@ -299,6 +318,28 @@ impl Scanner {
         self.cache.retain(|p, _| live.contains(p));
         self.members.retain(|_, m| !is_signaled(m.handle.0));
         !self.members.is_empty()
+    }
+
+    fn member_pids(&self) -> Vec<u32> {
+        self.members.keys().copied().collect()
+    }
+
+    /// Encerra so os membros, cada um por handle e tempo de criacao (SEC-15, SEC-17).
+    fn terminate_members(&self) -> Result<(), AppError> {
+        let mut denied = false;
+        for (pid, m) in &self.members {
+            if is_signaled(m.handle.0) {
+                continue;
+            }
+            if terminate_if_same(*pid, m.creation).is_err() {
+                denied = true;
+            }
+        }
+        if denied {
+            Err(AppError::AccessDenied)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -439,7 +480,7 @@ impl WinSessionProbe {
 }
 
 enum Mode {
-    Job(Arc<Job>),
+    Job(Arc<Job>, Arc<Mutex<Scanner>>),
     Scan(Arc<Mutex<Scanner>>),
 }
 
@@ -450,49 +491,34 @@ pub struct WinWatch {
     thread: Option<JoinHandle<()>>,
 }
 
+impl WinWatch {
+    /// Conjunto de membros em dia. No modo Job rele a lista do Job antes (a mensagem da porta
+    /// pode ainda nao ter sido tratada pela thread da sonda).
+    fn members_fresh(&self) -> std::sync::MutexGuard<'_, Scanner> {
+        let (scanner, job) = match &self.mode {
+            Mode::Job(job, s) => (s, Some(job)),
+            Mode::Scan(s) => (s, None),
+        };
+        let mut guard = scanner.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(job) = job {
+            guard.scan_job(job);
+        }
+        guard
+    }
+}
+
 impl SessionWatch for WinWatch {
     fn pids(&self) -> Vec<u32> {
-        match &self.mode {
-            Mode::Job(job) => job.pids(),
-            Mode::Scan(s) => s
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .members
-                .keys()
-                .copied()
-                .collect(),
-        }
+        self.members_fresh().member_pids()
     }
 
     fn request_close(&self) -> Result<(), AppError> {
+        // So as janelas dos membros do jogo (nunca Steam ou navegador que nasceram no Job).
         post_close(&self.pids())
     }
 
     fn force_close(&self) -> Result<(), AppError> {
-        match &self.mode {
-            Mode::Job(job) => job.terminate().map_err(|e| {
-                tracing::warn!(erro = %e, "TerminateJobObject falhou");
-                AppError::AccessDenied
-            }),
-            Mode::Scan(s) => {
-                let scanner = s.lock().unwrap_or_else(PoisonError::into_inner);
-                let mut denied = false;
-                for (pid, m) in &scanner.members {
-                    if is_signaled(m.handle.0) {
-                        continue;
-                    }
-                    match terminate_if_same(*pid, m.creation) {
-                        Ok(_) => {}
-                        Err(_) => denied = true,
-                    }
-                }
-                if denied {
-                    Err(AppError::AccessDenied)
-                } else {
-                    Ok(())
-                }
-            }
-        }
+        self.members_fresh().terminate_members()
     }
 }
 
@@ -504,7 +530,7 @@ impl Drop for WinWatch {
     fn drop(&mut self) {
         self.stopping.store(true, Ordering::Release);
         match &self.mode {
-            Mode::Job(job) => job.wake(),
+            Mode::Job(job, _) => job.wake(),
             Mode::Scan(_) => {
                 // SAFETY: evento proprio, vivo ate o fim do `Drop`.
                 unsafe {
@@ -516,16 +542,46 @@ impl Drop for WinWatch {
     }
 }
 
-fn job_loop(job: &Job, generation: u64, sink: &dyn ProbeSink, stopping: &AtomicBool) {
+/// O Job so avisa que algo mudou; quem decide e o `classify` sobre os PIDs do Job. O fim da sessao
+/// e "nao sobrou membro do jogo", mesmo que a Steam ou o navegador sigam vivos no Job.
+fn job_loop(
+    job: &Job,
+    scanner: &Mutex<Scanner>,
+    generation: u64,
+    sink: &dyn ProbeSink,
+    stopping: &AtomicBool,
+) {
+    let mut present = false;
+    // O primeiro processo do Job e o jogo que o Sofa acabou de iniciar. Se ele ja saiu quando a
+    // lista e lida (jogo que abre e fecha em milissegundos), o inicio e o fim sao avisados em
+    // seguida, como sempre foi, em vez de a sessao esperar 60 s por uma confirmacao que nao vem.
+    let mut first_pending = true;
     loop {
-        match job.wait_message() {
-            JobMessage::NewProcess(_) => sink.process_seen(generation),
-            JobMessage::ActiveZero => sink.processes_gone(generation),
-            JobMessage::Stop | JobMessage::Failed => break,
-            JobMessage::ExitProcess | JobMessage::Other => {}
-        }
-        if stopping.load(Ordering::Acquire) {
+        let message = job.wait_message();
+        if matches!(message, JobMessage::Stop | JobMessage::Failed)
+            || stopping.load(Ordering::Acquire)
+        {
             break;
+        }
+        // O `Mutex` do scanner solta antes de avisar o sink (que pega o `Mutex` da sessao).
+        let has_members = scanner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .scan_job(job);
+        if matches!(message, JobMessage::NewProcess(_)) && first_pending {
+            first_pending = false;
+            if !has_members && !present {
+                sink.process_seen(generation);
+                sink.processes_gone(generation);
+                continue;
+            }
+        }
+        if has_members && !present {
+            present = true;
+            sink.process_seen(generation);
+        } else if !has_members && present {
+            present = false;
+            sink.processes_gone(generation);
         }
     }
 }
@@ -595,15 +651,25 @@ impl SessionProbe for WinSessionProbe {
         let stopping = Arc::new(AtomicBool::new(false));
 
         if let Some(job) = plan.job {
+            // Sem pasta de instalacao nao ha como dizer quem e membro: nao vigia (SEC-17).
+            let Some(dir) = plan.scan_dir else {
+                return Err(AppError::Internal);
+            };
             let job = job.downcast::<Job>().map_err(|_| AppError::Internal)?;
             let job: Arc<Job> = Arc::new(*job);
-            let (j, st, sk) = (Arc::clone(&job), Arc::clone(&stopping), sink);
+            let scanner = Arc::new(Mutex::new(Scanner::new(dir, self.store_dirs.clone())));
+            let (j, sc, st, sk) = (
+                Arc::clone(&job),
+                Arc::clone(&scanner),
+                Arc::clone(&stopping),
+                sink,
+            );
             let thread = std::thread::Builder::new()
                 .name("session-probe-job".into())
-                .spawn(move || job_loop(&j, generation, sk.as_ref(), &st))
+                .spawn(move || job_loop(&j, &sc, generation, sk.as_ref(), &st))
                 .map_err(|_| AppError::Internal)?;
             return Ok(Box::new(WinWatch {
-                mode: Mode::Job(job),
+                mode: Mode::Job(job, scanner),
                 stop,
                 stopping,
                 thread: Some(thread),
