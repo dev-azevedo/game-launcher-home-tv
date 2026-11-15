@@ -6,7 +6,7 @@ import { errorCopyFor } from '@/shared/domain/errors';
 import { errorOf, ipc } from '@/shared/ipc';
 import { FocusLayer } from '@/shared/ui/Focusable';
 import { MenuList, type MenuItemSpec } from '@/shared/ui/MenuList';
-import { useLibrary } from './store';
+import { selectGameById, useLibrary } from './store';
 
 interface GameOptionsProps {
   active: boolean;
@@ -19,7 +19,7 @@ interface GameOptionsProps {
  */
 export function GameOptions({ active, entry }: GameOptionsProps) {
   const gameId = entry.params?.gameId;
-  const game = useLibrary((s) => s.games.find((g) => g.id === gameId));
+  const game = useLibrary(selectGameById(gameId));
   const play = useSession((s) => s.play);
   const { push, remove } = useNavigation.getState();
   const gone = !game;

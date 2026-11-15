@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { events, ipc, type GameDto, type GameId, type LibrarySnapshot } from '@/shared/ipc';
+import { findGame } from './domain';
 
 export type LibraryStatus = 'loading' | 'ready' | 'error';
 
@@ -56,8 +57,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   setNotice: (notice) => set({ notice }),
 }));
 
-export const selectGameById = (id: GameId | null | undefined) => (s: LibraryState) =>
-  id ? s.games.find((g) => g.id === id) : undefined;
+export const selectGameById = (id: GameId | null | undefined) => (s: LibraryState) => findGame(s.games, id);
 
 /** Carga inicial + `library://changed`. Retorna o cancelamento. */
 export function startLibrary(): () => void {

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { useNavigation } from '@/app/navigation/store';
-import { useLibrary } from '@/features/library/store';
+import { selectGameById, useLibrary } from '@/features/library/store';
 import {
   errorOf,
   events,
@@ -68,7 +68,7 @@ export const useSession = create<SessionStore>((set, get) => {
     setSession: (session) => {
       const before = get().session;
       if (before.state !== session.state && session.state === 'Idle' && before.gameId && ENDING_STATES.includes(before.state)) {
-        const name = useLibrary.getState().games.find((g) => g.id === before.gameId)?.name;
+        const name = selectGameById(before.gameId)(useLibrary.getState())?.name;
         if (name) useLibrary.getState().setNotice(`${name} fechado.`);
       }
       set((s) => {

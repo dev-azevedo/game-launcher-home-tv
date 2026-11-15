@@ -6,19 +6,50 @@ export const LIBRARY_ROW_MAX = 12;
 /** Acima disto a grade de Todos os jogos so monta o que esta perto da tela (arch 3.4). */
 export const VIRTUALIZE_ABOVE = 60;
 
-const collator = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
-
-/** Jogos ja iniciados, do ultimo jogado ao mais antigo (RN-05, CA-22). */
-export function recentGames(games: readonly GameDto[], max = RECENTS_MAX): GameDto[] {
-  return games
-    .filter((g) => g.lastPlayedAt !== null)
-    .sort((a, b) => (b.lastPlayedAt ?? 0) - (a.lastPlayedAt ?? 0))
-    .slice(0, max);
+/** Jogo pela id (um so lugar para a busca: `selectGameById` e `gameName` usam esta funcao). */
+export function findGame(games: readonly GameDto[], id: GameId | null | undefined): GameDto | undefined {
+  return id ? games.find((g) => g.id === id) : undefined;
 }
 
-/** Ordem alfabetica sem diferenciar maiusculas e acentos, pelo nome exibido (RN-05). */
+/** Nome exibido do jogo, ou o texto de reserva de quem chama ("o jogo", "O jogo"...). */
+export function gameName(games: readonly GameDto[], id: GameId | null | undefined, fallback: string): string {
+  return findGame(games, id)?.name ?? fallback;
+}
+
+/**
+ * Chave A-Z igual a `sort_key` do nucleo (`library/model.rs`): NFD, sem marcas combinantes, em
+ * minusculas. A ordem comparada por codigo de caractere (como o `String::cmp` do Rust), sem `Intl`,
+ * para a fileira A-Z concordar com a ordem do nucleo (RN-05).
+ */
+export function sortKey(name: string): string {
+  return name.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+}
+
+function compareKeys(a: string, b: string): number {
+  const x = Array.from(a);
+  const y = Array.from(b);
+  const n = Math.min(x.length, y.length);
+  for (let i = 0; i < n; i++) {
+    const d = x[i]!.codePointAt(0)! - y[i]!.codePointAt(0)!;
+    if (d !== 0) return d;
+  }
+  return x.length - y.length;
+}
+
+/**
+ * Jogos ja iniciados, do ultimo jogado ao mais antigo. A lista do nucleo ja vem ordenada pela
+ * RN-05 (jogados primeiro, do mais recente ao mais antigo): aqui so filtra e corta, sem reordenar.
+ */
+export function recentGames(games: readonly GameDto[], max = RECENTS_MAX): GameDto[] {
+  return games.filter((g) => g.lastPlayedAt !== null).slice(0, max);
+}
+
+/**
+ * Fileira A-Z (jogados e nunca jogados misturados): unico caso em que a UI ordena, pelo mesmo
+ * criterio do nucleo (nome exibido, sem caixa e acento, empate pela id).
+ */
 export function alphabetical(games: readonly GameDto[]): GameDto[] {
-  return [...games].sort((a, b) => collator.compare(a.name, b.name));
+  return [...games].sort((a, b) => compareKeys(sortKey(a.name), sortKey(b.name)) || compareKeys(a.id, b.id));
 }
 
 /** Chaves de foco: o mesmo jogo aparece em Recentes e na Biblioteca, entao as chaves diferem. */

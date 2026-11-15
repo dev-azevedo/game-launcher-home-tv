@@ -1,13 +1,13 @@
 import type { ScreenEntry } from '@/app/navigation/screens';
 import { useNavigation } from '@/app/navigation/store';
-import { useLibrary } from '@/features/library/store';
+import { selectGameById, useLibrary } from '@/features/library/store';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useSession } from './store';
 
 /** Fechar jogo (CA-35, RN-12, 1a confirmacao): "Cancelar" em foco; so pede o fechamento normal. */
 export function CloseConfirmDialog({ active, entry }: { active: boolean; entry: ScreenEntry }) {
   const gameId = entry.params?.gameId;
-  const name = useLibrary((s) => s.games.find((g) => g.id === gameId)?.name ?? 'o jogo');
+  const name = useLibrary(selectGameById(gameId))?.name ?? 'o jogo';
   const closeGame = useSession((s) => s.closeGame);
   const { remove } = useNavigation.getState();
   return (

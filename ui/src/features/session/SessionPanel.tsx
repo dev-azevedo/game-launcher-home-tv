@@ -6,7 +6,7 @@ import { ButtonHints } from '@/shared/ui/ButtonHints';
 import { CoverImage } from '@/shared/ui/Cover';
 import { FocusLayer } from '@/shared/ui/Focusable';
 import { MenuList, type MenuItemSpec } from '@/shared/ui/MenuList';
-import { useLibrary } from '@/features/library/store';
+import { selectGameById, useLibrary } from '@/features/library/store';
 import { playingFor } from './panel';
 import { useSession } from './store';
 
@@ -29,7 +29,7 @@ export function SessionPanel({ active, entry }: { active: boolean; entry: Screen
   const outcome = useSession((s) => s.panelOutcome);
   const playing = useSession((s) => s.playing);
   const returnToGame = useSession((s) => s.returnToGame);
-  const game = useLibrary((s) => s.games.find((g) => g.id === session.gameId));
+  const game = useLibrary(selectGameById(session.gameId));
   const { push, remove, reset } = useNavigation.getState();
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);

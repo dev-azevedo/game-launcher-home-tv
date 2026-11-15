@@ -5,7 +5,7 @@ import { errorCopyFor } from '@/shared/domain/errors';
 import { useBackHandler } from '@/shared/input/activation';
 import { errorOf, ipc } from '@/shared/ipc';
 import { Focusable, FocusLayer } from '@/shared/ui/Focusable';
-import { useLibrary } from './store';
+import { selectGameById, useLibrary } from './store';
 
 interface Props {
   active: boolean;
@@ -22,7 +22,7 @@ const EMPTY = 'O nome não pode ficar vazio.';
  */
 export default function RenameDialog({ active, entry, parentKey }: Props) {
   const gameId = entry.params?.gameId;
-  const game = useLibrary((s) => s.games.find((g) => g.id === gameId));
+  const game = useLibrary(selectGameById(gameId));
   const titleId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(game?.name ?? '');

@@ -1,3 +1,4 @@
+import { alphabetical } from '@/features/library/domain';
 import { emitCoreEvent, mockCore, type CoreHandlers } from '@/shared/ipc/testing';
 import type {
   DirListing,
@@ -93,7 +94,12 @@ async function install(): Promise<void> {
   const lib = params.get('lib') ?? 'cheia';
   let games = makeGames(lib);
   let hidden: GameDto[] = params.get('hidden') === 'nenhum' ? [] : makeGames(params.get('hidden') === 'muitos' ? 'muitos' : 'cheia').slice(0, params.get('hidden') === 'muitos' ? 30 : 4).map((g, i) => ({ ...g, id: `epic:Oculto${i}`, name: `Jogo oculto ${i + 1}`, origin: ORIGINS[i % 4]! }));
-  const snapshot = (focusGameId: string | null = null) => ({ games, focusGameId });
+  // O nucleo entrega a lista pronta pela RN-05: jogados do mais recente ao mais antigo, depois A-Z.
+  const coreOrder = (list: GameDto[]) =>
+    alphabetical(list).sort((a, b) =>
+      a.lastPlayedAt !== null && b.lastPlayedAt !== null ? b.lastPlayedAt - a.lastPlayedAt : Number(b.lastPlayedAt !== null) - Number(a.lastPlayedAt !== null),
+    );
+  const snapshot = (focusGameId: string | null = null) => ({ games: coreOrder(games), focusGameId });
   const emitLibrary = (focusGameId: string | null = null) => void emitCoreEvent('library://changed', snapshot(focusGameId));
 
   // ---- sessao ----

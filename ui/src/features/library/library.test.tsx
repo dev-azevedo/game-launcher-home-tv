@@ -37,10 +37,21 @@ beforeEach(() => {
 afterEach(() => resetCore());
 
 describe('dominio da biblioteca (RN-05, CA-22)', () => {
-  const games = [game('1', 'Zeta'), game('2', 'Ágil', 100), game('3', 'beta', 300), game('4', 'Alfa', 200)];
+  // Ordem de entrada = ordem do nucleo (RN-05): jogados do mais recente ao mais antigo, depois os demais.
+  const games = [game('3', 'beta', 300), game('4', 'Alfa', 200), game('2', 'Ágil', 100), game('1', 'Zeta')];
 
   it('recentes: do mais recente ao mais antigo, so os ja jogados', () => {
     expect(recentGames(games).map((g) => g.name)).toEqual(['beta', 'Alfa', 'Ágil']);
+  });
+
+  it('recentes nao reordena o que o nucleo entregou', () => {
+    const fromCore = [game('1', 'Z', 5), game('2', 'A', 9)];
+    expect(recentGames(fromCore).map((g) => g.name)).toEqual(['Z', 'A']);
+  });
+
+  it('A-Z segue a sort_key do nucleo: sem numeric ("Jogo 10" antes de "Jogo 2") e empate pela id', () => {
+    const list = [game('b', 'Jogo 2'), game('a', 'Jogo 10'), game('d', 'ÁGUA'), game('c', 'agua')];
+    expect(alphabetical(list).map((g) => g.id)).toEqual(['steam:c', 'steam:d', 'steam:a', 'steam:b']);
   });
 
   it('alfabetica sem diferenciar maiusculas e acentos', () => {
@@ -104,7 +115,7 @@ describe('HomeScreen', () => {
   it('cheia: foco inicial no ultimo jogado, heroi com nome inteiro e um unico foco (CA-22, CA-55)', async () => {
     useLibrary.setState({
       status: 'ready',
-      games: [game('1', 'Zeta'), game('2', 'Velho', 100), game('3', 'Recente com um nome bem longo', 900)],
+      games: [game('3', 'Recente com um nome bem longo', 900), game('2', 'Velho', 100), game('1', 'Zeta')],
     });
     render(<HomeScreen active />);
     await waitFor(() => expect(focused()).toHaveLength(1));

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { selectTop, useNavigation } from '@/app/navigation/store';
+import { gameName } from '@/features/library/domain';
 import { useLibrary } from '@/features/library/store';
+import type { GameDto } from '@/shared/ipc';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { WaitScreen } from '@/shared/ui/WaitScreen';
 import { launchOverlay, overlayDialog, type DialogAction, type LaunchOverlay } from './overlay';
@@ -42,8 +44,7 @@ export function useLaunchFlowEntry(): void {
   }, [present, stack]);
 }
 
-const nameOf = (games: readonly { id: string; name: string }[], id: string) =>
-  games.find((g) => g.id === id)?.name ?? 'o jogo';
+const nameOf = (games: readonly GameDto[], id: string) => gameName(games, id, 'o jogo');
 
 /**
  * Camada de inicio de jogo (FE-08): "Abrindo <nome>…" sobre WaitScreen (CA-77), aviso de

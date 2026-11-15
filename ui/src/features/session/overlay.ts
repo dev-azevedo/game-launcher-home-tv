@@ -1,4 +1,5 @@
 import type { ErrorDto, GameDto, GameId, SessionDto, SessionState } from '@/shared/ipc';
+import { findGame } from '@/features/library/domain';
 import { errorCopyFor } from '@/shared/domain/errors';
 
 /** Erro de um comando de inicio (`session_launch`, `session_replace`...) mostrado em dialogo. */
@@ -103,7 +104,7 @@ export interface DialogSpec {
 }
 
 const nameOf = (games: readonly GameDto[], id: GameId | undefined): string | undefined =>
-  id ? games.find((g) => g.id === id)?.name : undefined;
+  findGame(games, id)?.name;
 
 /** Textos do contrato (microcopy secao 2) para cada estado que vira dialogo. Esperas nao entram aqui. */
 export function overlayDialog(overlay: LaunchOverlay, games: readonly GameDto[]): DialogSpec | null {
