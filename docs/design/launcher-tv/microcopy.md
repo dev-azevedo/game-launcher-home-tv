@@ -199,7 +199,7 @@ Fonte do texto: `src-tauri/windows/PortugueseBR.nsh` (um `LangString` por linha)
 Regras desta seção:
 - O nome do produto é sempre "Sofá", com acento. Dentro de `LangString`, usar `${DISPLAYNAME}` quando o nome vier de variável. Nunca `{{product_name}}` (o bundler não troca no arquivo de idioma) nem `${PRODUCTNAME}` (vale "Sofa", sem acento).
 - Reticências com o caractere "…" (U+2026), como no resto do app.
-- Arquivo `.nsh` em UTF-8 **com BOM**. Sem BOM, o NSIS Unicode lê como ANSI e mostra "SofÃ¡".
+- Arquivo `.nsh` em UTF-8 **sem BOM** na fonte, de propósito. O bundler do Tauri grava o BOM no arquivo gerado, e BOM duplo quebra o `makensis`. O guard `NSIS-BOM` confere fonte sem BOM e gerado com um. (A primeira versão deste catálogo pedia BOM na fonte, o que estava errado.)
 - Tamanho: rádio da página de reinstalação até cerca de 65 caracteres (uma linha); texto do corpo dessa página até cerca de 140; dica da página "Iniciar com o Windows" até cerca de 140; aviso de logon até cerca de 280.
 - Termos: Biblioteca, Configurações, Iniciar com o Windows, Manter dados (CA-68).
 
@@ -222,6 +222,15 @@ Regras desta seção:
 | `silentDowngrades` | Aviso em instalação sem telas (`/P`, `/S`, `/UPDATE`) | Este modo de instalação não permite instalar uma versão anterior. Use o instalador com telas. (mantém o `$\n` do fim) |
 | `unableToUninstall` | Caixa de aviso | Não foi possível remover a versão instalada. Feche o Sofá e tente de novo. Se continuar, desinstale em Aplicativos instalados. |
 
+### Pasta fixa (SEC-BUG-05, ARQ-BUG-16)
+O instalador sempre usa Program Files\Sofa e recusa outra pasta ou uma instalação anterior fora dali.
+
+| ID | Onde aparece | Texto final |
+|---|---|---|
+| `sofaInstallDirFixed` | Caixa de aviso, instalador iniciado com `/D=` para outra pasta | O Sofá só pode ser instalado em Program Files. Rode o instalador sem a opção /D=. |
+| `sofaPreviousInstallElsewhere` | Caixa de aviso, instalação anterior fora de Program Files (`$SofaPrevDir` é a pasta) | Há uma instalação do Sofá fora de Program Files (`$SofaPrevDir`). Desinstale-a em Aplicativos instalados e rode este instalador de novo. |
+| `sofaUninstallDirFixed` | Caixa de aviso, desinstalador rodando de outra pasta | O desinstalador do Sofá só roda a partir de Program Files. **Desinstale em Aplicativos instalados.** |
+
 ### Sofá aberto
 | ID | Onde aparece | Texto final |
 |---|---|---|
@@ -241,7 +250,7 @@ Regras desta seção:
 | `webview2InstallSuccess` | Lista de detalhes | WebView2 instalado. |
 | `webview2InstallError` | Lista de detalhes | A instalação do WebView2 falhou (código `$1`). |
 | `webview2AbortError` | Aborta a instalação (spec, não muda) | Não foi possível baixar o WebView2. Conecte o PC à internet e tente de novo. |
-| `webview2Downloading`, `webview2DownloadSuccess`, `webview2DownloadError` | Não usados (o bootstrapper embutido baixa sozinho) | Baixando o WebView2… · WebView2 baixado. · Não foi possível baixar o WebView2: `$0` |
+| `webview2Downloading`, `webview2DownloadSuccess`, `webview2DownloadError` | Removidos do `.nsh` (o bootstrapper embutido baixa sozinho, DES-10) | não existem mais |
 
 ### Página "Iniciar com o Windows" (CA-01, CA-51, RN-19)
 | ID | Onde aparece | Texto final |

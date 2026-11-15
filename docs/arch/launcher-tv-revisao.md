@@ -1,4 +1,6 @@
-# Revisão de arquitetura: launcher-tv (ARQ-05, rodadas 1 a 3)
+# Revisão de arquitetura: launcher-tv (ARQ-05, rodadas 1 a 4)
+
+> **Rodada 4 (2026-11-15):** leva 6. Fecharam os ARQ-BUG-15 e 16. Há um novo, o ARQ-BUG-17 (baixo: reuso de PID em `scan_job` e falha silenciosa ao registrar a espera), que não bloqueia o QA-17. BE-51 e BE-52 foram aceitos. Ver a seção "Rodada 4" no fim.
 
 > **Rodada 3 (2026-11-15):** ciclo de correção 2 e leva 5 (instalador, desinstalador, release). Fecharam os ARQ-BUG-07, 08, 13 e 14. São novos os ARQ-BUG-15 (modo Job: o fim da sessão depende de uma espera de 500 ms) e 16 (o instalador aceita pasta fora de `Program Files`), ambos médios. Ver a seção "Rodada 3" no fim.
 
@@ -185,3 +187,40 @@ Nenhum desvio muda RN ou CA. Os textos novos das telas do instalador ainda não 
 ### Pendente para fechar o ARQ-05
 
 BE-43 com o padrão final dos degraus no ADR-0003; QA-13; ARQ-BUG-15 e 16; BE-51 e BE-52 antes do QA-13 (rodada 4). Instalar e desinstalar de verdade, integridade Medium, DLL plantada e Windows 10 limpo seguem no QA-17.
+
+---
+
+## Rodada 4 (2026-11-15): leva 6 (`0ebe81e..8cba644`)
+
+Escopo: ARQ-BUG-15 (6379312), ARQ-BUG-16 (a8c5860), BE-51 (deb26c5) e BE-52 (ce81888). Revisão por leitura do código; o instalador real não foi executado.
+
+**Veredito: aprovado com ressalvas** (ARQ-05 continua parcial). ARQ-BUG-15 e 16 fecharam. Há um novo, ARQ-BUG-17, baixo, que **não bloqueia** o teste do usuário (QA-17).
+
+| ID | Sev. | Situação | Como foi conferido |
+|---|---|---|---|
+| ARQ-BUG-15 | médio | **fechado** (6379312) | Cada membro do modo Job ganha um `ExitWait` (`RegisterWaitForSingleObject`, `WT_EXECUTEONLYONCE \| WT_EXECUTEINWAITTHREAD`), cuja callback só faz `PostQueuedCompletionStatus(MEMBER_KEY, pid)`, sem lock e sem alocação. A `job_loop` reavalia em `MemberExited`, quando o processo saiu **de fato**; o prazo de 500 ms e a espera com o `Mutex` preso sumiram, e `pids()`/`force_close()` não esperam. **Deadlock**: `UnregisterWaitEx(INVALID_HANDLE_VALUE)` roda no `Drop` do `Member`, na thread da sonda, com o `Mutex` do scanner preso; a callback nunca pega esse `Mutex` e nunca roda na thread que desregistra, então a espera bloqueante sempre termina. **Vazamento**: todo `Member` sai por `retain` (sinalizado) ou pelo `Drop` do `Scanner`, e os dois passam pelo `Drop` do `ExitWait`, que desregistra e libera o contexto. `_exit_wait` vem antes de `handle` na struct, então a espera sai antes de o handle fechar. O `Arc<Job>` no contexto mantém a porta viva até o último desregistro. **Corrida fim do membro × membro novo**: cada mensagem (processo novo, saída, `MemberExited`) relê a lista do Job e retira os sinalizados. Um pacote `MemberExited` atrasado, de membro já retirado, só provoca uma releitura inofensiva. Resta o caso de reuso de PID dentro do Job (ARQ-BUG-17) |
+| ARQ-BUG-16 | médio | **fechado** (a8c5860) | Sem `MUI_PAGE_DIRECTORY`. `SofaFixInstallDir` (`install-dir.nsh`) roda em `.onInit` e `un.onInit`: `/D=` diferente de `$PROGRAMFILES64\Sofa` → código 1, instalação anterior gravada fora dela → código 2, e quem chama mostra a mensagem e aborta antes de qualquer `ExecWait` do desinstalador antigo. A comparação do NSIS ignora caixa; forma curta (`PROGRA~1`) ou barra final são recusadas (falha fechado, aceito). No desinstalador, `$INSTDIR` é a pasta do próprio `uninstall.exe`, então um desinstalador copiado para outra pasta também recusa. Testes no harness e em `test-installer.ps1` |
+| ARQ-BUG-17 | baixo | **novo** (dev-backend) | Ver abaixo |
+
+### ARQ-BUG novo
+
+| ID | Sev. | Responsável | Arquivo:linha | Problema | Correção sugerida |
+|---|---|---|---|---|---|
+| ARQ-BUG-17 | baixo | dev-backend | `crates/launcher-win/src/process_probe.rs:359-368` (`scan_job`) e `:403-417` (`evaluate`) | (1) `scan_job` avalia os PIDs do Job **antes** de retirar os membros sinalizados e pula PID já presente em `members`. Se um membro sai e o Windows reaproveita o PID num processo novo do mesmo Job antes da releitura, o processo novo é pulado nessa passada (o membro velho sai no `retain` logo depois) e só seria avaliado na próxima mensagem. Se não vier outra mensagem, um membro real fica de fora (falso fim possível). Raro, porque o reuso de PID em milissegundos dentro do mesmo Job é improvável. (2) Se `RegisterWaitForSingleObject` falhar (`ExitWait::register` → `None`), o membro entra sem espera e sem log, e esse membro volta ao comportamento do ARQ-BUG-15 (fim só por outra mensagem) | (1) Fazer o `retain` dos sinalizados **antes** do laço de avaliação em `scan_job`, ou comparar o tempo de criação do PID listado com o do membro guardado. (2) Registrar a falha no log (`warn`) e, para esse membro, cair numa espera curta e periódica (ex.: `GetQueuedCompletionStatus` com prazo enquanto houver membro sem `ExitWait`). Não bloqueia o QA-17 |
+
+### BE-51 e BE-52
+
+- **BE-51 (deb26c5): a explicação procede, e as esperas maiores não escondem bug.**
+  - O "Forçar" do Sofá encerra com `TerminateProcess(h, 1)`. Um acompanhante que saísse por erro da sessão sairia com **1**; o observado foi **0xC000010A** (`STATUS_PROCESS_IS_TERMINATING`) com 3 a 7 ms de vida, ou seja, o filho morreu porque o pai foi encerrado ainda dentro do `CreateProcessW` dele. É comportamento do Windows, não do Sofá.
+  - A asserção agora lê o código de saída pelo handle: se o `classify` errasse e o Sofá encerrasse o acompanhante, o teste falharia em qualquer idade dele. O `settle` só adia o "Forçar" até o filho ter vida própria e não muda o conjunto de membros.
+  - As esperas de 15, 20 e 10 s são **tetos** para o atraso do Defender, não atrasos fixos. A latência do fim continua coberta por `job_avisa_inicio_e_fim_do_ultimo_processo_sem_polling` (fim entre 1,3 e 2,3 s depois do início), e o `snapshots_taken() == 0` continua.
+  - Medição do dev: 80 rodadas seguidas sem falha.
+- **BE-52 (ce81888): aceito.** O `build.rs` do `launcher-win` usa `embed_resource::compile_for(..., ["sofa-test-game"])`, que liga o recurso **só** no binário do helper. A lib e o `sofa.exe` não recebem nada; a trava de manifesto único do BE-46 não é afetada. O helper ganha `VERSIONINFO` e manifesto `asInvoker`. Nenhuma exclusão do Defender foi criada. A recomendação da rodada 3 entrou: o `-Release` varre o instalador e o `sofa.exe` com `MpCmdRun -Scan -ScanType 3 -File` e falha se houver acusação. O `-Release -FullMsvcTests` passou, e o release `v0.1.0` saiu de tag (fe7277d), já com os ARQ-BUG-15 e 16 corrigidos.
+
+### O que bloqueia o teste do usuário (QA-17)
+
+Nada do lado da arquitetura. O ARQ-BUG-17 (baixo) pode ser corrigido depois.
+
+### Pendente para fechar o ARQ-05
+
+BE-43 com o padrão final dos degraus no ADR-0003, QA-13 e ARQ-BUG-17 (rodada 5).

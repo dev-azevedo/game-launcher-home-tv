@@ -97,3 +97,31 @@ Os defines ficam antes de `!insertmacro MUI_PAGE_WELCOME` e `MUI_PAGE_FINISH`; p
 4. `tauri.conf.json`: `publisher` e `copyright` com "Sofá".
 5. Corrigir as linhas em branco de `sofaPurgeNoProfile` (seção 4).
 6. Gerar o instalador e conferir "Sofá" na janela, no atalho e em "Aplicativos instalados".
+
+## 7. Rodada 2: textos da pasta fixa e conferência do DES-10 (commit 4120287)
+
+### Conferência das 23 strings
+
+Comparei, por script, cada texto proposto na seção 3 com o valor atual em `src-tauri/windows/PortugueseBR.nsh`. Resultado: **22 de 22 iguais, caractere a caractere**, incluindo `${DISPLAYNAME}`, `…` e o `$\n` de `silentDowngrades`. A 23ª, `webview2Downloading`, foi removida junto com as outras `webview2Download*`, como combinado (não são usadas). `copyright` e `publisher` com acento e `allowDowngrades false` entraram no mesmo commit. Nada a corrigir.
+
+Sobre o encoding: a seção 1 desta revisão mandava salvar o `.nsh` com BOM. Estava errada para este bundler. A fonte fica sem BOM, o Tauri grava o próprio, e BOM duplo quebra o `makensis`. O guard `NSIS-BOM` e `test-installer.ps1` conferem fonte sem BOM e gerado com um. O `microcopy.md` seção 4 foi corrigido.
+
+### Os 3 textos novos
+
+| string-id | Texto no `.nsh` | Veredito |
+|---|---|---|
+| `sofaInstallDirFixed` | O Sofá só pode ser instalado em Program Files. Rode o instalador sem a opção /D=. | Aprovado. Diz o que houve e o que fazer. `/D=` é jargão, mas quem passa `/D=` é quem instala por linha de comando. |
+| `sofaPreviousInstallElsewhere` | Há uma instalação do Sofá fora de Program Files ($SofaPrevDir). Desinstale-a em Aplicativos instalados e rode este instalador de novo. | Aprovado. Mostra a pasta, diz o caminho de saída e usa o termo "Aplicativos instalados" já usado em `unableToUninstall`. |
+| `sofaUninstallDirFixed` | O desinstalador do Sofá só roda a partir de Program Files. | **Troca de uma frase.** Só informa a regra e deixa a pessoa sem saída. |
+
+### Troca para o dev aplicar
+
+`sofaUninstallDirFixed`:
+- Atual: `O desinstalador do Sofá só roda a partir de Program Files.`
+- Novo: `O desinstalador do Sofá só roda a partir de Program Files. Desinstale em Aplicativos instalados.`
+
+O `microcopy.md` seção 4 já registra o texto novo, marcado como troca pendente. Quando o dev aplicar, o aviso "troca proposta" daquela linha sai.
+
+### Veredito
+
+**Aprovado.** Dois textos ficam como estão e um recebe uma frase a mais. Não editei o `.nsh`.

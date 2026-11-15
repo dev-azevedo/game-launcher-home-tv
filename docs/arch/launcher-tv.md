@@ -761,4 +761,6 @@ Pendência técnica: o usuário instalar o VS Build Tools antes do primeiro buil
 
 Desvios da rodada 3 aceitos (template próprio, `$PLUGINSDIR` e `$INSTDIR` no guard condicionados ao ARQ-BUG-16, `schtasks` por SID, usuário interativo por duas fontes, MSVC só no `-Release`) e registrados no ADR-0001 rev. 6 e no ADR-0006 rev. 7. BE-51 e BE-52 têm de fechar antes do QA-13. Detalhes em `docs/arch/launcher-tv-revisao.md`, seção "Rodada 3".
 
-Falta para fechar: BE-43 com o padrão final dos degraus no ADR-0003, QA-13, ARQ-BUG-15 e 16, BE-51 e BE-52 (rodada 4). Instalar e desinstalar de verdade, integridade Medium, DLL plantada e Windows 10 limpo seguem no QA-17.
+**Rodada 4 (2026-11-15), parcial**: leva 6. Fecharam o ARQ-BUG-15 (o fim da sessão no modo Job agora vem de uma espera registrada no handle de cada membro, que posta `MemberExited` na porta, sem prazo fixo e sem `Mutex` preso) e o ARQ-BUG-16 (pasta fixa `$PROGRAMFILES64\Sofa`, sem página de pasta, `/D=` recusado). BE-51 e BE-52 aceitos. Novo, baixo e sem bloquear o QA-17: ARQ-BUG-17 (reuso de PID em `scan_job` e falha silenciosa do `RegisterWaitForSingleObject`).
+
+Falta para fechar: BE-43 com o padrão final dos degraus no ADR-0003, QA-13 e ARQ-BUG-17 (rodada 5). Instalar e desinstalar de verdade, integridade Medium, DLL plantada e Windows 10 limpo seguem no QA-17.
