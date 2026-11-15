@@ -98,7 +98,11 @@ pub fn run(start: StartMode) {
             let _ = app
                 .state::<state::AppState>()
                 .exit_hook
-                .set(Box::new(move || handle.exit(0)));
+                .set(Box::new(move || {
+                    // O log e assincrono: da uma folga curta para gravar o que ficou na fila.
+                    launcher_win::logging::flush(std::time::Duration::from_millis(300));
+                    handle.exit(0)
+                }));
             let elevated = launcher_win::hardening::is_process_elevated();
             app.state::<state::AppState>()
                 .process_elevated
