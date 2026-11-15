@@ -15,8 +15,9 @@
   9. npm run check da UI (typecheck, lint, testes; -SkipUi pula)
   10. SO com -Release (BE-39, D-34): build de release em MSVC e instalador NSIS, na pasta de releases
       (veja scripts/ci-release.ps1): cargo test no MSVC, relatorios de cargo deny e npm audit, tauri build,
-      trava do ARQ-BUG-08 (exatamente um RT_MANIFEST no sofa.exe), guards no installer.nsi gerado, testes
-      do instalador sem instalar (scripts/test-installer.ps1), SHA256SUMS.txt e README.txt.
+      travas do sofa.exe (exatamente um RT_MANIFEST, ARQ-BUG-08; Control Flow Guard, SEC-BUG-06), varredura
+      do Defender no instalador e no sofa.exe (BE-52: acusou, o build falha), guards no installer.nsi
+      gerado, testes do instalador sem instalar (scripts/test-installer.ps1), SHA256SUMS.txt e README.txt.
 
   Sai com codigo 0 so se tudo passar. Toolchain: o do rust-toolchain.toml (o dev passa no `-gnu`; o
   release usa a toolchain MSVC da mesma versao, ADR-0001).
@@ -88,6 +89,8 @@ function Invoke-Step([string]$Name, [scriptblock]$Body) {
 Invoke-Step 'autoteste dos guards' {
     $n = Invoke-GuardSelfTest
     Write-Host ("  {0} violacoes plantadas detectadas, arvore limpa sem alarme" -f $n)
+    $d = Invoke-DefenderScanSelfTest
+    Write-Host ("  varredura do Defender: {0} casos (limpo passa; acusa e nao conclui reprovam)" -f $d)
 }
 
 if (-not $SelfTestOnly -and -not ($Release -and $SkipDevChecks)) {

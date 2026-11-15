@@ -57,6 +57,10 @@ windows = { workspace = true, features = [
   "Win32_UI_WindowsAndMessaging",
 ] }
 
+[build-dependencies]
+# So para os metadados do jogo sintetico dos testes (BE-52); ja esta no grafo (tauri-build).
+embed-resource = "3.0.12"
+
 [[bin]]
 # Jogo sintetico dos testes de integracao (janela, filho, WM_CLOSE ignorado, dump de argumentos).
 # Nunca entra no instalador: o bundler do Tauri empacota so o `sofa.exe`.

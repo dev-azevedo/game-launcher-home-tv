@@ -11,6 +11,8 @@
     4. `tauri build --target x86_64-pc-windows-msvc --bundles nsis` (NSIS perMachine, bootstrapper do WebView2)
     5. TRAVAS do sofa.exe MSVC: exatamente um RT_MANIFEST valido (tests/manifest_resource.rs, ARQ-BUG-08) e Control
        Flow Guard + ASLR + DEP no PE (tests/pe_hardening.rs, SEC-BUG-06)
+    5b. VARREDURA DO DEFENDER (BE-52, RR-02): `MpCmdRun -Scan -ScanType 3 -File` no instalador e no sofa.exe; se
+       acusar, o build falha (nunca adiciona exclusao nem mexe em configuracao do Defender)
     6. guards de NSIS no installer.nsi gerado
     7. testes do instalador e do desinstalador sem instalar (scripts/test-installer.ps1)
     8. copia o instalador para <releases>\v<versao>\, gera SHA256SUMS.txt, README.txt e BUILD-INFO.txt
@@ -37,6 +39,69 @@ function Resolve-MsvcToolchain([string]$Root) {
         throw "a toolchain $stable e a $v e o pin e $pin (SEC-24). Rode: rustup toolchain install $exact --profile minimal"
     }
     throw "toolchain MSVC ausente. Rode: rustup toolchain install $exact --profile minimal"
+}
+
+# MpCmdRun.exe do Defender: o da plataforma mais nova, senao o de Program Files. Sem ele o release nao sai
+# (o instalador entregue precisa ter passado na varredura, RR-02).
+function Get-MpCmdRun {
+    if ($script:MpCmdRunOverride) { return $script:MpCmdRunOverride }   # so o autoteste
+    $cands = @()
+    $platform = Join-Path $env:ProgramData 'Microsoft\Windows Defender\Platform'
+    if (Test-Path -LiteralPath $platform) {
+        $cands += @(Get-ChildItem -LiteralPath $platform -Directory -ErrorAction SilentlyContinue | Sort-Object { try { [version]($_.Name -replace '-.*$', '') } catch { [version]'0.0' } } -Descending |
+            ForEach-Object { Join-Path $_.FullName 'MpCmdRun.exe' })
+    }
+    $cands += Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
+    $found = $cands | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (-not $found) { throw 'MpCmdRun.exe (Microsoft Defender) nao encontrado: o release exige a varredura do instalador e do sofa.exe' }
+    return $found
+}
+
+# Varredura personalizada de UM arquivo (BE-52): `MpCmdRun -Scan -ScanType 3 -File`. Nao mexe em configuracao nem em
+# exclusao do Defender. `-DisableRemediation`: acusou, o arquivo fica no lugar para ser examinado, e o build falha.
+# Devolve o texto da varredura; lanca se o Defender acusar qualquer coisa ou se a varredura nao rodar.
+function Invoke-DefenderScan([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { throw "arquivo para varrer nao encontrado: $Path" }
+    $mp = Get-MpCmdRun
+    $Path = (Get-Item -LiteralPath $Path).FullName   # o MpCmdRun exige caminho absoluto (hr 0x80508023 com relativo)
+    $out = & $mp -Scan -ScanType 3 -File $Path -DisableRemediation 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $global:LASTEXITCODE = 0
+    if ($code -ne 0 -or $out -notmatch 'found no threats') {
+        throw ("Defender acusou ou nao concluiu a varredura de {0} (codigo {1}):`n{2}" -f $Path, $code, $out.Trim())
+    }
+    return ("{0} (MpCmdRun {1}): sem ameacas" -f (Split-Path -Leaf $Path), (Get-Item -LiteralPath $mp).VersionInfo.ProductVersion)
+}
+
+# Autoteste da varredura: um MpCmdRun de mentira que acusa (codigo 2) tem de fazer a funcao lancar, e um que nao
+# acha nada, passar. Nao usa EICAR nem toca no Defender de verdade.
+function Invoke-DefenderScanSelfTest {
+    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('sofa-mpcmd-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+    try {
+        $target = Join-Path $tmp 'alvo.exe'
+        Set-Content -LiteralPath $target -Value 'x'
+        $ok = Join-Path $tmp 'ok.cmd'
+        $bad = Join-Path $tmp 'bad.cmd'
+        $broken = Join-Path $tmp 'broken.cmd'
+        Set-Content -LiteralPath $ok -Encoding ASCII -Value @('@echo off', 'echo Scanning alvo.exe found no threats.', 'exit /b 0')
+        Set-Content -LiteralPath $bad -Encoding ASCII -Value @('@echo off', 'echo Scanning alvo.exe found 1 threats.', 'exit /b 2')
+        Set-Content -LiteralPath $broken -Encoding ASCII -Value @('@echo off', 'echo CmdTool: Failed with hr = 0x80508023', 'exit /b 2')
+        $script:MpCmdRunOverride = $ok
+        $null = Invoke-DefenderScan $target
+        foreach ($case in @(@('acusa', $bad), @('nao conclui', $broken))) {
+            $script:MpCmdRunOverride = $case[1]
+            $threw = $false
+            try { $null = Invoke-DefenderScan $target } catch { $threw = $true }
+            if (-not $threw) { throw ("autoteste: a varredura que {0} nao reprovou o build" -f $case[0]) }
+        }
+        $script:MpCmdRunOverride = $null
+        return 3
+    }
+    finally {
+        $script:MpCmdRunOverride = $null
+        Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Get-ReleaseVersion([string]$Root) {
@@ -133,6 +198,18 @@ function Invoke-Release {
             try { cargo test --target $target -p sofa --test manifest_resource --test pe_hardening } finally { Remove-Item Env:\SOFA_MANIFEST_EXE -ErrorAction SilentlyContinue }
         }
 
+        $script:defenderLines = @()
+        & $Step 'varredura do Defender: instalador e sofa.exe (MpCmdRun -Scan -ScanType 3 -File)' {
+            $lines = @()
+            foreach ($f in @((Join-Path $bundleDir $installerName), $exe)) {
+                $l = Invoke-DefenderScan $f
+                Write-Host ("  {0}" -f $l)
+                $lines += $l
+            }
+            $script:defenderLines = $lines
+            Set-Content -LiteralPath (Join-Path $stage 'relatorios\defender.txt') -Value $lines
+        }
+
         & $Step 'guards de NSIS no installer.nsi gerado' {
             $gen = Join-Path $targetDir 'nsis\x64\installer.nsi'
             if (-not (Test-Path -LiteralPath $gen)) { throw "installer.nsi gerado nao encontrado em $gen" }
@@ -188,6 +265,7 @@ function Invoke-Release {
                 ((& rustc "+$tc" -vV) -join "`n"),
                 ("tauri-cli: " + ((& (Join-Path $Root 'ui\node_modules\.bin\tauri.cmd') --version) -join ' ')),
                 "nsis: $nsisVer",
+                ("defender: " + ($script:defenderLines -join '; ')),
                 "sha256: $hash",
                 ("tamanho: " + (Get-Item -LiteralPath (Join-Path $stage $installerName)).Length + ' bytes')
             )

@@ -1945,6 +1945,7 @@ dependencies = [
 name = "launcher-win"
 version = "0.1.0"
 dependencies = [
+ "embed-resource",
  "image",
  "keyvalues-parser",
  "launcher-core",
