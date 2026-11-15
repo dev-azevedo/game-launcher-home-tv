@@ -496,7 +496,7 @@ fn job_com_exe_exato_poupa_o_processo_vizinho_na_mesma_pasta() {
     let vizinho = sb.game(r"Raiz\vizinho-sofa-qa.exe");
     let t = target(
         &exe,
-        &["spawn", &vizinho.to_string_lossy(), "8000", "30000"],
+        &["spawn", &vizinho.to_string_lossy(), "20000", "60000"],
     );
     let started = WinGameStarter
         .start(&t, StartVerb::Normal)
@@ -528,8 +528,11 @@ fn job_com_exe_exato_poupa_o_processo_vizinho_na_mesma_pasta() {
         alive_by_name("vizinho-sofa-qa.exe"),
         "outra imagem na mesma pasta nao e membro, nao e encerrada"
     );
-    // Deixa o vizinho acabar sozinho para a pasta de teste poder ser apagada.
-    let deadline = Instant::now() + Duration::from_secs(12);
+    // Encerra o vizinho (nome unico de teste) para a pasta de teste poder ser apagada.
+    let _ = Command::new("taskkill")
+        .args(["/F", "/IM", "vizinho-sofa-qa.exe"])
+        .output();
+    let deadline = Instant::now() + Duration::from_secs(5);
     while alive_by_name("vizinho-sofa-qa.exe") && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(100));
     }
