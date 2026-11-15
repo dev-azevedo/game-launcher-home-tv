@@ -41,6 +41,8 @@ pub enum JobMessage {
     /// Nenhum processo ativo no Job.
     ActiveZero,
     Other,
+    /// Passou o prazo de `wait_message_timeout` sem mensagem (espera de reserva, ARQ-BUG-17).
+    Timeout,
     /// Alguem chamou `wake` (encerrar a espera).
     Stop,
     /// A porta falhou (handle fechado).
@@ -95,15 +97,27 @@ impl Job {
 
     /// Espera a proxima mensagem do Job (bloqueia, sem polling).
     pub fn wait_message(&self) -> JobMessage {
+        self.wait_message_timeout(INFINITE)
+    }
+
+    /// Como `wait_message`, mas devolve `Timeout` se nada chegar em `ms`.
+    pub fn wait_message_timeout(&self, ms: u32) -> JobMessage {
         let mut bytes = 0u32;
         let mut key = 0usize;
         let mut overlapped: *mut OVERLAPPED = std::ptr::null_mut();
         // SAFETY: ponteiros para locais validos; `port` vive enquanto o `Job` existir.
         let r = unsafe {
-            GetQueuedCompletionStatus(self.port, &mut bytes, &mut key, &mut overlapped, INFINITE)
+            GetQueuedCompletionStatus(self.port, &mut bytes, &mut key, &mut overlapped, ms)
         };
         if r.is_err() && overlapped.is_null() {
-            return JobMessage::Failed;
+            // SAFETY: le o ultimo erro da propria thread.
+            let timed_out = unsafe { windows::Win32::Foundation::GetLastError() }
+                == windows::Win32::Foundation::WIN32_ERROR(258); // WAIT_TIMEOUT
+            return if timed_out {
+                JobMessage::Timeout
+            } else {
+                JobMessage::Failed
+            };
         }
         if key == STOP_KEY {
             return JobMessage::Stop;

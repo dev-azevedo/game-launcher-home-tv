@@ -59,6 +59,8 @@ use crate::windows_enum::{hwnd as to_hwnd, top_level_windows};
 /// Nao membros sao reavaliados a cada ~60 s (reuso de PID, ADR-0005).
 const REVALIDATE_AFTER: Duration = Duration::from_secs(60);
 const MAX_WAIT_HANDLES: usize = 63;
+/// Espera periodica de reserva do modo Job para membro sem `ExitWait` (ARQ-BUG-17).
+const FALLBACK_POLL_MS: u32 = 250;
 
 // ---------------------------------------------------------------------------- handles
 
@@ -245,6 +247,9 @@ struct Scanner {
     own_sid: Option<Vec<u8>>,
     /// Modo Job: o Job que recebe o pacote `MemberExited` de cada membro (ARQ-BUG-15).
     notify: Option<Arc<Job>>,
+    /// So testes: faz o registro da espera falhar.
+    #[cfg(test)]
+    fail_register: bool,
     /// Quantos snapshots ToolHelp esta varredura tirou (testes: o modo Job nunca tira, ARQ-BUG-14).
     snapshots: usize,
 }
@@ -266,6 +271,8 @@ impl Scanner {
             },
             own_sid,
             notify,
+            #[cfg(test)]
+            fail_register: false,
             snapshots: 0,
         }
     }
@@ -357,14 +364,22 @@ impl Scanner {
     /// reaproveitado dentro do Job nunca fica de fora por causa de uma avaliacao antiga.
     /// `own_child_pids` fica vazio: o WebView2 do Sofa nunca entra no Job do jogo.
     fn scan_job(&mut self, job: &Job) -> bool {
+        // Primeiro tira quem ja saiu (ARQ-BUG-17): um PID reaproveitado por um processo novo do
+        // mesmo Job e avaliado nesta passada, nao pulado por causa do membro velho de mesmo PID.
+        self.members.retain(|_, m| !is_signaled(m.handle.0));
         for pid in job.pids() {
             if pid == 0 || pid == 4 || pid == self.ctx.own_pid || self.members.contains_key(&pid) {
                 continue;
             }
             self.evaluate(pid, None, Some(job));
         }
-        self.members.retain(|_, m| !is_signaled(m.handle.0));
         !self.members.is_empty()
+    }
+
+    /// Modo Job: ha membro sem espera no handle (o registro falhou)? Se sim, a `job_loop` acorda
+    /// de tempos em tempos para reavaliar (ARQ-BUG-17).
+    fn needs_poll(&self) -> bool {
+        self.notify.is_some() && self.members.values().any(|m| m._exit_wait.is_none())
     }
 
     /// Abre o processo, confere o dono e a sessao e, se o `classify` aceitar, guarda o handle e o
@@ -403,10 +418,24 @@ impl Scanner {
         if classify(&info, &self.ctx).is_ok() {
             if let Some(creation) = creation_time(handle.0) {
                 // Modo Job: a espera avisa pela porta quando o processo sai de fato.
-                let exit_wait = self
-                    .notify
-                    .as_ref()
-                    .and_then(|job| ExitWait::register(handle.0, Arc::clone(job), pid));
+                #[cfg(test)]
+                let fail = self.fail_register;
+                #[cfg(not(test))]
+                let fail = false;
+                let exit_wait = self.notify.as_ref().and_then(|job| {
+                    let w = if fail {
+                        None
+                    } else {
+                        ExitWait::register(handle.0, Arc::clone(job), pid)
+                    };
+                    if w.is_none() {
+                        tracing::warn!(
+                            pid,
+                            "RegisterWaitForSingleObject falhou: espera periodica de reserva para este membro"
+                        );
+                    }
+                    w
+                });
                 self.members.insert(
                     pid,
                     Member {
@@ -665,7 +694,16 @@ fn job_loop(
     // seguida, como sempre foi, em vez de a sessao esperar 60 s por uma confirmacao que nao vem.
     let mut first_pending = true;
     loop {
-        let message = job.wait_message();
+        // Membro sem espera no handle (registro falhou): acorda a cada 250 ms para reavaliar.
+        let poll = scanner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .needs_poll();
+        let message = if poll {
+            job.wait_message_timeout(FALLBACK_POLL_MS)
+        } else {
+            job.wait_message()
+        };
         if matches!(message, JobMessage::Stop | JobMessage::Failed)
             || stopping.load(Ordering::Acquire)
         {
@@ -916,6 +954,96 @@ mod tests {
             }
             true
         }
+    }
+
+    /// ARQ-BUG-17 (a): um membro velho (ja sinalizado) com o mesmo PID de um processo novo do Job
+    /// sai ANTES da avaliacao, e o processo novo vira membro na mesma passada.
+    #[test]
+    fn pid_reaproveitado_e_avaliado_na_mesma_passada() {
+        let dir = Dir::new("reuso");
+        let exe = dir.ping(r"Jogo\game.exe");
+        let job = Arc::new(Job::new().unwrap());
+        let mut scanner = Scanner::new(
+            GameScope::Dir(dir.0.join("Jogo").to_string_lossy().into_owned()),
+            vec![],
+            Some(Arc::clone(&job)),
+        );
+        // processo curto que ja saiu: seu handle fica sinalizado
+        let mut old = Command::new(&exe)
+            .args(["-n", "1", "127.0.0.1"])
+            .stdout(Stdio::null())
+            .spawn()
+            .unwrap();
+        old.wait().unwrap();
+        // processo vivo no Job; o "membro velho" e guardado com o PID dele (PID reaproveitado)
+        let mut live = spawn_in_job(&exe, 4, &job);
+        let live_pid = live.id();
+        // SAFETY: handle proprio do processo que ja saiu, fechado pelo `Owned` do membro.
+        let stale = unsafe {
+            OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
+                false,
+                old.id(),
+            )
+        };
+        if let Ok(h) = stale {
+            assert!(is_signaled(h), "o processo antigo ja saiu");
+            scanner.members.insert(
+                live_pid,
+                Member {
+                    _exit_wait: None,
+                    handle: Owned(h),
+                    creation: 0,
+                },
+            );
+            assert!(
+                scanner.scan_job(&job),
+                "o PID reaproveitado e avaliado na hora, nao pulado"
+            );
+            assert!(!is_signaled(scanner.members[&live_pid].handle.0));
+        } else {
+            eprintln!("PID do processo antigo ja reciclado: cenario nao montavel");
+        }
+        let _ = live.kill();
+        let _ = live.wait();
+    }
+
+    /// ARQ-BUG-17 (b): sem `ExitWait` (registro falhou), o scanner pede a espera periodica de
+    /// reserva e a `job_loop` encerra a sessao sem depender do pacote do handle; o `Job` devolve
+    /// `Timeout` quando nada chega.
+    #[test]
+    fn registro_da_espera_que_falha_cai_na_espera_periodica() {
+        let dir = Dir::new("reserva");
+        let exe = dir.ping(r"Jogo\game.exe");
+        let job = Arc::new(Job::new().unwrap());
+        let mut sc = Scanner::new(
+            GameScope::Dir(dir.0.join("Jogo").to_string_lossy().into_owned()),
+            vec![],
+            Some(Arc::clone(&job)),
+        );
+        sc.fail_register = true;
+        let scanner = Arc::new(Mutex::new(sc));
+        let sink = Arc::new(TestSink::default());
+        let stopping = Arc::new(AtomicBool::new(false));
+        let mut member = spawn_in_job(&exe, 3, &job); // ~2 s
+        let thread = {
+            let (j, sc, sk, st) = (
+                Arc::clone(&job),
+                Arc::clone(&scanner),
+                Arc::clone(&sink),
+                Arc::clone(&stopping),
+            );
+            std::thread::spawn(move || job_loop(&j, &sc, 1, sk.as_ref(), &st))
+        };
+        assert!(sink.wait("seen", Duration::from_secs(5)), "inicio");
+        assert!(scanner.lock().unwrap().needs_poll(), "membro sem espera");
+        assert!(sink.wait("gone", Duration::from_secs(10)), "fim");
+        stopping.store(true, Ordering::Release);
+        job.wake();
+        thread.join().unwrap();
+        let _ = member.wait();
+        let idle = Job::new().unwrap();
+        assert_eq!(idle.wait_message_timeout(50), JobMessage::Timeout);
     }
 
     /// A espera registrada no handle do membro posta `MemberExited(pid)` quando o processo sai de
