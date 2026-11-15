@@ -601,7 +601,10 @@ Function ${un}SofaPurgeDecide
   StrCpy $SofaOutcome "$SofaOutcome:apagou-$SofaDeleted"
 
   decide_show:
-  StrCpy $R5 "$R5$\r$\n$\r$\n$SofaRoot"
+  ; Sem pasta (perfil nao resolvido) nao ha o que mostrar abaixo: nada de linhas em branco no fim.
+  ${If} $SofaRoot != ""
+    StrCpy $R5 "$R5$\r$\n$\r$\n$SofaRoot"
+  ${EndIf}
   Call ${un}SofaShowFolder
 FunctionEnd
 

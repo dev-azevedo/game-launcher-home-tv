@@ -241,6 +241,8 @@ try {
         $r = Run-Harness $harness @('/SCENARIO=decide', '/READ=1', '/CODE=1')   # sem /ROOT nem /LOCALAPP
         Assert-Eq $r['outcome'] 'nada:perfil-nao-resolvido' 'resultado'
         Assert-NothingGone $d.Root
+        # sem pasta para mostrar, o texto da caixa nao termina em linhas em branco (BE-56, revisao-instalador.md)
+        Assert-Eq $r['tail'] 'io.' 'fim do texto da caixa sem linhas em branco'
     }
 
     # =============================================================== o usuario interativo
@@ -653,6 +655,12 @@ public static class SofaReparse {
         # o instalador so conhece uma pasta de destino: nada de InstallDir com variavel de usuario
         Assert-True ($code -notmatch 'StrCpy \$INSTDIR\s+"\$LOCALAPPDATA') 'pasta em LOCALAPPDATA proibida'
     }
+    Test-Case 'fontes do idioma e do instalador: UTF-8 sem BOM (o bundler grava o proprio; dois BOMs quebram o makensis)' {
+        . (Join-Path $PSScriptRoot 'ci-guards.ps1')
+        foreach ($n in @('PortugueseBR.nsh', 'installer.nsi')) {
+            Assert-Eq (Get-Utf8BomCount (Join-Path $winDir $n)) 0 "BOMs na fonte $n"
+        }
+    }
 
     # =============================================================== o instalador gerado
     Write-Host "`n== Instalador gerado (se existir)" -ForegroundColor Cyan
@@ -663,6 +671,33 @@ public static class SofaReparse {
         Test-Case "guards de NSIS no script gerado ($($gen.Name))" {
             $v = @(Invoke-GeneratedNsisGuard $gen.FullName)
             Assert-True ($v.Count -eq 0) ("violacoes: " + ($v -join '; '))
+        }
+        Test-Case 'script e idioma gerados: exatamente um BOM e "Sofa" com acento (UTF-8)' {
+            $dir = Split-Path -Parent $gen.FullName
+            foreach ($n in @('installer.nsi', 'PortugueseBR.nsh')) {
+                Assert-Eq (Get-Utf8BomCount (Join-Path $dir $n)) 1 "BOMs em $n gerado"
+            }
+            # bytes de "Sofa" com acento agudo: 53 6F 66 C3 A1 (nunca C3 83 C2 A1, que e o mojibake)
+            $acute = [byte[]](0x53, 0x6F, 0x66, 0xC3, 0xA1)
+            $moji = [byte[]](0x53, 0x6F, 0x66, 0xC3, 0x83, 0xC2, 0xA1)
+            function Find-Bytes([byte[]]$Hay, [byte[]]$Needle) {
+                for ($i = 0; $i -le $Hay.Length - $Needle.Length; $i++) {
+                    $ok = $true
+                    for ($j = 0; $j -lt $Needle.Length; $j++) { if ($Hay[$i + $j] -ne $Needle[$j]) { $ok = $false; break } }
+                    if ($ok) { return $true }
+                }
+                return $false
+            }
+            foreach ($n in @('installer.nsi', 'PortugueseBR.nsh')) {
+                $b = [System.IO.File]::ReadAllBytes((Join-Path $dir $n))
+                Assert-True (Find-Bytes $b $acute) "$n gerado sem o nome com acento"
+                Assert-True (-not (Find-Bytes $b $moji)) "$n gerado com o nome em mojibake"
+            }
+            $t = [System.IO.File]::ReadAllText($gen.FullName, [System.Text.Encoding]::UTF8)
+            $a = [string][char]0xE1
+            Assert-True ($t.Contains('!define MANUFACTURER "Sof' + $a + '"')) 'publisher com acento ausente'
+            Assert-True ($t.Contains('!define COPYRIGHT "Copyright (c) Sof' + $a + '"')) 'copyright com acento ausente'
+            Assert-True ($t.Contains('!define DISPLAYNAME "Sof' + $a + '"')) 'nome exibido com acento ausente'
         }
         Test-Case 'script gerado: sem pagina de pasta e com a pasta fixa' {
             $t = ((Get-Content -LiteralPath $gen.FullName -Encoding UTF8) | Where-Object { $_.TrimStart() -notmatch '^[;#]' }) -join "`n"
@@ -684,6 +719,17 @@ public static class SofaReparse {
         # conteudo do instalador (so lista; nao executa nada)
         $setup = Get-ChildItem -LiteralPath (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $gen.FullName))) -Recurse -Filter '*-setup.exe' -ErrorAction SilentlyContinue |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($setup) {
+            Test-Case "nome com acento no instalador compilado ($($setup.Name))" {
+                # ProductName, FileDescription e LegalCopyright saem do mesmo .nsi (DISPLAYNAME e copyright): se o
+                # makensis leu o arquivo como ANSI, viria o mojibake em vez de "Sofa" com o acento agudo
+                $vi = (Get-Item -LiteralPath $setup.FullName).VersionInfo
+                $a = [string][char]0xE1
+                Assert-Eq $vi.ProductName ('Sof' + $a) 'ProductName'
+                Assert-Eq $vi.FileDescription ('Sof' + $a) 'FileDescription'
+                Assert-Eq $vi.LegalCopyright ('Copyright (c) Sof' + $a) 'LegalCopyright'
+            }
+        }
         $sevenZip = @("$env:ProgramFiles\7-Zip\7z.exe", "${env:ProgramFiles(x86)}\7-Zip\7z.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
         if ($setup -and $sevenZip) {
             Test-Case "conteudo do instalador ($($setup.Name))" {

@@ -29,8 +29,8 @@
     "targets": [
       "nsis"
     ],
-    "publisher": "Sofa",
-    "copyright": "Copyright (c) Sofa",
+    "publisher": "Sofá",
+    "copyright": "Copyright (c) Sofá",
     "category": "Game",
     "shortDescription": "Sofá: launcher de jogos para a TV",
     "icon": [
@@ -45,6 +45,7 @@
       "../docs/brand/sofa/assets/fonts/OFL-Sora.txt": "licenses/OFL-Sora.txt"
     },
     "windows": {
+      "allowDowngrades": false,
       "webviewInstallMode": {
         "type": "embedBootstrapper",
         "silent": true

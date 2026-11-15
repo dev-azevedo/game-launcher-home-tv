@@ -204,6 +204,10 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 
 ; Installer pages, must be ordered as they appear
 ; 1. Welcome Page
+; Sofa: texto proprio no lugar do de fabrica do NSIS (que fala em "assistente" e em fechar outros
+; aplicativos, o que nao se aplica; revisao-instalador.md, secao 5).
+!define MUI_WELCOMEPAGE_TITLE "Instalar o ${DISPLAYNAME}"
+!define MUI_WELCOMEPAGE_TEXT "Do sofá, direto pro jogo. Clique em Avançar para instalar o ${DISPLAYNAME} neste PC."
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
 !insertmacro MUI_PAGE_WELCOME
 
@@ -433,6 +437,8 @@ Page custom SofaOptionsShow SofaOptionsLeave
 ; Don't auto jump to finish page after installation page,
 ; because the installation page has useful info that can be used debug any issues with the installer.
 !define MUI_FINISHPAGE_NOAUTOCLOSE
+!define MUI_FINISHPAGE_TITLE "${DISPLAYNAME} instalado"
+!define MUI_FINISHPAGE_TEXT "Clique em Concluir para sair do instalador."
 ; Use show readme button in the finish page as a button create a desktop shortcut
 !define MUI_FINISHPAGE_SHOWREADME
 !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
@@ -542,10 +548,10 @@ Function .onInit
     Abort
   ${EndIf}
 
-
   !if "${INSTALLMODE}" == "both"
     !insertmacro MULTIUSER_INIT
   !endif
+
   ; Abort downgrades if they are disabled, in the modes that skip the reinstall page choice:
   ; silent, passive and update
   !if "${ALLOWDOWNGRADES}" == "false"
@@ -723,12 +729,6 @@ FunctionEnd
 
 Function un.onInit
   !insertmacro SetContext
-  ; Sofa: sem a pagina (silencioso, /P, /UPDATE) o padrao e MANTER os dados.
-  StrCpy $KeepDataCheckboxState 1
-
-  !if "${INSTALLMODE}" == "both"
-    !insertmacro MULTIUSER_UNINIT
-  !endif
   ; Sofa (SEC-BUG-05, ARQ-BUG-16): o desinstalador so roda a partir de $PROGRAMFILES64\Sofa. Um
   ; uninstall.exe copiado para outra pasta (gravavel pelo usuario) nao executa o sofa.exe dali,
   ; elevado, no purge.
@@ -738,6 +738,12 @@ Function un.onInit
     MessageBox MB_ICONSTOP "$(sofaUninstallDirFixed)" /SD IDOK
     Abort
   ${EndIf}
+  ; Sofa: sem a pagina (silencioso, /P, /UPDATE) o padrao e MANTER os dados.
+  StrCpy $KeepDataCheckboxState 1
+
+  !if "${INSTALLMODE}" == "both"
+    !insertmacro MULTIUSER_UNINIT
+  !endif
 
   ${GetOptions} $CMDLINE "/P" $PassiveMode
   ${IfNot} ${Errors}

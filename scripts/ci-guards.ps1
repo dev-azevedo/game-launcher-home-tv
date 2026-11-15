@@ -159,10 +159,49 @@ function Get-NsisViolations([string]$Rel, [string[]]$Lines) {
     return $out.ToArray()
 }
 
-# Script NSIS gerado pelo Tauri (target/<triple>/release/nsis/<arch>/installer.nsi): mesmas regras.
+# NSIS-BOM: o NSIS Unicode le arquivo sem BOM como ANSI e estraga os acentos. O bundler do
+# Tauri GRAVA O PROPRIO BOM UTF-8 (EF BB BF) em todo arquivo NSIS que gera, inclusive no
+# `installer.nsi` renderizado do template e no arquivo de idioma copiado. Entao:
+#   - FONTE (installer.nsi, PortugueseBR.nsh): UTF-8 SEM BOM. Com BOM o gerado fica com dois e o
+#     makensis para na linha 1 ("Invalid command").
+#   - GERADO: exatamente UM BOM (conferido no -Release e no test-installer.ps1).
+# (Medido no build da leva 6; revisao-instalador.md, secao 1, supunha o contrario.)
+$script:NsisNoBomFiles = @('src-tauri/windows/installer.nsi', 'src-tauri/windows/PortugueseBR.nsh')
+
+# Quantos BOMs UTF-8 seguidos abrem o arquivo.
+function Get-Utf8BomCount([string]$Path) {
+    $b = [System.IO.File]::ReadAllBytes($Path)
+    $n = 0
+    while ($b.Length -ge (3 * ($n + 1)) -and $b[3 * $n] -eq 0xEF -and $b[3 * $n + 1] -eq 0xBB -and $b[3 * $n + 2] -eq 0xBF) { $n++ }
+    return $n
+}
+
+function Get-NsisBomViolations([string]$Root) {
+    $out = New-Object System.Collections.Generic.List[string]
+    foreach ($rel in $script:NsisNoBomFiles) {
+        $p = Join-Path $Root $rel
+        if ((Test-Path -LiteralPath $p) -and (Get-Utf8BomCount $p) -gt 0) {
+            $out.Add(('NSIS-BOM {0} com BOM na fonte: o bundler grava o proprio e o arquivo gerado fica com dois (makensis: Invalid command na linha 1)' -f $rel))
+        }
+    }
+    return $out.ToArray()
+}
+
+# Script NSIS gerado pelo Tauri (target/<triple>/release/nsis/<arch>/installer.nsi): mesmas regras, e
+# o installer.nsi e o idioma gerados com exatamente um BOM (o NSIS Unicode os le como UTF-8).
 function Invoke-GeneratedNsisGuard([string]$Path) {
     $lines = @(Get-Content -LiteralPath $Path -Encoding UTF8)
-    return @(Get-NsisViolations ('generated/' + (Split-Path -Leaf $Path)) $lines)
+    $v = New-Object System.Collections.Generic.List[string]
+    foreach ($x in @(Get-NsisViolations ('generated/' + (Split-Path -Leaf $Path)) $lines)) { $v.Add($x) }
+    $dir = Split-Path -Parent $Path
+    foreach ($name in @('installer.nsi', 'PortugueseBR.nsh')) {
+        $f = Join-Path $dir $name
+        if (Test-Path -LiteralPath $f) {
+            $n = Get-Utf8BomCount $f
+            if ($n -ne 1) { $v.Add(('NSIS-BOM generated/{0} com {1} BOM(s) UTF-8; o gerado precisa de exatamente um' -f $name, $n)) }
+        }
+    }
+    return $v.ToArray()
 }
 
 # Devolve uma lista de textos "REGRA arquivo:linha padrao". Lista vazia = limpo.
@@ -208,6 +247,7 @@ function Invoke-Guards([string]$Root) {
         $lines = @(Get-Content -LiteralPath $f.FullName -Encoding UTF8)
         foreach ($v in @(Get-NsisViolations $rel $lines)) { $violations.Add($v) }
     }
+    foreach ($v in @(Get-NsisBomViolations $Root)) { $violations.Add($v) }
     # Sem a virgula: a lista e desenrolada na saida e o chamador usa @(...) para contar.
     return $violations.ToArray()
 }
@@ -299,8 +339,21 @@ function Invoke-GuardSelfTest {
             'System::Call ''kernel32::CreateProcessW(w r1, w r2, p 0, p 0, i 0, i 0, p 0, p 0, p r3, p r4) i .r0''',
             'RMDir /r "$LOCALAPPDATA\app.sofa.launcher"'
         )
+        # NSIS-BOM: a fonte com BOM e acusada (o bundler grava o proprio); a fonte sem BOM, nao.
+        [System.IO.File]::WriteAllBytes((Join-Path $tmp 'src-tauri/windows/PortugueseBR.nsh'), ([byte[]](0xEF, 0xBB, 0xBF) + [System.Text.Encoding]::UTF8.GetBytes('; Sofa com BOM')))
+        [System.IO.File]::WriteAllBytes((Join-Path $tmp 'src-tauri/windows/installer.nsi'), [System.Text.Encoding]::UTF8.GetBytes('; Sofa sem BOM'))
         $found = @(Invoke-Guards $tmp)
         $text = $found -join "`n"
+        if ($text -notmatch 'NSIS-BOM src-tauri/windows/PortugueseBR\.nsh ') { throw 'autoteste: idioma NSIS com BOM na fonte nao foi acusado' }
+        if ($text -match 'NSIS-BOM src-tauri/windows/installer\.nsi ') { throw 'autoteste: instalador sem BOM acusado indevidamente' }
+        # gerado: dois BOMs (fonte com BOM + o do bundler) sao acusados; um so, nao
+        $gen = Join-Path $tmp 'generated'
+        New-Item -ItemType Directory -Force -Path $gen | Out-Null
+        [System.IO.File]::WriteAllBytes((Join-Path $gen 'installer.nsi'), ([byte[]](0xEF, 0xBB, 0xBF, 0xEF, 0xBB, 0xBF) + [System.Text.Encoding]::UTF8.GetBytes('; dois')))
+        [System.IO.File]::WriteAllBytes((Join-Path $gen 'PortugueseBR.nsh'), ([byte[]](0xEF, 0xBB, 0xBF) + [System.Text.Encoding]::UTF8.GetBytes('; um')))
+        $genText = (@(Invoke-GeneratedNsisGuard (Join-Path $gen 'installer.nsi'))) -join "`n"
+        if ($genText -notmatch 'NSIS-BOM generated/installer\.nsi com 2 BOM') { throw 'autoteste: installer.nsi gerado com dois BOMs nao foi acusado' }
+        if ($genText -match 'PortugueseBR') { throw 'autoteste: idioma gerado com um BOM acusado indevidamente' }
         foreach ($token in $planted) {
             if ($text -notmatch [regex]::Escape($token)) { throw "autoteste: violacao plantada nao detectada: $token" }
         }

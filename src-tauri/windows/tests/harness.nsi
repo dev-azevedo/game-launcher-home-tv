@@ -106,6 +106,10 @@ Section
     Call SofaPurgeDecide
     StrCpy $0 "outcome=$SofaOutcome"
     Call Emit
+    ; ultimos 3 caracteres do texto da caixa: sem linhas em branco quando nao ha pasta
+    StrCpy $0 $R5 3 -3
+    StrCpy $0 "tail=$0"
+    Call Emit
     StrCpy $0 "deleted=$SofaDeleted"
     Call Emit
 
@@ -125,10 +129,6 @@ Section
     StrCpy $0 "code=$SofaPurgeCode"
     Call Emit
 
-  ${ElseIf} $Scenario == "autostart"
-    Call ReadSid
-    Push $Arg
-    Call SofaRemoveAutostartForSid
   ${ElseIf} $Scenario == "instdir"
     ; pasta fixa (SEC-BUG-05): $INSTDIR vem do `/D=` com que o harness foi aberto; /PREV= e a
     ; pasta da instalacao anterior que o instalador leria do HKLM
@@ -140,6 +140,10 @@ Section
     StrCpy $0 "instdir=$INSTDIR"
     Call Emit
 
+  ${ElseIf} $Scenario == "autostart"
+    Call ReadSid
+    Push $Arg
+    Call SofaRemoveAutostartForSid
     StrCpy $0 "done=1"
     Call Emit
   ${Else}
