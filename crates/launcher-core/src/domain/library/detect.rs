@@ -14,7 +14,7 @@ use super::install_path_policy::{
 use super::launch::LaunchSpec;
 use super::model::DetectedGame;
 use super::steam_non_games::is_steam_non_game;
-use crate::domain::session::path_is_within;
+use crate::domain::path::path_is_within;
 
 /// Por que um item da loja nao entrou na biblioteca.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

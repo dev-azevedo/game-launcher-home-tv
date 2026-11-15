@@ -9,6 +9,7 @@ pub mod data_dir_policy;
 pub mod display;
 pub mod input;
 pub mod library;
+pub mod path;
 pub mod power;
 pub mod session;
 pub mod settings;

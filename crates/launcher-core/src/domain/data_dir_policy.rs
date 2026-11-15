@@ -75,25 +75,7 @@ pub fn target_dir(local_app_data: &str, identifier: &str) -> Option<String> {
     identifier_is_safe(identifier).then(|| format!("{lad}\\{identifier}"))
 }
 
-/// `child` e `parent\<um componente>` (comparacao sem diferenca de caixa e ignorando `\\?\`).
-pub fn is_direct_child(parent: &str, child: &str) -> bool {
-    fn norm(p: &str) -> String {
-        p.trim()
-            .strip_prefix(r"\\?\")
-            .unwrap_or(p.trim())
-            .replace('/', "\\")
-            .trim_end_matches('\\')
-            .to_lowercase()
-    }
-    let (p, c) = (norm(parent), norm(child));
-    if p.is_empty() {
-        return false;
-    }
-    match c.strip_prefix(&p).and_then(|rest| rest.strip_prefix('\\')) {
-        Some(name) => !name.is_empty() && !name.contains('\\') && name != "." && name != "..",
-        None => false,
-    }
-}
+pub use crate::domain::path::is_direct_child;
 
 /// Decide se apaga (SEC-25). Qualquer duvida e `InvalidTarget` e nada e apagado.
 pub fn plan(facts: &TargetFacts) -> Result<PurgePlan, PurgeExit> {
@@ -158,32 +140,6 @@ mod tests {
         ] {
             assert_eq!(target_dir(r"C:\Users\ana\AppData\Local", id), None, "{id}");
         }
-    }
-
-    #[test]
-    fn um_nivel_abaixo_por_componente() {
-        let lad = r"C:\Users\ana\AppData\Local";
-        for ok in [
-            r"C:\Users\ana\AppData\Local\app.sofa.launcher",
-            r"c:\users\ANA\appdata\local\App.Sofa.Launcher",
-            r"\\?\C:\Users\ana\AppData\Local\app.sofa.launcher",
-            r"C:\Users\ana\AppData\Local\app.sofa.launcher\",
-        ] {
-            assert!(is_direct_child(lad, ok), "{ok}");
-        }
-        for ruim in [
-            r"C:\Users\ana\AppData\Local",
-            r"C:\Users\ana\AppData\Local\a\b",
-            r"C:\Users\ana\AppData\LocalLow\app.sofa.launcher",
-            r"C:\Users\ana\AppData\Local\..",
-            r"C:\Users\ana\AppData",
-            r"D:\Outro\app.sofa.launcher",
-            r"C:\Users\ana\AppData\Local\app.sofa.launcher\cache",
-            "",
-        ] {
-            assert!(!is_direct_child(lad, ruim), "{ruim}");
-        }
-        assert!(!is_direct_child("", r"C:\x"));
     }
 
     #[test]

@@ -4,7 +4,7 @@
 //!
 //! Nada aqui e "sanitizado": caminho fora da regra e recusado e o jogo e ignorado na deteccao.
 
-use crate::domain::session::path_is_within;
+use crate::domain::path::path_is_within;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PathPolicyError {

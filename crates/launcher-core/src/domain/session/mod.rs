@@ -7,4 +7,4 @@ pub use machine::{
     FrontOutcome, LaunchFailure, Session, SessionConfig, SessionEffect, SessionSnapshot,
     SessionState,
 };
-pub use process_policy::{classify, path_is_within, Exclusion, ProcessInfo, SessionContext};
+pub use process_policy::{classify, Exclusion, ProcessInfo, SessionContext};

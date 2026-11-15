@@ -2,6 +2,8 @@
 //! confinamento do executavel em `Program Files`, o que o Agendador chama de falha e como o
 //! instalador deixa o padrao (`InstallDefaults`). Nada de Win32 aqui.
 
+use crate::domain::path::{path_is_strictly_within, path_key};
+
 /// Argumento que a entrada de autostart passa ao Sofa (BE-40).
 pub const AUTOSTART_ARG: &str = "--autostart";
 /// Prefixo do nome da tarefa; o resto e o SID do usuario (SEC-22, SEC-32).
@@ -47,32 +49,15 @@ pub fn run_command_line(exe: &str) -> String {
     format!("{} {AUTOSTART_ARG}", quoted_exe(exe))
 }
 
-/// Chave de comparacao de caminho: sem aspas, sem prefixo `\\?\`, barras iguais, sem barra final,
-/// sem diferenca de caixa (o NTFS nao diferencia).
-pub fn path_key(path: &str) -> String {
-    let t = path.trim().trim_matches('"');
-    let t = t.strip_prefix(r"\\?\").unwrap_or(t);
-    t.replace('/', "\\").trim_end_matches('\\').to_lowercase()
-}
-
 pub fn same_path(a: &str, b: &str) -> bool {
     path_key(a) == path_key(b)
 }
 
 /// DR-04: o exe esta dentro de uma das pastas `Program Files` (comparacao por componente, nunca
-/// por prefixo de texto: `C:\Program Files Evil\sofa.exe` nao passa). Rejeita `..`.
+/// por prefixo de texto: `C:\Program Files Evil\sofa.exe` nao passa). Rejeita `..`. A comparacao e a
+/// de `domain::path` (ARQ-BUG-04).
 pub fn is_under_program_files(exe: &str, roots: &[String]) -> bool {
-    let exe_key = path_key(exe);
-    if exe_key.split('\\').any(|c| c == ".." || c == ".") {
-        return false;
-    }
-    roots.iter().any(|root| {
-        let root_key = path_key(root);
-        !root_key.is_empty()
-            && exe_key.len() > root_key.len() + 1
-            && exe_key.starts_with(&root_key)
-            && exe_key.as_bytes()[root_key.len()] == b'\\'
-    })
+    roots.iter().any(|root| path_is_strictly_within(root, exe))
 }
 
 /// O `Path` de uma acao ou de um valor `Run` aponta para o exe esperado. Com `expected`, so o

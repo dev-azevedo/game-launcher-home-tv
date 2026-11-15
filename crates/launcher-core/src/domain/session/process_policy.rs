@@ -6,6 +6,8 @@
 //! `QUERY_LIMITED | SYNCHRONIZE` (protegidos). A associacao por pasta compara **por componente**
 //! (`C:\Jogos2` nao esta em `C:\Jogos`).
 
+use crate::domain::path::path_is_within;
+
 /// Fotografia de um processo candidato.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcessInfo {
@@ -66,26 +68,6 @@ const STORE_IMAGES: &[&str] = &[
     "galaxyclienthelper.exe",
     "galaxycommunication.exe",
 ];
-
-/// `true` se `path` e `root` ou esta dentro dele, comparando componente a componente, sem
-/// diferenciar caixa e tolerando `/`, barra final e barras duplicadas. Nao resolve `..`:
-/// qualquer `.`/`..` no caminho o torna "fora" (o adapter entrega caminho canonico).
-pub fn path_is_within(root: &str, path: &str) -> bool {
-    fn components(p: &str) -> Option<Vec<String>> {
-        let mut out = Vec::new();
-        for c in p.split(['\\', '/']).filter(|c| !c.is_empty()) {
-            if c == "." || c == ".." {
-                return None;
-            }
-            out.push(c.to_lowercase());
-        }
-        Some(out)
-    }
-    match (components(root), components(path)) {
-        (Some(r), Some(p)) => !r.is_empty() && p.len() >= r.len() && p[..r.len()] == r[..],
-        _ => false,
-    }
-}
 
 fn file_name(path: &str) -> String {
     path.rsplit(['\\', '/']).next().unwrap_or("").to_lowercase()
@@ -255,44 +237,5 @@ mod tests {
             ..game_proc()
         };
         assert_eq!(classify(&p, &ctx()), Err(Exclusion::OutsideInstallDir));
-    }
-
-    #[test]
-    fn confinamento_por_componente() {
-        assert!(path_is_within(r"C:\Jogos", r"C:\Jogos\A\a.exe"));
-        assert!(path_is_within(r"C:\Jogos", r"C:\Jogos"));
-        assert!(
-            path_is_within(r"c:\JOGOS\", r"C:/jogos/a.exe"),
-            "caixa, barra e barra final"
-        );
-        assert!(
-            path_is_within(r"C:\Jogos", r"C:\\Jogos\\a.exe"),
-            "barras duplicadas"
-        );
-        assert!(
-            !path_is_within(r"C:\Jogos", r"C:\Jogos2\a.exe"),
-            "C:\\Jogos2 nao esta em C:\\Jogos"
-        );
-        assert!(!path_is_within(r"C:\Jogos", r"C:\JogosExtra"));
-        assert!(
-            !path_is_within(r"C:\Jogos\A", r"C:\Jogos"),
-            "pai nao esta no filho"
-        );
-        assert!(
-            !path_is_within(r"C:\Jogos", r"C:\Jogos\..\Windows\x.exe"),
-            "sem resolver .."
-        );
-        assert!(!path_is_within(r"C:\Jogos", r"C:\Jogos\.\a.exe"));
-        assert!(
-            !path_is_within("", r"C:\Jogos\a.exe"),
-            "raiz vazia nunca confina"
-        );
-    }
-
-    #[test]
-    fn raiz_de_unidade_nao_serve_de_pasta_de_instalacao() {
-        // SEC-16 barra `C:\` antes; aqui a regra tambem nao deixa uma raiz "vazia" confinar tudo.
-        assert!(!path_is_within("", r"C:\Qualquer\coisa.exe"));
-        assert!(!path_is_within(r"\\", r"C:\a.exe"));
     }
 }
