@@ -696,6 +696,30 @@ public static class SofaReparse {
             Assert-True ($l -match '\$\{DISPLAYNAME\}\.lnk') "atalho sem DISPLAYNAME: $l"
         }
     }
+    Test-Case 'PortugueseBR.nsh: cada LangString igual, caractere a caractere, ao texto final da microcopy (secao 4, BE-65)' {
+        $md = [System.IO.File]::ReadAllText((Join-Path $root 'docs\design\launcher-tv\microcopy.md'), [System.Text.Encoding]::UTF8)
+        $sec = [regex]::Match($md, '(?s)\n## 4\. Instalador e desinstalador(.*?)(\n## |\z)').Groups[1].Value
+        Assert-True ($sec.Length -gt 0) 'secao 4 da microcopy nao encontrada'
+        $doc = @{}
+        foreach ($line in ($sec -split "`r?`n")) {
+            if ($line -notmatch '^\|\s*`([A-Za-z0-9]+)`\s*\|') { continue }
+            $cells = @($line.Trim().Trim('|') -split '\|' | ForEach-Object { $_.Trim() })
+            $text = $cells[$cells.Count - 1].Replace('**', '').Replace('`', '')
+            $text = $text -replace '\s*\(mant.m o \$\\n do fim\)$', '$$\n'
+            $doc[$Matches[1]] = $text
+        }
+        $nsh = @{}
+        foreach ($line in (Get-Content -LiteralPath (Join-Path $winDir 'PortugueseBR.nsh') -Encoding UTF8)) {
+            if ($line -match '^LangString\s+(\w+)\s+\$\{LANG_PORTUGUESEBR\}\s+"(.*)"\s*$') { $nsh[$Matches[1]] = $Matches[2] }
+        }
+        Assert-True ($nsh.Count -gt 30) "poucos LangString lidos: $($nsh.Count)"
+        foreach ($id in $nsh.Keys) {
+            Assert-True ($doc.ContainsKey($id)) "LangString $id sem linha na microcopy"
+            Assert-Eq $nsh[$id] $doc[$id] "texto de $id"
+        }
+        # nenhum texto do instalador usa o nome antigo
+        foreach ($id in $nsh.Keys) { Assert-True ($nsh[$id] -cnotmatch 'Sof[^a]|Sofa(?!Launcher|Prev)') "nome antigo em $id" }
+    }
     # =============================================================== o instalador gerado
     Write-Host "`n== Instalador gerado (se existir)" -ForegroundColor Cyan
     $gen = Get-ChildItem -LiteralPath (Join-Path $root 'target') -Recurse -Filter installer.nsi -ErrorAction SilentlyContinue |
