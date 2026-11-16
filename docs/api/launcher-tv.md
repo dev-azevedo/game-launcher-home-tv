@@ -1,4 +1,4 @@
-# Contrato de API: launcher-tv (Sofá)
+# Contrato de API: launcher-tv (SofaLauncher)
 
 | Campo | Valor |
 |---|---|
@@ -179,7 +179,9 @@ Passo de 5, limite 0 a 100; RT no mudo desmuta e sobe; LT no mudo baixa o nível
 | 27 | `settings_set_monitor` | `{ monitorId: MonitorId\|null }`; deve estar em `display_monitors`; nulo = principal | `SettingsDto` | `UnknownMonitor` |
 | 28 | `display_monitors` | — | `MonitorDto[]` | — |
 | 29 | `input_status` | — | `{ connected: 0..4 }` | — |
-| 30 | `app_exit` | — | `()` (CA-05; o jogo em sessão continua aberto) | — |
+| 30 | `app_exit` | — | `()` (CA-05, CA-82, RN-35: fecha só o launcher; o jogo em sessão continua aberto) | — |
+
+`app_exit` serve ao item "Fechar o launcher" do grupo de energia do menu rápido (D-50, D-53; o "Sair do launcher" deixou de existir). Não é ação de energia: não passa por `power_prepare`/ticket e não mexe no PC. A confirmação com "Cancelar" em foco é da UI (`ExitDialog`); o núcleo só encerra. Com sessão ativa, não pede fechamento ao jogo, não força, não minimiza, não traz o jogo à frente (`ForegroundBroker`) e não toca em "Iniciar com o Windows" (CA-82 itens 3 e 5, D-51, D-57). Antes de sair grava uma linha `info` "fechar o launcher" com o estado da sessão e o `GameId` (sem caminho, SEC-18), drena o log (até 300 ms) e chama `exit(0)`. Detalhes na seção 13.
 
 `settings_set_autostart`: o núcleo recusa ligar se o exe em execução não estiver em `%ProgramFiles%` (DR-04) → `AutostartFailed`. Os valores `advanced.*` de `settings.json` **não** têm comando (9.3 da arquitetura).
 

@@ -113,8 +113,9 @@ pub async fn input_status(
     })
 }
 
-/// `app_exit`: fecha so o Sofa. Jogo em sessao continua aberto (CA-05): nenhum processo de jogo
-/// e encerrado aqui e nao ha Job com `KILL_ON_JOB_CLOSE` (RN-16).
+/// `app_exit`: fecha so o launcher ("Fechar o launcher", CA-82, RN-35). Jogo em sessao continua
+/// aberto (CA-05): nenhum processo de jogo e encerrado aqui e nao ha Job com `KILL_ON_JOB_CLOSE`
+/// (RN-16, INV-05). O hook so chama `exit::close_launcher`.
 #[tauri::command]
 pub async fn app_exit(request: Request<'_>, state: State<'_, AppState>) -> Result<(), ErrorDto> {
     guard("app_exit", || {

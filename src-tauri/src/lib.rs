@@ -8,6 +8,7 @@ pub mod cover_protocol;
 pub mod dto;
 pub mod errors;
 pub mod events;
+pub mod exit;
 pub mod ipc;
 pub mod launcher_window;
 pub mod library_view;
@@ -98,9 +99,10 @@ pub fn run(start: StartMode) {
                 .state::<state::AppState>()
                 .exit_hook
                 .set(Box::new(move || {
-                    // O log e assincrono: da uma folga curta para gravar o que ficou na fila.
-                    launcher_win::logging::flush(std::time::Duration::from_millis(300));
-                    handle.exit(0)
+                    // CA-82, RN-35: so o launcher fecha; linha de log, flush e `exit(0)` (exit.rs).
+                    exit::close_launcher(&exit::TauriExit {
+                        handle: handle.clone(),
+                    })
                 }));
             let elevated = launcher_win::hardening::is_process_elevated();
             app.state::<state::AppState>()
