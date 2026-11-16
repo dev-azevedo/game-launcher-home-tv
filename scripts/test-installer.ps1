@@ -860,6 +860,10 @@ public static class SofaReparse {
             Assert-True ($text.Contains('0.1.0')) "$name sem a atualizacao por cima da 0.1.0"
         }
     }
+    Test-Case 'template: CompanyName do instalador vem do publisher (MANUFACTURER), sem ficar vazio (QA-BUG-05)' {
+        $code = ((Get-Content -LiteralPath (Join-Path $winDir 'installer.nsi') -Encoding UTF8) | Where-Object { $_.TrimStart() -notmatch '^[;#]' }) -join "`n"
+        Assert-True ($code -match 'VIAddVersionKey "CompanyName" "\$\{MANUFACTURER\}"') 'VIAddVersionKey CompanyName ausente'
+    }
     # =============================================================== o instalador gerado
     Write-Host "`n== Instalador gerado (se existir)" -ForegroundColor Cyan
     $gen = Get-ChildItem -LiteralPath (Join-Path $root 'target') -Recurse -Filter installer.nsi -ErrorAction SilentlyContinue |
@@ -929,6 +933,7 @@ public static class SofaReparse {
                 Assert-Eq $vi.ProductName 'SofaLauncher' 'ProductName'
                 Assert-Eq $vi.FileDescription 'SofaLauncher' 'FileDescription'
                 Assert-Eq $vi.LegalCopyright 'Copyright (c) SofaLauncher' 'LegalCopyright'
+                Assert-Eq $vi.CompanyName 'SofaLauncher' 'CompanyName (QA-BUG-05)'
             }
         }
         $sevenZip = @("$env:ProgramFiles\7-Zip\7z.exe", "${env:ProgramFiles(x86)}\7-Zip\7z.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
