@@ -71,7 +71,12 @@ export function ConfirmDialog({
           <div className="dc">
             <h2 id={titleId}>{title}</h2>
             {children ? <div className="body">{children}</div> : null}
-            {warning ? <div className={`warnline${warningTone === 'warn' ? ' amber' : ''}`}>{warning}</div> : null}
+            {warning ? (
+              <div className={`warnline${warningTone === 'warn' ? ' amber' : ''}`}>
+                <Icon name="alert" size="s" />
+                <span>{warning}</span>
+              </div>
+            ) : null}
             <div className="btnrow">
               <Focusable as="button" focusKey="dlg-cancel" className="btn" onActivate={onCancel}>
                 {cancelLabel}

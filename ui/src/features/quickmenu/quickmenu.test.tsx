@@ -238,6 +238,7 @@ describe('menu rapido (FE-10)', () => {
       ),
     );
     expect(dlg.querySelector('.warnline')).toBeNull();
+    expect(screen.getByText('Fechar o launcher', { selector: 'button' }).querySelector('svg.ic')).not.toBeNull();
     await waitFor(() => expect(focusedText()).toBe('Cancelar'));
     expect(screen.getByText('Fechar o launcher', { selector: 'button' })).not.toHaveClass('danger');
     expect(core.count('app_exit')).toBe(0);
@@ -264,6 +265,7 @@ describe('menu rapido (FE-10)', () => {
     press(activateFocused);
     const dlg = await screen.findByRole('alertdialog', { name: 'Fechar o launcher' });
     expect(dlg.querySelector('.warnline.amber')).toHaveTextContent(`${name} continuará aberto. Nenhum progresso se perde.`);
+    expect(dlg.querySelector('.warnline.amber svg.ic')).not.toBeNull();
     expect(dlg.querySelector('img')).toBeNull();
     expect(dlg).toHaveTextContent('Só o SofaLauncher fecha.');
     await waitFor(() =>

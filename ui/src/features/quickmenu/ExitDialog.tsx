@@ -29,6 +29,7 @@ export function ExitDialog({ active, entry }: { active: boolean; entry: ScreenEn
       icon="exit"
       defaultFocus="cancel"
       confirmKind="neutral"
+      confirmIcon="exit"
       confirmLabel={copy.confirmLabel}
       warning={copy.warning}
       warningTone="warn"
