@@ -23,7 +23,7 @@ const NO_AUDIO = 'Nenhum dispositivo de áudio encontrado';
 const NO_POWER = 'Esta ação não está disponível neste PC.';
 
 /**
- * Menu rapido (CA-05, CA-37 a CA-48): volume com ←/→, mudo, energia com confirmacao, configuracoes e sair.
+ * Menu rapido (CA-05, CA-37 a CA-48): volume com ←/→, mudo, energia com confirmacao, energia, fechar o launcher e configuracoes.
  * O nivel exibido vem da store, alimentada por `volume://changed` (CA-41).
  */
 export function QuickMenu({ active, entry }: { active: boolean; entry: ScreenEntry }) {
@@ -92,10 +92,17 @@ export function QuickMenu({ active, entry }: { active: boolean; entry: ScreenEnt
       onSelect: () => void toggleMute(),
     },
   ];
-  const energy = [
+  const energy: MenuItemSpec[] = [
     power('Shutdown', 'off', 'Desligar', 'power'),
     power('Restart', 'restart', 'Reiniciar', 'refresh'),
     power('Suspend', 'suspend', 'Suspender', 'moon', 'Suspensão indisponível neste PC'),
+    // Fecha so o launcher (RN-35): icone neutro, sem o vermelho dos itens que afetam o PC.
+    {
+      id: 'exit',
+      label: 'Fechar o launcher',
+      icon: 'exit',
+      onSelect: () => push('confirmDialog', undefined, { confirm: 'exit' }),
+    },
   ];
   const app: MenuItemSpec[] = [
     {
@@ -106,12 +113,6 @@ export function QuickMenu({ active, entry }: { active: boolean; entry: ScreenEnt
         remove(entry.key);
         push('settings');
       },
-    },
-    {
-      id: 'exit',
-      label: 'Sair do launcher',
-      icon: 'exit',
-      onSelect: () => push('confirmDialog', undefined, { confirm: 'exit' }),
     },
   ];
 
