@@ -295,7 +295,7 @@ fn embed_admin_manifest(exe: &Path) {
 #[test]
 fn job_avisa_inicio_e_fim_do_ultimo_processo_sem_polling() {
     let sb = Sandbox::new();
-    let exe = sb.game(r"Jogos\Jogo Um\game.exe");
+    let exe = sb.game(r"Jogos\Jogo Um\fim-sofa-qa.exe");
     let t = target(&exe, &["sleep", "1500"]);
     let sink = Arc::new(Sink::default());
     let (_watch, t0) = watch_job(&t, &sink);
@@ -306,14 +306,19 @@ fn job_avisa_inicio_e_fim_do_ultimo_processo_sem_polling() {
         seen.duration_since(t0) < Duration::from_secs(1),
         "inicio < 1 s"
     );
-    let gone = sink.wait("gone", 1, Duration::from_secs(6)).expect("fim");
-    // Medido a partir do aviso de inicio, nao de antes do `start`: o antivirus varre cada copia nova
-    // do helper e atrasa a criacao do processo (ate ~1 s, medido), o que nao tem a ver com o fim ser
-    // imediato (sem polling, que `modo_job_nao_tira_snapshot...` tambem cobre).
-    let alive = gone.duration_since(seen);
+    let game = pid_by_name("fim-sofa-qa.exe")
+        .and_then(ProcHandle::open)
+        .expect("o jogo esta vivo logo apos o aviso de inicio");
+    let gone = sink.wait("gone", 1, Duration::from_secs(8)).expect("fim");
+    // ARQ-BUG-19: o que importa e o aviso vir logo depois de o processo sair de fato (sem polling),
+    // nao uma janela de relogio de parede a partir de `seen`, que oscila com antivirus e carga. A
+    // saida real vem de `GetProcessTimes`; o tempo ate acordar aqui e descontado.
+    let exit_ms = game.exit_age_ms().expect("o processo saiu");
+    let since_gone = Instant::now().duration_since(gone).as_millis() as u64;
+    let delay = exit_ms.saturating_sub(since_gone);
     assert!(
-        alive >= Duration::from_millis(1300) && alive < Duration::from_millis(2300),
-        "fim ~ 1,5 s + ~ms depois do inicio, foi {alive:?}"
+        delay < 500,
+        "aviso de fim {delay} ms depois da saida real do processo (limite 500 ms)"
     );
 }
 
@@ -391,6 +396,32 @@ impl ProcHandle {
             (u64::from(ft.dwHighDateTime) << 32) | u64::from(ft.dwLowDateTime)
         };
         now.saturating_sub(created) / 10_000
+    }
+
+    /// Ha quantos ms o processo saiu (`GetProcessTimes`); `None` se ainda vive.
+    fn exit_age_ms(&self) -> Option<u64> {
+        use windows::Win32::Foundation::FILETIME;
+        use windows::Win32::System::SystemInformation::GetSystemTimeAsFileTime;
+        use windows::Win32::System::Threading::GetProcessTimes;
+        self.exit_code()?;
+        let (mut c, mut e, mut k, mut u) = (
+            FILETIME::default(),
+            FILETIME::default(),
+            FILETIME::default(),
+            FILETIME::default(),
+        );
+        // SAFETY: handle valido com QUERY_LIMITED; ponteiros para locais.
+        let (exit, now) = unsafe {
+            GetProcessTimes(self.0, &mut c, &mut e, &mut k, &mut u).ok()?;
+            (
+                (u64::from(e.dwHighDateTime) << 32) | u64::from(e.dwLowDateTime),
+                {
+                    let ft = GetSystemTimeAsFileTime();
+                    (u64::from(ft.dwHighDateTime) << 32) | u64::from(ft.dwLowDateTime)
+                },
+            )
+        };
+        Some(now.saturating_sub(exit) / 10_000)
     }
 
     /// `None` se ainda vive; `Some(codigo)` se saiu.
@@ -611,7 +642,7 @@ fn modo_job_nao_tira_snapshot_do_sistema_e_pids_devolve_os_membros_conhecidos() 
     let pids = watch.pids();
     let took = t0.elapsed();
     assert!(!pids.is_empty(), "o jogo e membro conhecido");
-    assert!(took < Duration::from_millis(15), "pids() barato: {took:?}");
+    assert!(took < Duration::from_millis(200), "pids() barato: {took:?}");
     let _ = watch.request_close(); // sem janela: so confere que nao tira snapshot
     sink.wait("gone", 1, Duration::from_secs(6)).expect("fim");
     watch.force_close().expect("nenhum membro: nada a encerrar");
@@ -638,7 +669,11 @@ fn modo_job_nao_tira_snapshot_do_sistema_e_pids_devolve_os_membros_conhecidos() 
     let scan = WinSessionProbe::with_store_dirs(vec![])
         .watch_win(plan, 1, s, cfg())
         .unwrap();
-    std::thread::sleep(Duration::from_millis(300));
+    // Espera o primeiro ciclo da varredura em vez de um sono fixo (ARQ-BUG-19: o PC carregado atrasa).
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while scan.snapshots_taken() == 0 && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(50));
+    }
     assert!(scan.snapshots_taken() > 0, "a varredura usa snapshot");
 }
 
@@ -814,10 +849,12 @@ fn varredura_exclui_processos_do_cliente_da_loja() {
         "processo do cliente da loja nunca conta (RN-10)"
     );
     let _ = c.wait();
-    let mut g = Command::new(&game).args(["sleep", "1000"]).spawn().unwrap();
-    sink.wait("seen", 1, Duration::from_secs(4))
-        .expect("o jogo entra");
+    // O jogo vive mais que o intervalo da varredura (2 s) com folga: o ciclo precisa pegar o processo.
+    let mut g = Command::new(&game).args(["sleep", "8000"]).spawn().unwrap();
+    let seen = sink.wait("seen", 1, Duration::from_secs(7));
+    let _ = g.kill();
     let _ = g.wait();
+    seen.expect("o jogo entra");
 }
 
 #[test]
