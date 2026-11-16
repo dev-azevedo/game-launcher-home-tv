@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/launcher-core", "crates/launcher-win", "src-tauri"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.77.2" # SEC-24: piso de seguranca (CVE-2024-24576, BatBadBut)
 license = "UNLICENSED"

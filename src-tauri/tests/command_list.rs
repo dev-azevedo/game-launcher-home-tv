@@ -229,6 +229,38 @@ fn bundle_e_nsis_por_maquina_com_bootstrapper_embutido() {
     assert_eq!(resources.len(), 2, "OFL-Figtree e OFL-Sora");
 }
 
+/// D-57, CA-53, ADR-0007: uma versao so em todos os manifestos, e maior que a 0.1.0 (com
+/// `allowDowngrades: false` o instalador so atualiza por cima de uma versao menor).
+#[test]
+fn versao_unica_nos_manifestos_e_maior_que_a_0_1_0() {
+    let conf: Value = serde_json::from_str(&read("tauri.conf.json")).unwrap();
+    let version = conf["version"]
+        .as_str()
+        .expect("version do tauri.conf.json");
+    assert_eq!(
+        version,
+        env!("CARGO_PKG_VERSION"),
+        "Cargo.toml do workspace"
+    );
+    let pkg: Value = serde_json::from_str(&read("../ui/package.json")).unwrap();
+    assert_eq!(pkg["version"], version, "ui/package.json");
+    let lock: Value = serde_json::from_str(&read("../ui/package-lock.json")).unwrap();
+    assert_eq!(lock["version"], version, "ui/package-lock.json");
+    assert_eq!(
+        lock["packages"][""]["version"], version,
+        "ui/package-lock.json, raiz"
+    );
+    assert_eq!(
+        conf["bundle"]["windows"]["allowDowngrades"], false,
+        "a 0.2.0 so instala por cima de uma versao menor"
+    );
+    let parts: Vec<u32> = version.split('.').map(|p| p.parse().unwrap()).collect();
+    assert!(
+        parts[..] > [0, 1, 0][..],
+        "{version} precisa ser maior que a 0.1.0"
+    );
+}
+
 /// SEC-31, SEC-32: o template do Sofa nao traz de volta a remocao recursiva de dados do Tauri nem
 /// escreve em HKCU (o instalador elevado pode ser de outra conta, E-19).
 #[test]
