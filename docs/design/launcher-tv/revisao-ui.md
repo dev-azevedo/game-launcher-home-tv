@@ -131,3 +131,31 @@ Outras conferências:
 Não verificado, como na rodada 1: capas reais e fundo desfocado, controle Xbox, TV real, e as telas "pasta sem permissão", "pasta de rede" e "forçar sem permissão" (o devCore não as alcança por intenção).
 
 Bugs abertos: nenhum. Bugs novos: nenhum.
+
+## 8. Revisão da 0.2.0 (DES-13)
+
+Branch `feature/sofalauncher-020-20261115`. Referência: `mockups/menu-rapido.html` (aprovado, DES-12) e `microcopy.md`. **Veredito: aprovado, com 2 divergências menores.**
+
+Método: Vite em `ui/` na porta 5195 (encerrado ao fim), Edge headless por CDP, devCore, 1920×1080. O jogo aberto foi simulado no devCore (A no primeiro jogo, F9 para o painel, F1 para o menu rápido).
+
+| Item | Resultado |
+|---|---|
+| Item no grupo de energia | Ordem Volume, Mudo, Desligar, Reiniciar, Suspender, Fechar o launcher, Configurações. Ícone de saída neutro (os três vizinhos seguem vermelhos). Sem "Sair do launcher". Alcançado com F1 e 5 × ↓. |
+| Texto sem jogo (autostart desligado, padrão do devCore) | "O SofaLauncher fecha e o Windows mostra a área de trabalho." / "Para reabrir, use o atalho do SofaLauncher (com teclado ou mouse)." Variante D-58, igual à microcopy. |
+| Texto com jogo aberto (visto no navegador) | "Só o SofaLauncher fecha." / "Para reabrir, use o atalho do SofaLauncher." / aviso âmbar "Vale dos Ventos continuará aberto. Nenhum progresso se perde." Sem aviso de progresso perdido. Igual à microcopy, variante D-58 sem autostart. |
+| Botões | Cancelar à esquerda (x 783) e em foco (âmbar); "Fechar o launcher" à direita, fundo neutro `--brand-surface`. → passa o foco para ele. Nome do diálogo "Fechar o launcher". |
+| Splash e cabeçalho | `logo-horizontal.svg` no cabeçalho e no topo do menu rápido (alt "SofaLauncher"); `splash.svg` presente na abertura. Não vi o quadro fixo da splash (a abertura do devCore é curta), só o `<img>` no DOM. |
+| Rodapé de Configurações | "SofaLauncher 0.2.0 · Fontes Sora e Figtree sob licença OFL". Valores de Geral com o nome novo. |
+| Título da janela | `<title>` SofaLauncher. |
+
+Divergências (nenhuma bloqueia):
+
+| # | Severidade | Divergência | Pedido |
+|---|---|---|---|
+| DES-BUG-08 | Baixa | O aviso âmbar do diálogo com jogo não tem o ícone de alerta (triângulo) que o mockup mostra antes do texto. | Acrescentar o ícone, ou registrar que o aviso sem ícone é aceito. |
+| DES-BUG-09 | Baixa | O botão "Fechar o launcher" do diálogo não traz o ícone de saída à esquerda do rótulo, como no mockup. | Acrescentar o ícone, ou aceitar. |
+
+Não verificado: texto com "Iniciar com o Windows" ligado (variante "ou reinicie o PC") no navegador. O devCore começa com ele desligado e `power.ts` cobre os quatro textos por código, `quickmenu.test.tsx` por teste. Também não verificado: 4K, movimento reduzido, controle real e TV real.
+
+`shortDescription` do `tauri.conf.json`: **"SofaLauncher: launcher de jogos para a TV"**, aprovado. Descreve o produto, usa o nome por extenso e não promete nada que o app não faça.
+

@@ -1,4 +1,6 @@
-# Revisão de arquitetura: launcher-tv (ARQ-05, rodadas 1 a 4)
+# Revisão de arquitetura: launcher-tv (ARQ-05 rodadas 1 a 4; ARQ-06 rodada 5)
+
+> **Rodada 5 (2026-11-15, ARQ-06, versão 0.2.0):** aprovado com ressalvas. ARQ-BUG-17 fechado (BE-59). Novos e baixos: 18 (o teste do m11 da Epic é pulado, mas não esconde defeito de produção) e 19 (teste de tempo instável, anterior à 0.2.0, que pode derrubar o `-FullMsvcTests` da tag). Nada bloqueia o teste do usuário. Ver a seção "Rodada 5" no fim.
 
 > **Rodada 4 (2026-11-15):** leva 6. Fecharam os ARQ-BUG-15 e 16. Há um novo, o ARQ-BUG-17 (baixo: reuso de PID em `scan_job` e falha silenciosa ao registrar a espera), que não bloqueia o QA-17. BE-51 e BE-52 foram aceitos. Ver a seção "Rodada 4" no fim.
 
@@ -224,3 +226,45 @@ Nada do lado da arquitetura. O ARQ-BUG-17 (baixo) pode ser corrigido depois.
 ### Pendente para fechar o ARQ-05
 
 BE-43 com o padrão final dos degraus no ADR-0003, QA-13 e ARQ-BUG-17 (rodada 5).
+
+---
+
+## Rodada 5 (2026-11-15): ARQ-06, versão 0.2.0 (`main..feature/sofalauncher-020-20261115`)
+
+Referência: arquitetura §14 e 2b ("Reuso pós-0.1.0"), ADR-0007. Revisão por leitura do diff.
+
+Verificação executada:
+- `scripts/ci-guards.ps1`: 0 violações, e o autoteste detectou as 66 violações plantadas (inclui a nova de `KILL_ON_JOB_CLOSE`).
+- `session_runtime` (`win-integration`, `-gnu`) rodado 3 vezes: 1 falha de tempo, ver ARQ-BUG-19.
+
+**Veredito: aprovado com ressalvas.** Não há ARQ-BUG alto nem médio, e nenhum achado bloqueia o teste do usuário. O ARQ-BUG-19 pode fazer o `-Release -FullMsvcTests` do BE-75 falhar por acaso; o dev tem de rodar de novo ou corrigir antes da tag.
+
+### Conferido
+
+- **ADR-0007 / tabela 14.1**: mudaram só `productName`, `publisher`, `copyright`, `shortDescription`, `DISPLAYNAME`, o título da janela (`MAIN_TITLE`) e os textos. Ficaram `identifier`, `mainBinaryName`, `INSTALLDIRNAME`, `MANUKEY`, pasta de dados, mutex, Run/tarefa e logs. `command_list.rs` trava `productName`, `identifier` e `mainBinaryName`. O `${PRODUCTNAME}` que sobrou no template só aparece no ramo `both` (inalcançável: `!error` fora de `perMachine`) e em associação de arquivo (não usada).
+- **`UNINSTKEY`** fixada no literal `Uninstall\Sofa`, igual à 0.1.0, com teste no template e no script gerado. Isso mantém uma só entrada em "Aplicativos instalados" e a conferência do SEC-BUG-05 no `PageReinstall` (R-11 mitigado).
+- **`legacy-shortcut.nsh`**: caminho fixo `$SMPROGRAMS`/`$DESKTOP` + `Sofá.lnk`, sem curinga nem varredura, e só apaga se `IsShortcutTarget` apontar para `$INSTDIR\sofa.exe` (a pasta já é fixa pelo ARQ-BUG-16). Usa o mesmo `UnpinShortcut`. Roda também em `/UPDATE`. O caractere acentuado sai de `IntFmt "%c" 225`, por causa da fonte sem BOM. Fora da pasta de dados (INV-09) e coberto pelo harness. Sem achado.
+- **`exit.rs` / `ExitEnv` (BE-71)**: aceito, e é melhor que fakes do `AppState`. A interface tem três capacidades (ler a sessão, drenar o log, sair) e não alcança `force_close`, `ForegroundBroker` nem `AutostartRegistry`, então o INV-03 e o CA-82 itens 3 e 5 ficam garantidos pela forma do código, não só por teste. O seam tem dois adapters reais (`TauriExit` e o fake dos testes). O teste confere a ordem sessão → flush → exit e que a linha chega ao arquivo antes do `exit`. Registrado no inventário 2b como módulo novo pequeno.
+- **INV-05**: guard `\bJOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE\b` com `Allow = @()`, com violação plantada no autoteste. O teste `fechar_o_handle_do_job_nao_encerra_o_jogo` larga a sonda, o que solta todas as referências ao `Arc<Job>`: thread, scanner e contextos das esperas, já que os `ExitWait` são desregistrados. O jogo segue com `STILL_ACTIVE`. O dev conferiu o vermelho com o limite ligado.
+- **INV-02**: 30 comandos; o `app_exit` foi reaproveitado.
+- **Front**: "Fechar o launcher" entra no fim de `energy`, sem vermelho (`confirmKind="neutral"`), e "Sair do launcher" saiu. `ExitDialog` continua sobre `ConfirmDialog` + `openGameName` (reuso conforme 2b).
+  - **`ariaLabel` no `ConfirmDialog`**: aceito. Prop opcional; sem ela, continua `aria-labelledby` do título. Hoje só o `ExitDialog` usa, com "Fechar o launcher", que só tira o "?" do título. Ganho pequeno para o leitor de tela, sem custo para os outros diálogos.
+  - **D-58 antes de ler as configurações**: o padrão `autostart = false` é o lado seguro, porque não promete reabrir ao reiniciar. Quando o `settings_get` chega, o texto pode trocar uma vez; aceito. Duas observações, sem ARQ-BUG:
+    1. O `PowerDialog` faz a mesma leitura avulsa do `settings_get`. São dois usos, abaixo da regra de três; se aparecer um terceiro, extrair um seletor do autostart.
+    2. A **D-58 ainda consta como não decidida** (`DES-12` "a fazer"). O FE-23 implementou a recomendação; se o usuário escolher o texto único do CA-82, o `exitCopy` muda (só texto).
+
+### ARQ-BUGs
+
+| ID | Sev. | Situação | Responsável | Arquivo:linha | Problema | Correção sugerida |
+|---|---|---|---|---|---|---|
+| ARQ-BUG-17 | baixo | **fechado** (BE-59) | — | `process_probe.rs:366-375` | — | Conferido: `retain` dos sinalizados antes de avaliar os PIDs; falha do `RegisterWaitForSingleObject` gera `warn` e espera periódica de reserva (`JobMessage::Timeout`) |
+| ARQ-BUG-18 | baixo | **novo** | dev-backend | `crates/launcher-win/src/stores/epic.rs:283-288` (BE-76); `stores/mod.rs:174-182` (`env()` de teste com lista de proibidas vazia) | O `m11.item` (`InstallLocation = C:\Program Files\Sofa`, exe `sofa.exe`) sempre passou no teste pelo motivo errado: a política de teste não proíbe pasta nenhuma, e ele só era recusado porque o exe não existia. Agora o caso é **pulado** quando o Sofa está instalado. **Não esconde defeito de produção**: em produção, `StoreEnv::forbidden_dirs` inclui a pasta do `current_exe` (o `sofa.exe` instalado) e `Program Files` como ancestral, e `check_install_dir` recusa `InstallLocation` igual a uma pasta proibida (SEC-16). Mas nenhum teste prova isso, e o pulo deixa o caso sem cobertura justamente nas máquinas com o app instalado | Em vez de pular, usar no teste uma política com `C:\Program Files\Sofa` (ou a pasta do exe) na lista de proibidas, para o m11 ser recusado por SEC-16 em qualquer máquina. Acrescentar um teste de que `forbidden_dirs` contém a pasta do `current_exe` |
+| ARQ-BUG-19 | baixo | **novo** (anterior à 0.2.0) | dev-backend | `crates/launcher-win/tests/session_runtime.rs:295-317` (`job_avisa_inicio_e_fim_do_ultimo_processo_sem_polling`, asserção da linha 314) | Reproduzido aqui: 1 falha em 3 rodadas da suíte em paralelo; isolado, passou 4 de 4. O dev tem razão de que é anterior: o diff da 0.2.0 não toca o código da sessão (só o teste da Epic e o teste novo do Job). A janela `1300..2300 ms` entre `seen` e `gone` mede relógio de parede com o Defender e 20 testes concorrendo; ela não mede o que importa (fim "sem polling" = aviso logo depois de o processo sair de fato). Esse teste entra no `-Release -FullMsvcTests` do BE-75 e pode derrubar a tag por acaso | Medir pelo próprio processo: abrir o handle do jogo, ler o tempo de saída real (`GetProcessTimes`) e afirmar `gone - saída < ~500 ms` (e, se quiser, `saída - criação ≈ 1,5 s`), em vez da janela fixa a partir de `seen` |
+
+### O que bloqueia o teste do usuário
+
+Nada. Recomendado antes do BE-75 (tag `v0.2.0`): corrigir o ARQ-BUG-19, ou ao menos repetir o `-FullMsvcTests` se ele falhar. O ARQ-BUG-18 pode entrar junto, porque é só teste.
+
+### Pendente
+
+ARQ-06: concluído com ressalvas (ARQ-BUG-18 e 19, baixos). ARQ-05 segue com BE-43 e QA-13.

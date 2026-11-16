@@ -364,3 +364,56 @@ D-44 (Desligar com inicialização rápida e controle Bluetooth reconectando), c
 ## 12. Veredito atualizado
 
 **Aprovado com ressalvas (parcial, rodada 2).** Sobram QA-BUG-04 (baixo), D-QA-03 (documentação) e o que depende de BE-37 a BE-39 e BE-42, de VM e do roteiro do usuário (QA-17).
+
+## 13. Versão 0.2.0 (QA-18 e QA-19)
+
+Branch `feature/sofalauncher-020-20261115` (HEAD `cdb818d`), diff `main..HEAD`. Sem rodar instalador nem desinstalador reais, sem UAC, sem mexer em volume, energia ou no SofaLauncher instalado neste PC (há um instalado, com a tarefa `Sofa Autostart (<SID>)` do dev, que não toquei).
+
+### 13.1 Execução
+
+| Execução | Resultado |
+|---|---|
+| `scripts/ci.ps1 -SkipAudit` no HEAD, com UI | **CI OK**: guards (incluindo o INV-05 novo para `KILL_ON_JOB_CLOSE`), `fmt`, `clippy -D warnings`, `cargo test --workspace` (551 verdes, 7 ignorados), bindings, `cargo deny`, UI `typecheck` + `lint` + **218 testes verdes** em 20 arquivos |
+| `scripts/test-installer.ps1` (harness, sem instalar, sem UAC) | **86 passaram, 0 falharam, 2 pulados** (symlink de arquivo exige privilégio; `HKU\<SID>\Run` de outros perfis exige admin). Inclui: `UNINSTKEY` fixa em `Uninstall\Sofa` (R-11) no template e no script gerado, `DISPLAYNAME` SofaLauncher, 5 casos do atalho legado `Sofá.lnk` (apontando para `$INSTDIR\sofa.exe`: removido; para outro exe da mesma pasta, para `sofa.exe` de outra pasta, ausente ou arquivo que não é atalho: fica ou sem erro), nome `SofaLauncher_0.2.0_x64-setup.exe`. A tarefa de SID fictício foi criada e removida; a do SID real do dev continua lá e não é minha |
+| Navegador (vite 5179, encerrado) | Menu rápido, diálogo "Fechar o launcher" nas variantes sem e com jogo, com "Iniciar com o Windows" ligado e desligado, teclado, rodapé de versão |
+| Candidato `v0.2.0` (estático) | Hash `6f7ffb6c627ec3aaf8322491f3d6aa10a0e6caeee4962dc7070f3c4d738ef9e2` igual ao `SHA256SUMS.txt` e ao `README.txt`; 4.693.862 bytes. VersionInfo do `sofa.exe` extraído com o 7-Zip: ProductName, FileDescription, CompanyName e LegalCopyright "SofaLauncher", versão 0.2.0. Conteúdo: `sofa.exe`, `uninstall.exe`, `licenses\` (2 OFL), bootstrapper do WebView2 em `$PLUGINSDIR`. `BUILD-INFO.txt`: commit `d1fc383`, árvore **com alterações não commitadas**, sem tag (build de teste, como avisado). A UI desse build não é a do HEAD; a UI foi validada pelo Vite e pelo `npm run check` |
+
+### 13.2 Resultado por caso
+
+| ID | Caso | Status e evidência |
+|---|---|---|
+| CA-05 | Menu rápido sem "Sair do launcher" | **passou**. N: itens Volume, Mudo, Desligar, Reiniciar, Suspender, Fechar o launcher, Configurações; nenhum "Sair". U `quickmenu` (ordem e "sem Sair do launcher") |
+| CA-82 item 1 | Diálogo: Cancelar à esquerda e em foco, "Fechar o launcher" à direita; Cancelar/B fecham sem fechar nada | **passou**. N: botões em x=783 e x=1075; foco em Cancelar; Esc, Backspace e Enter em Cancelar fecham o diálogo; U `quickmenu` (`app_exit` 0 vezes ao cancelar; confirmar chama `app_exit` exatamente 1 vez e nenhum comando de sessão) |
+| CA-82 item 2 | Sem jogo: texto e fechamento | **passou** (texto e chamada). N e U: "O SofaLauncher fecha e o Windows mostra a área de trabalho." + "Para reabrir, use o atalho do SofaLauncher (com teclado ou mouse) ou reinicie o PC.", igual à microcopy. O fechamento real do processo não foi exercitado (restrição); C `tests/exit.rs` (sessão lida uma vez, log drenado, depois `exit`) |
+| CA-82 item 3 | Com jogo: aviso do nome, sem aviso de progresso perdido; só o launcher fecha | **passou**. N: "Só o SofaLauncher fecha." + "…reinicie o PC depois de sair do jogo." + aviso âmbar "Vale dos Ventos continuará aberto. Nenhum progresso se perde."; nome HTML literal (U). W `fechar_o_handle_do_job_nao_encerra_o_jogo`, C `exit::caminho_de_saida_nao_toca_sessao_primeiro_plano_nem_autostart` e guard INV-05 no CI. Sem `WM_CLOSE`, minimizar, pausar nem trazer à frente: o `ExitEnv` só tem ler sessão, drenar log e sair |
+| CA-82 item 4 | Só teclado, com ou sem controle | **passou**. N: F1, setas, Enter, Esc, Backspace; U `quickmenu` (FE-24) |
+| CA-82 item 5 | "Iniciar com o Windows" intacto | parcial. O caminho de saída não toca `AutostartRegistry` (C `exit`); Run e tarefa iguais antes e depois, e o próximo login: roteiro 7A.15 e 7A.16 |
+| CA-82 item 6 | Reabrir: dados preservados; jogo vivo = aberto fora do launcher | parcial. A sessão não é persistida e a data de último jogado já foi gravada (CA-75); reabrir com o jogo vivo, `Idle` e card sem "Em andamento": roteiro 7A.12 |
+| D-58 | Variante com "Iniciar com o Windows" desligado | **passou**. N: sem "ou reinicie o PC" (sem jogo) e só "…use o atalho do SofaLauncher." (com jogo). Sem gravidade: até o `settings_get` responder, o diálogo usa a variante "desligado" |
+| RN-35 | Única forma de fechar pelo menu; não é ação de energia; confirmação sempre | **passou**. `app_exit` (#30) só chama `close_launcher` |
+| RN-34, CA-81 | Cancelar à esquerda | **passou** no diálogo novo (N) |
+| E-24, E-25 | Combinação e fim do jogo com o launcher fechado | parcial. Por desenho não há o que trazer à frente; observação real no roteiro 7A.10 e 7A.11 |
+| E-26, E-27 | Apertar A no jogo órfão; reabrir logo depois de fechar | parcial. Roteiro 7A.13 e 7A.14 (R-12, R-13) |
+| Nome: UI e título | "SofaLauncher" em toda a interface | **passou**. N: título da aba, topo e menu; grep de `Sofá` e da palavra `Sofa` em `ui/src` e `index.html` (fora de testes e comentários): 0 ocorrências; U `brand.test`; T `window_title` (`MAIN_TITLE`) |
+| Nome: versão no rodapé | 0.2.0 em Configurações | **passou** (N) |
+| Nome: instalador e PE | `SofaLauncher_0.2.0_x64-setup.exe`; `ProductName`, `FileDescription`, `LegalCopyright`, versão | **passou** no `sofa.exe` do candidato (estático). Ver QA-BUG-05 para o `CompanyName` do próprio instalador |
+| Nome: textos do instalador e READMEs | NSIS em pt-BR e READMEs com o nome novo e os nomes técnicos | **passou**. `test-installer` compara `PortugueseBR.nsh` com a microcopy; `README.md` e o `README.txt` do release trazem "atualizar por cima da 0.1.0" e o que não muda |
+| ADR-0007: identificadores que não mudam | `app.sofa.launcher`, `sofa.exe`, `Program Files\Sofa`, `Uninstall\Sofa`, tarefa `Sofa Autostart` | **passou**. `test-installer` (UNINSTKEY), T `command_list` (productName, identifier, mainBinaryName), `coletar-logs.ps1` mantém caminhos e `sofa.txt`; tarefa segue `Sofa Autostart (<SID>)` |
+| `coletar-logs.ps1` | Texto novo | **passou**. Cabeçalho, `LEIA-ME` e mensagens com "SofaLauncher"; arquivos e chaves técnicas iguais |
+| CA-53 / R-11 | Atualizar por cima sem duplicar entrada; atalho antigo sai | parcial. Estático e harness passaram; a atualização de verdade, uma entrada só em "Aplicativos instalados" e o `Sofá.lnk` sumindo: roteiro 1.12 a 1.16 no PC da sala |
+
+### 13.3 Bug novo
+
+| ID | Sev. | Onde | Passos | Esperado | Obtido | Responsável |
+|---|---|---|---|---|---|---|
+| QA-BUG-05 | baixo | `src-tauri/windows/installer.nsi:129-134` (`VIAddVersionKey`) | `(Get-Item .\SofaLauncher_0.2.0_x64-setup.exe).VersionInfo` ou Propriedades > Detalhes | Empresa "SofaLauncher", como no `sofa.exe` e no `publisher` do `tauri.conf.json` | `CompanyName` vazio no instalador (o template grava só `ProductName`, `FileDescription`, `LegalCopyright`, `FileVersion` e `ProductVersion`). Cosmético: sem assinatura, o SmartScreen mostra editor desconhecido de qualquer forma (RN-30) | dev-backend |
+
+Dúvidas: nenhuma nova. Observações: o candidato foi gerado com a árvore suja e o commit `d1fc383`, então o relatório final precisa do build oficial com tag. O botão "Fechar o launcher" no navegador de desenvolvimento não fecha nada (o mock de `app_exit` não encerra a página), então o fechamento real só se vê no app.
+
+### 13.4 Roteiro (QA-19)
+
+`docs/qa/roteiro-usuario.md` agora é da 0.2.0: nome SofaLauncher em todo o texto; instalador `SofaLauncher_0.2.0_x64-setup.exe` com o hash "a preencher depois do release oficial, vale o `SHA256SUMS.txt`"; itens 1.12 a 1.16 (atualizar por cima da 0.1.0: uma só entrada em "Aplicativos instalados", `Sofá.lnk` some e `SofaLauncher.lnk` existe, biblioteca, configurações e autostart mantidos, 0.2.0 no rodapé); bloco novo **7A** (Fechar o launcher: 17 itens, com e sem jogo, teclado, cancelar, reabrir pelo atalho, E-24 a E-27, próximo login com e sem "Iniciar com o Windows", linha do log). Duração: 5 a 6 horas.
+
+### 13.5 Veredito 0.2.0
+
+**Aprovado com ressalvas.** Nenhum CA falhou; 1 bug baixo (QA-BUG-05). Fica para o PC da sala (QA-17): atualizar por cima, fechamento real com e sem jogo, reabertura, próximo login, E-24 a E-27 e o build oficial com tag.
