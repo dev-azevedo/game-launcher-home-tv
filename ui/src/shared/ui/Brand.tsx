@@ -5,15 +5,15 @@ import splash from '@brand/assets/splash.svg';
 
 /** Assets locais da marca como URL (img-src 'self'). Sem copia: alias @brand. */
 export function BrandLogo({ className = 'brand-logo' }: { className?: string }) {
-  return <img className={className} src={logoHorizontal} alt="Sofá" draggable={false} />;
+  return <img className={className} src={logoHorizontal} alt="SofaLauncher" draggable={false} />;
 }
 
 export function BrandSymbol({ className = 'brand-symbol' }: { className?: string }) {
-  return <img className={className} src={symbol} alt="Sofá" draggable={false} />;
+  return <img className={className} src={symbol} alt="SofaLauncher" draggable={false} />;
 }
 
 export function BrandWordmark({ className = 'brand-wordmark' }: { className?: string }) {
-  return <img className={className} src={wordmark} alt="Sofá" draggable={false} />;
+  return <img className={className} src={wordmark} alt="SofaLauncher" draggable={false} />;
 }
 
 export function BrandSplashArt() {
