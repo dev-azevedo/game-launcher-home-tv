@@ -26,7 +26,7 @@ export function powerCopy(action: PowerAction, opts: { autostart: boolean }): Po
     case 'Restart':
       return {
         title: 'Reiniciar o PC?',
-        body: `O Windows reinicia do jeito normal.${opts.autostart ? ' O Sofá abre de novo quando você entrar.' : ''}`,
+        body: `O Windows reinicia do jeito normal.${opts.autostart ? ' O SofaLauncher abre de novo quando você entrar.' : ''}`,
         confirmLabel: 'Reiniciar',
         icon: 'refresh',
         runningTitle: 'Reiniciando…',
@@ -35,7 +35,7 @@ export function powerCopy(action: PowerAction, opts: { autostart: boolean }): Po
     case 'Suspend':
       return {
         title: 'Suspender o PC?',
-        body: 'O PC entra em suspensão. Ao acordar, o Sofá volta para esta tela.',
+        body: 'O PC entra em suspensão. Ao acordar, o SofaLauncher volta para esta tela.',
         confirmLabel: 'Suspender',
         icon: 'moon',
         runningTitle: 'Suspendendo…',
@@ -46,3 +46,45 @@ export function powerCopy(action: PowerAction, opts: { autostart: boolean }): Po
 
 /** Aviso de jogo aberto antes de qualquer acao de energia (CA-48). */
 export const openGameWarning = (name: string) => `${name} está aberto. O progresso não salvo pode ser perdido.`;
+
+export interface ExitCopy {
+  title: string;
+  confirmLabel: string;
+  /** Um paragrafo por item. */
+  body: string[];
+  /** Aviso ambar (so com jogo aberto): o jogo segue aberto e nada se perde. */
+  warning?: string;
+}
+
+/**
+ * Textos de "Fechar o launcher" (CA-82, RN-35, D-58). Com "Iniciar com o Windows" desligado, reiniciar o PC
+ * nao reabre o launcher: o texto cita so o atalho.
+ */
+export function exitCopy(opts: { gameName: string | null; autostart: boolean }): ExitCopy {
+  const { gameName, autostart } = opts;
+  const title = 'Fechar o launcher?';
+  const confirmLabel = 'Fechar o launcher';
+  if (gameName === null) {
+    return {
+      title,
+      confirmLabel,
+      body: [
+        'O SofaLauncher fecha e o Windows mostra a área de trabalho.',
+        autostart
+          ? 'Para reabrir, use o atalho do SofaLauncher (com teclado ou mouse) ou reinicie o PC.'
+          : 'Para reabrir, use o atalho do SofaLauncher (com teclado ou mouse).',
+      ],
+    };
+  }
+  return {
+    title,
+    confirmLabel,
+    body: [
+      'Só o SofaLauncher fecha.',
+      autostart
+        ? 'Para reabrir, use o atalho do SofaLauncher ou reinicie o PC depois de sair do jogo.'
+        : 'Para reabrir, use o atalho do SofaLauncher.',
+    ],
+    warning: `${gameName} continuará aberto. Nenhum progresso se perde.`,
+  };
+}

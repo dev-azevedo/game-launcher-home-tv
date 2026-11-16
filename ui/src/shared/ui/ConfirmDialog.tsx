@@ -8,6 +8,8 @@ export type DialogTone = 'warn' | 'danger' | 'ok';
 
 interface ConfirmDialogProps {
   title: string;
+  /** Nome do dialogo para leitor de tela, quando difere do titulo. Padrao: o titulo. */
+  ariaLabel?: string;
   /** Texto do corpo (pode vir com nome de jogo: renderizado como texto). */
   children?: ReactNode;
   /** Aviso extra em destaque (ex.: jogo aberto, CA-48). */
@@ -36,6 +38,7 @@ interface ConfirmDialogProps {
 /** Dialogo de confirmacao generico (CA-43, RN-14). B cancela. */
 export function ConfirmDialog({
   title,
+  ariaLabel,
   children,
   warning,
   warningTone = 'danger',
@@ -63,7 +66,7 @@ export function ConfirmDialog({
     >
       <div className="center">
         <div className="scrim-l" />
-        <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
+        <div className="dialog" role="alertdialog" aria-modal="true" {...(ariaLabel ? { 'aria-label': ariaLabel } : { 'aria-labelledby': titleId })}>
           <DialogSide cover={cover} icon={icon} tone={tone} />
           <div className="dc">
             <h2 id={titleId}>{title}</h2>

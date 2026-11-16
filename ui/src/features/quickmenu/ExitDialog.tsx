@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { ScreenEntry } from '@/app/navigation/screens';
 import { useNavigation } from '@/app/navigation/store';
 import { useLibrary } from '@/features/library/store';
@@ -5,28 +6,39 @@ import { openGameName } from '@/features/session/panel';
 import { useSession } from '@/features/session/store';
 import { ipc } from '@/shared/ipc';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { exitCopy } from './power';
 
-/** Sair do launcher (CA-05): o jogo em sessao continua aberto, e o aviso diz isso. */
+/**
+ * Fechar o launcher (CA-05, CA-82): so o SofaLauncher fecha, o jogo em sessao continua aberto e nada se perde.
+ * "Cancelar" em foco; o botao de confirmar nao e vermelho (nao desliga o PC).
+ */
 export function ExitDialog({ active, entry }: { active: boolean; entry: ScreenEntry }) {
   const session = useSession((s) => s.session);
   const games = useLibrary((s) => s.games);
   const { remove } = useNavigation.getState();
-  const openName = openGameName(session, games);
+  // Ate ler a configuracao vale o texto que nao promete reabrir ao reiniciar o PC (D-58).
+  const [autostart, setAutostart] = useState(false);
+  useEffect(() => {
+    ipc.settingsGet().then((s) => setAutostart(s.autostart), () => undefined);
+  }, []);
+  const copy = exitCopy({ gameName: openGameName(session, games), autostart });
   return (
     <ConfirmDialog
-      title="Sair do Sofá?"
+      title={copy.title}
+      ariaLabel="Fechar o launcher"
       icon="exit"
-      tone="danger"
       defaultFocus="cancel"
-      destructive
-      confirmLabel="Sair do Sofá"
-      warning={openName ? `${openName} continuará aberto.` : undefined}
+      confirmKind="neutral"
+      confirmLabel={copy.confirmLabel}
+      warning={copy.warning}
       warningTone="warn"
       active={active}
       onConfirm={() => void ipc.appExit().catch(() => remove(entry.key))}
       onCancel={() => remove(entry.key)}
     >
-      O Sofá fecha e o Windows mostra a área de trabalho.
+      {copy.body.map((line) => (
+        <p key={line}>{line}</p>
+      ))}
     </ConfirmDialog>
   );
 }
