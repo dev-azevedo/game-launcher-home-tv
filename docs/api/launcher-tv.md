@@ -447,3 +447,36 @@ Leva 6: correções do instalador e da sessão antes do teste do usuário. Nada 
 - BE-51: o acompanhante dos testes de SEC-BUG-01 e SEC-BUG-04 vive 2 minutos (era 6 s e 20 s) e é derrubado no fim do teste (`kill_and_wait`); a asserção "segue vivo" passa a ler o handle do processo (código de saída), não uma busca por nome.
 - BE-52: o `sofa-test-game.exe` ganhou `VERSIONINFO` e manifesto (`crates/launcher-win/test-game.rc`, `test-game.manifest`, `build.rs` com `embed-resource`, só para esse binário). Sem os metadados, o Defender o barra no MSVC (erro 225); com eles, `session_e2e` e `session_runtime` passam no MSVC. Nenhuma exclusão do Defender.
 - `-Release` ganhou o passo `MpCmdRun -Scan -ScanType 3 -File` no instalador e no `sofa.exe`; acusou ou não concluiu, o build falha (`Invoke-DefenderScan`, com autoteste de um `MpCmdRun` de mentira).
+
+## 13. Notas de implementação (BE-61 a BE-74; rev. 8, versão 0.2.0, sem mudança de comandos, eventos, DTOs nem códigos)
+
+Versão 0.2.0: o produto passa a se chamar **SofaLauncher** (D-49, ADR-0007) e ganha "Fechar o launcher" (D-50, D-51, D-53). Continuam **30 comandos, 8 eventos e 26 códigos de erro**. Esta seção é o contrato do que mudou por baixo.
+
+### "Fechar o launcher" reusa o `app_exit` (#30, BE-71)
+
+- Sem comando novo, sem evento, sem DTO, sem código de erro e sem `power_prepare`/ticket: não é ação de energia (RN-35). A UI abre o `ExitDialog` (Cancelar à esquerda e em foco) e, ao confirmar, chama `app_exit` sem argumentos.
+- `src-tauri/src/exit.rs`: `close_launcher(&dyn ExitEnv)` faz três coisas, nesta ordem: (1) uma linha `info` `fechar o launcher` com `estado` (`SessionState`) e `jogo` (`GameId`, ou `-`), sem caminho (SEC-18); (2) `logging::flush(300 ms)`; (3) `exit(0)`. O hook de `AppState.exit_hook` só chama isso.
+- O `ExitEnv` tem só `session()` (leitura do estado), `flush_log()` e `exit()`. Por construção o caminho de saída **não** chama `force_close`, pedido de fechamento, `ForegroundBroker` (INV-03, SEC-28) nem `AutostartRegistry` (CA-82 itens 3 e 5, D-57). O jogo segue rodando porque o Job não tem `KILL_ON_JOB_CLOSE`: quando o processo sai, o kernel fecha o handle do Job e o jogo continua (INV-05).
+- Reabrir com o jogo ainda aberto: primeira instância normal, sessão em `Idle`, jogo tratado como aberto fora do launcher (E-07, D-54).
+- Travas: `src-tauri/tests/exit.rs` (ordem sessão, flush, exit; a linha chega ao arquivo antes do `exit`; o texto não cita `force_close`, `ForegroundBroker`, autostart, e o hook só chama `close_launcher`), guard `INV-05` para `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` em `scripts/ci-guards.ps1` (violação plantada no autoteste) e `session_runtime::fechar_o_handle_do_job_nao_encerra_o_jogo` (o jogo de teste segue vivo depois do `drop` do Job; vermelho com o limite ligado).
+
+### O que muda e o que fica no nome (ADR-0007)
+
+| Muda (o que o usuário lê) | Fica (o que o sistema usa) |
+|---|---|
+| `productName` `SofaLauncher`, `publisher`, `copyright`, `shortDescription`; título da janela (`window::MAIN_TITLE`); `DISPLAYNAME` do instalador (atalhos `SofaLauncher.lnk`, "Aplicativos instalados"); textos do `PortugueseBR.nsh`; textos do `coletar-logs.ps1`; nome do instalador `SofaLauncher_<versão>_x64-setup.exe`; READMEs; ícones | `identifier` `app.sofa.launcher` (pasta de dados, `HKLM\Software\app.sofa.launcher`, mutex), `mainBinaryName` `sofa` (`sofa.exe`, Run `Sofa`, tarefa `Sofa Autostart (<SID>)`), `INSTALLDIRNAME` `Sofa` (`C:\Program Files\Sofa`), `MANUKEY`/`MANUPRODUCTKEY`, `sofa.log`, `sofa.txt`, crates e variáveis NSIS |
+
+- **R-11: `UNINSTKEY` fixa em `Software\Microsoft\Windows\CurrentVersion\Uninstall\Sofa`** no `installer.nsi` (antes derivava de `${PRODUCTNAME}`). Sem isso a 0.2.0 gravaria `Uninstall\SofaLauncher`, não acharia a 0.1.0 e o `PageReinstall` perderia a conferência do SEC-BUG-05. Trava: `test-installer.ps1` confere a definição no template **e** no `.nsi` gerado, com `MANUKEY`, `MANUPRODUCTKEY` e `INSTALLDIRNAME`; vermelho com a derivação de volta (conferido).
+- `src-tauri/tests/command_list.rs` passa a travar `productName == "SofaLauncher"`, `identifier == "app.sofa.launcher"` e `mainBinaryName == "sofa"`, a versão única nos manifestos (`tauri.conf.json`, workspace, `ui/package.json` e `package-lock.json`; maior que a 0.1.0, com `allowDowngrades: false`) e o `icon.ico` igual ao da marca. `src-tauri/tests/window_title.rs` trava o título e a ausência do nome antigo nos textos de `src`.
+- `PortugueseBR.nsh`: cada `LangString` é comparado, caractere a caractere, com a seção 4 do `microcopy.md` por `test-installer.ps1`. Fontes `.nsi` e `.nsh` seguem **sem BOM** (guard `NSIS-BOM` inalterado; o nome novo é ASCII, mas as outras strings têm acento). `test-installer.ps1` deixou de exigir acento em `DISPLAYNAME`/`ProductName` e trava `SofaLauncher`.
+
+### Atualização por cima da 0.1.0 e o atalho legado (D-57, CA-53, BE-64, BE-68)
+
+- Versão **0.2.0**. Com pasta, `UNINSTKEY`, `MANUPRODUCTKEY` e binário iguais, o `PageReinstall` confere a pasta fixa e roda o `uninstall.exe /UPDATE` da 0.1.0; dados e "Iniciar com o Windows" ficam.
+- O desinstalador da 0.1.0 em `/UPDATE` não remove atalhos. `src-tauri/windows/legacy-shortcut.nsh` (`SofaRemoveLegacyShortcuts`, chamada no `NSIS_HOOK_POSTINSTALL`, portanto também em `/UPDATE`) apaga o `Sofá.lnk` antigo do menu Iniciar e da área de trabalho **só se** `IsShortcutTarget` confirmar que ele aponta para `$INSTDIR\sofa.exe` (mesmo macro e mesmo `UnpinShortcut` do desinstalador). Caminho fixo `<pasta>\Sofá.lnk`, sem curinga; só `$SMPROGRAMS` e `$DESKTOP`. Atalho ausente, inválido, para outro exe ou para o `sofa.exe` de outra pasta: nada acontece, sem erro. O nome com acento não está escrito na fonte (as `.nsh` não têm BOM): o caractere sai de `IntFmt "%c" 225`.
+- Testes no harness (`tests/harness.nsi`, cenário `legacylnk`, só roda com o `utils.nsh` que o bundler gera em `target\<triplo>\release\nsis\x64`): remove o apontado para o `sofa.exe` da pasta, deixa o de outro exe, o de outra pasta, o ausente (sem erro), o arquivo inválido, os outros `.lnk` da pasta e o `SofaLauncher.lnk` novo; vermelho sem a conferência (conferido).
+
+### Release e scripts (BE-66, BE-67)
+
+- `ci-release.ps1`: instalador `SofaLauncher_${version}_x64-setup.exe` (igual ao que o Tauri gera, `productName_versão`), `SHA256SUMS.txt`, `README.txt` e `BUILD-INFO.txt` com o nome novo e a instrução de atualizar por cima da 0.1.0; a pasta `..\sofa-releases` fica.
+- `coletar-logs.ps1`: textos exibidos com "SofaLauncher"; caminhos (`%LOCALAPPDATA%\app.sofa.launcher`, `sofa.log`), `sofa.txt`, o zip `sofa-logs-*.zip` e a tarefa `Sofa Autostart` ficam. Mesmo conjunto de arquivos no zip.
