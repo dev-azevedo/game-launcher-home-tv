@@ -17,7 +17,7 @@ const HINTS = [
 ];
 
 const MINIMIZED_NOTE =
-  'O Windows não deixou o Sofá passar na frente. O jogo foi minimizado. Voltar ao jogo restaura a janela.';
+  'O Windows não deixou o SofaLauncher passar na frente. O jogo foi minimizado. Voltar ao jogo restaura a janela.';
 const ELEVATED_NOTE = 'Este jogo roda como administrador. A combinação de retorno pode falhar nele.';
 
 /**

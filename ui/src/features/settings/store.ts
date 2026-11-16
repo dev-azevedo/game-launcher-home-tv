@@ -56,7 +56,7 @@ export const useSettings = create<SettingsStore>((set, get) => ({
     const notice = useLibrary.getState().setNotice;
     try {
       set({ settings: await ipc.settingsSetMonitor(monitor.id) });
-      notice(`Sofá movido para ${monitor.name}.`);
+      notice(`SofaLauncher movido para ${monitor.name}.`);
     } catch (thrown) {
       notice(errorCopyFor(errorOf(thrown)).message);
       void get().load();

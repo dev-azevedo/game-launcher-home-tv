@@ -27,7 +27,7 @@ export function CloseConfirmDialog({ active, entry }: { active: boolean; entry: 
       }}
       onCancel={() => remove(entry.key)}
     >
-      O Sofá pede ao jogo para fechar.
+      O SofaLauncher pede ao jogo para fechar.
     </ConfirmDialog>
   );
 }

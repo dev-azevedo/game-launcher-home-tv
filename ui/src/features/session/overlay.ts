@@ -156,7 +156,7 @@ export function overlayWait(overlay: LaunchOverlay, games: readonly GameDto[]): 
       const swap = overlay.swapTo ? (nameOf(games, overlay.swapTo) ?? 'o jogo') : null;
       return {
         title: `Fechando ${nameOf(games, overlay.gameId) ?? 'o jogo'}…`,
-        body: swap ? `Esperando o jogo fechar. Depois o Sofá abre ${swap}.` : 'Esperando o jogo fechar. Pode levar alguns segundos.',
+        body: swap ? `Esperando o jogo fechar. Depois o SofaLauncher abre ${swap}.` : 'Esperando o jogo fechar. Pode levar alguns segundos.',
         spinLabel: 'Fechando',
         buttonLabel: 'Ir para a biblioteca',
         leave: 'library',

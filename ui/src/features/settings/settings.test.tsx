@@ -113,7 +113,7 @@ describe('configuracoes (FE-12)', () => {
     intent('Confirm');
     await waitFor(() => expect(c.count('settings_set_monitor')).toBe(1));
     expect(c.calls.find((x) => x.command === 'settings_set_monitor')!.args).toEqual({ monitorId: 'm2' });
-    await waitFor(() => expect(useLibrary.getState().notice).toBe('Sofá movido para TV Sala (HDMI).'));
+    await waitFor(() => expect(useLibrary.getState().notice).toBe('SofaLauncher movido para TV Sala (HDMI).'));
   });
 
   it('display://changed atualiza a lista com a tela aberta', async () => {
@@ -147,7 +147,7 @@ describe('configuracoes (FE-12)', () => {
     await goTab('general');
     expect(await screen.findByText('C:\\Logs\\sofa')).toBeInTheDocument();
     expect(screen.getByText('Desligada')).toBeInTheDocument();
-    expect(screen.getByText(/O Sofá nunca roda como administrador/)).toBeInTheDocument();
+    expect(screen.getByText(/O SofaLauncher nunca roda como administrador/)).toBeInTheDocument();
     intent('Right');
     await waitFor(() => expect(focusedKey()).toBe('menu-auto'));
     intent('Confirm');

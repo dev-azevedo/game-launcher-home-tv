@@ -31,11 +31,11 @@ type CopyFactory = (ctx: ErrorContext) => ErrorCopy;
 
 const name = (ctx: ErrorContext) => ctx.gameName ?? 'o jogo';
 
-const UNKNOWN: ErrorCopy = { message: 'Algo deu errado no Sofá. Tente de novo.', actions: ['Voltar'] };
+const UNKNOWN: ErrorCopy = { message: 'Algo deu errado no SofaLauncher. Tente de novo.', actions: ['Voltar'] };
 
 const CATALOG: Record<string, CopyFactory> = {
   Busy: () => ({
-    message: 'Um momento. O Sofá ainda está terminando outra ação. Tente de novo em instantes.',
+    message: 'Um momento. O SofaLauncher ainda está terminando outra ação. Tente de novo em instantes.',
     actions: ['Voltar'],
   }),
   Duplicate: () => ({
@@ -51,7 +51,7 @@ const CATALOG: Record<string, CopyFactory> = {
   }),
   // Cadastro e navegador de pastas (CA-72). Inicio de jogo em rede usa NetworkPathBlocked (CA-71).
   PathNotAllowed: () => ({
-    message: 'Este local não é aceito. O Sofá só abre jogos de discos deste PC.',
+    message: 'Este local não é aceito. O SofaLauncher só abre jogos de discos deste PC.',
     actions: ['Voltar'],
   }),
   NetworkPathBlocked: () => ({
@@ -69,7 +69,7 @@ const CATALOG: Record<string, CopyFactory> = {
       ? forceCloseDenied(ctx)
       : {
           message: 'Sem permissão para abrir esta pasta.',
-          support: 'O Windows não deixa o Sofá ver o que há aqui.',
+          support: 'O Windows não deixa o SofaLauncher ver o que há aqui.',
           actions: ['Voltar'],
         },
   EmptyName: () => ({ message: 'O nome não pode ficar vazio.', actions: [] }),

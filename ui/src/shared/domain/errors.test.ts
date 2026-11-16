@@ -3,7 +3,7 @@ import { CONTRACT_ERROR_CODES } from '@/shared/ipc/types';
 import { errorCopy, errorCopyFor, forceCloseDenied, KNOWN_ERROR_CODES } from './errors';
 import { truncateName } from './text';
 
-const GENERIC = 'Algo deu errado no Sofá. Tente de novo.';
+const GENERIC = 'Algo deu errado no SofaLauncher. Tente de novo.';
 
 describe('texto por codigo de erro', () => {
   it('todo codigo conhecido tem mensagem nao vazia', () => {

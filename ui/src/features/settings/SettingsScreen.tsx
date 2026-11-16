@@ -89,12 +89,12 @@ export default function SettingsScreen({
       case 'screen':
         return {
           heading: 'Monitor do launcher',
-          lead: 'O Sofá abre em tela cheia no monitor escolhido.',
+          lead: 'O SofaLauncher abre em tela cheia no monitor escolhido.',
           before: chosenMonitorMissing(settings, monitors) ? (
             <div className="callout" role="status">
               <Icon name="alert" />
               <span>
-                O monitor escolhido não está conectado. O Sofá está no monitor principal e volta ao monitor escolhido
+                O monitor escolhido não está conectado. O SofaLauncher está no monitor principal e volta ao monitor escolhido
                 quando ele reconectar.
               </span>
             </div>
@@ -144,7 +144,7 @@ export default function SettingsScreen({
               id: 'auto',
               label: 'Iniciar com o Windows',
               icon: 'power' as const,
-              hint: 'Abre o Sofá quando você entra no Windows. Vale só para o seu usuário.',
+              hint: 'Abre o SofaLauncher quando você entra no Windows. Vale só para o seu usuário.',
               role: 'switch' as const,
               checked: settings?.autostart ?? false,
               right: <Switch on={settings?.autostart ?? false} />,
@@ -171,14 +171,14 @@ export default function SettingsScreen({
               <div className="callout">
                 <Icon name="gamepad" />
                 <span>
-                  Para ligar o PC e jogar sem teclado, configure o logon automático ou o Windows Hello no Windows. O Sofá
+                  Para ligar o PC e jogar sem teclado, configure o logon automático ou o Windows Hello no Windows. O SofaLauncher
                   começa na área de trabalho.
                 </span>
               </div>
               <div className="callout">
                 <Icon name="shield" />
                 <span>
-                  O Sofá nunca roda como administrador. Jogos que exigem administrador pedem confirmação no Windows, com
+                  O SofaLauncher nunca roda como administrador. Jogos que exigem administrador pedem confirmação no Windows, com
                   teclado ou mouse.
                 </span>
               </div>

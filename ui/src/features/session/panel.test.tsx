@@ -316,7 +316,7 @@ describe('trocar de jogo conforme CT-01', () => {
     await waitFor(() => expect(core.count('session_replace')).toBe(1));
 
     await emitCoreEvent('session://state', session({ state: 'Closing', gameId: 'steam:1' }));
-    expect(await screen.findByText(/Depois o Sofá abre Outro/)).toBeInTheDocument();
+    expect(await screen.findByText(/Depois o SofaLauncher abre Outro/)).toBeInTheDocument();
     await emitCoreEvent('session://state', session({ state: 'Idle' }));
     expect(await screen.findByText('Abrindo Outro…')).toBeInTheDocument();
   });

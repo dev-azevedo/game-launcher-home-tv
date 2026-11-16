@@ -150,7 +150,7 @@ describe('navegador de pastas e Adicionar jogo (FE-13)', () => {
   it.each([
     ['Duplicate', 'Este jogo já está na biblioteca.'],
     ['NotAnExecutable', 'Este arquivo não é um executável válido.'],
-    ['PathNotAllowed', 'Este local não é aceito. O Sofá só abre jogos de discos deste PC.'],
+    ['PathNotAllowed', 'Este local não é aceito. O SofaLauncher só abre jogos de discos deste PC.'],
   ])('erro %s no cadastro: mensagem propria e Voltar (CA-20, CA-71, CA-72)', async (code, message) => {
     mockCore({ fs_list_dir: listing, library_add_manual: rejectWith({ code }) });
     await pickExe(0);
@@ -179,7 +179,7 @@ describe('navegador de pastas e Adicionar jogo (FE-13)', () => {
     await openBrowser();
     intent('Confirm');
     expect(await screen.findByText('Sem permissão para abrir esta pasta.')).toBeInTheDocument();
-    expect(screen.getByText('O Windows não deixa o Sofá ver o que há aqui.')).toBeInTheDocument();
+    expect(screen.getByText('O Windows não deixa o SofaLauncher ver o que há aqui.')).toBeInTheDocument();
     await waitFor(() => expect(focusedText()).toBe('Voltar'));
     intent('Confirm');
     await screen.findByText('C:\\');

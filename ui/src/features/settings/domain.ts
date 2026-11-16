@@ -26,4 +26,4 @@ const MECHANISM: Record<AutostartMechanism, string> = {
 /** Texto do mecanismo de inicializacao (so leitura, sem acao). */
 export const mechanismLabel = (m: AutostartMechanism): string => MECHANISM[m];
 
-export const APP_FOOTER = 'Sofá 1.0.0 · Fontes Sora e Figtree sob licença OFL';
+export const APP_FOOTER = 'SofaLauncher 0.2.0 · Fontes Sora e Figtree sob licença OFL';
