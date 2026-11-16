@@ -203,6 +203,23 @@ mod tests {
         assert_eq!(a.cover_source, None); // a Epic nao tem capa local: ficam o icone do exe e o placeholder
     }
 
+    /// A lista real de pastas proibidas inclui a pasta do `current_exe` (a do proprio Sofa).
+    #[test]
+    fn pastas_proibidas_incluem_a_pasta_do_current_exe() {
+        let exe_dir = std::env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let exe_dir = crate::path_canon::strip_verbatim(&exe_dir);
+        let forbidden = StoreEnv::forbidden_dirs(None);
+        assert!(
+            forbidden.contains(&exe_dir),
+            "{exe_dir} fora de {forbidden:?}"
+        );
+    }
+
     /// SEC-BUG-02: um `.item` com `InstallLocation` = pasta do cliente da Steam e executavel dentro
     /// de `steamapps\common` nao pode virar jogo da Epic: a pasta da Steam e proibida para todas as
     /// lojas (`StoreEnv::forbidden_dirs`).
@@ -280,15 +297,18 @@ mod tests {
         let dir = fixtures().join(r"epic\malicious\Manifests");
         for e in fs::read_dir(dir).unwrap().flatten() {
             let n = e.file_name().into_string().unwrap();
-            // m11 aponta para `C:\Program Files\Sofa\sofa.exe`: so e recusado porque o exe nao
-            // existe. Num PC com o Sofa instalado ele passa a ser um jogo valido, e o teste nao
-            // pode depender do que esta instalado na maquina.
-            if n == "m11.item" && Path::new(r"C:\Program Files\Sofa\sofa.exe").exists() {
-                continue;
-            }
             write(&m.join(&n), &fs::read(e.path()).unwrap());
         }
-        let games = scan_dir(&m).unwrap();
+        // m11 aponta para `C:\Program Files\Sofa\sofa.exe`. Com a pasta do Sofa na lista de proibidas
+        // (como em `StoreEnv::system`) ele e recusado haja ou nao um Sofa instalado neste PC.
+        let env = Arc::new(StoreEnv::new(
+            launcher_core::domain::library::InstallPathPolicy::new(
+                &crate::path_canon::known::windows_dir().unwrap(),
+                vec![r"C:\Program Files\Sofa".to_owned()],
+            ),
+            Arc::new(crate::path_canon::FsPathResolver),
+        ));
+        let games = EpicScanner::new(Some(m.clone()), env).scan().unwrap();
         let ids: Vec<String> = games.iter().map(|g| g.id.to_string()).collect();
         // `AppName` com `?`, `&`, `/` e espaco, `InstallLocation` raiz/UNC/Windows/Sofa, `..` no
         // exe e exe absoluto: nenhum entra. So o jogo bom (e nenhum com id fora do formato).
