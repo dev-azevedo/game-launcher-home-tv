@@ -1,5 +1,5 @@
 <#
-  Release do Sofa (BE-39, D-34, SEC-24, SEC-26): chamado por `scripts/ci.ps1 -Release`.
+  Release do SofaLauncher (BE-39, D-34, SEC-24, SEC-26): chamado por `scripts/ci.ps1 -Release`.
 
   O release sai em MSVC (ADR-0001, P-08 b): e o unico alvo em que o loader do WebView2 e estatico
   (SEC-23) e o `sofa.exe` tem exatamente um RT_MANIFEST (ARQ-BUG-08). O CI de dev segue no `-gnu`.
@@ -127,7 +127,7 @@ function Invoke-Release {
     $targetDir = Join-Path $Root "target\$target\release"
     $exe = Join-Path $targetDir 'sofa.exe'
     $bundleDir = Join-Path $targetDir 'bundle\nsis'
-    $installerName = "Sofa_${version}_x64-setup.exe"
+    $installerName = "SofaLauncher_${version}_x64-setup.exe"
 
     # build a partir de tag (RN-30): HEAD exatamente numa tag v<versao> e arvore limpa.
     # via cmd: no PowerShell 5.1 o stderr de um nativo vira erro terminante com `Stop`, e "sem tag" e um caso normal
@@ -232,7 +232,7 @@ function Invoke-Release {
             [System.IO.File]::WriteAllText((Join-Path $stage 'SHA256SUMS.txt'), ("{0}  {1}`n" -f $hash, $installerName), (New-Object System.Text.UTF8Encoding($false)))
 
             $readme = @(
-                "Sofa $version - instalador para Windows 10 e 11 (64 bits)",
+                "SofaLauncher $version - instalador para Windows 10 e 11 (64 bits)",
                 "",
                 "Arquivo:  $installerName",
                 "SHA-256:  $hash",
@@ -244,10 +244,12 @@ function Invoke-Release {
                 "",
                 "O valor tem que ser igual ao de SHA256SUMS.txt (e ao SHA-256 acima). Se for diferente, nao instale.",
                 "",
-                "Instalar pede permissao de administrador (UAC): o Sofa vai para C:\Program Files\Sofa para todo o PC.",
+                "Instalar pede permissao de administrador (UAC): o SofaLauncher vai para C:\Program Files\Sofa para todo o PC.",
+                "Atualizar a partir da 0.1.0: rode este instalador por cima. A biblioteca, as configuracoes e o 'Iniciar com o Windows' ficam, e o atalho do nome antigo e trocado pelo do SofaLauncher.",
+                "Nomes tecnicos que nao mudam: o executavel sofa.exe, a pasta C:\Program Files\Sofa e a pasta de dados app.sofa.launcher.",
                 "A pasta e fixa: nao ha escolha de pasta e a opcao /D= de outra pasta e recusada.",
                 "Sem o WebView2 (comum so no Windows 10), o instalador baixa da Microsoft e precisa de internet.",
-                "Desinstalar: Configuracoes > Aplicativos instalados > Sofa. A caixa 'Manter dados' vem marcada.",
+                "Desinstalar: Configuracoes > Aplicativos instalados > SofaLauncher. A caixa 'Manter dados' vem marcada.",
                 "",
                 "Relatorios desta versao: pasta 'relatorios' (cargo deny e npm audit). Detalhes do build: BUILD-INFO.txt."
             )

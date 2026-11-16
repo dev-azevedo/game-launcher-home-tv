@@ -830,6 +830,20 @@ public static class SofaReparse {
         }
         Assert-True ($all -match 'SofaLauncher') 'o nome novo nao aparece'
     }
+    Test-Case 'ci-release.ps1: instalador SofaLauncher_<versao>_x64-setup.exe (igual ao que o Tauri gera) e textos do release sem "Sofa" como nome do produto (D-49, BE-67)' {
+        $src = Get-Content -LiteralPath (Join-Path $root 'scripts\ci-release.ps1') -Encoding UTF8
+        $all = $src -join "`n"
+        $conf = Get-Content -LiteralPath (Join-Path $root 'src-tauri\tauri.conf.json') -Raw | ConvertFrom-Json
+        # o bundler nomeia o instalador <productName>_<versao>_x64-setup.exe
+        Assert-Eq $conf.productName 'SofaLauncher' 'productName'
+        $m = [regex]::Match($all, '\$installerName = "([^"]+)"')
+        Assert-True $m.Success 'installerName nao encontrado'
+        Assert-Eq $m.Groups[1].Value ($conf.productName + '_${version}_x64-setup.exe') 'nome do instalador'
+        $bad = @($src | Where-Object { $_.TrimStart() -notmatch '^#' } | Where-Object { $_ -cmatch '(?<!\\)\bSofa\b(?!\\| Autostart|\*)' })
+        Assert-True ($bad.Count -eq 0) ('texto com o nome antigo: ' + ($bad -join ' | '))
+        Assert-True ($all.Contains('rode este instalador por cima')) 'README sem a instrucao de atualizar por cima'
+        Assert-True ($all.Contains('"sha256: $hash"')) 'BUILD-INFO sem o hash'
+    }
     # =============================================================== o instalador gerado
     Write-Host "`n== Instalador gerado (se existir)" -ForegroundColor Cyan
     $gen = Get-ChildItem -LiteralPath (Join-Path $root 'target') -Recurse -Filter installer.nsi -ErrorAction SilentlyContinue |
