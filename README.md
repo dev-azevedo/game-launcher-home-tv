@@ -1,12 +1,12 @@
-<p align="center"><img src="docs/brand/sofa/assets/logo-horizontal.svg" alt="Sofá" height="72"></p>
+<p align="center"><img src="docs/brand/sofa/assets/logo-horizontal.svg" alt="SofaLauncher" height="72"></p>
 
 **English** | [Português (Brasil)](README.pt-BR.md)
 
-# Sofá
+# SofaLauncher
 
-Sofá is a game launcher for Windows, made to be used on a TV with an Xbox controller. It shows your Steam, Epic Games and GOG games, plus any `.exe` you add, in one library. You open a game, play, and come back to the launcher without a keyboard or mouse.
+SofaLauncher is a game launcher for Windows, made to be used on a TV with an Xbox controller. It shows your Steam, Epic Games and GOG games, plus any `.exe` you add, in one library. You open a game, play, and come back to the launcher without a keyboard or mouse.
 
-> Status: pre-release `v0.1.0`. The installer is not code-signed (see [Download and install](#download-and-install)).
+> Status: pre-release `v0.2.0`. The installer is not code-signed (see [Download and install](#download-and-install)).
 
 ## Requirements
 
@@ -16,11 +16,11 @@ Sofá is a game launcher for Windows, made to be used on a TV with an Xbox contr
 
 ## Download and install
 
-1. Download `Sofa_0.1.0_x64-setup.exe` and `SHA256SUMS.txt` from the [v0.1.0 release](https://github.com/dev-azevedo/game-launcher-home-tv/releases/tag/v0.1.0). The release also has `README.txt`, `BUILD-INFO.txt` and `coletar-logs.ps1`.
+1. Download `SofaLauncher_0.2.0_x64-setup.exe` and `SHA256SUMS.txt` from the [v0.2.0 release](https://github.com/dev-azevedo/game-launcher-home-tv/releases/tag/v0.2.0). The release also has `README.txt`, `BUILD-INFO.txt` and `coletar-logs.ps1`.
 2. Check the hash in PowerShell, in the folder of the file:
 
    ```powershell
-   Get-FileHash .\Sofa_0.1.0_x64-setup.exe -Algorithm SHA256
+   Get-FileHash .\SofaLauncher_0.2.0_x64-setup.exe -Algorithm SHA256
    ```
 
    The value must match the one in `SHA256SUMS.txt`. If it differs, do not install.
@@ -29,7 +29,9 @@ Sofá is a game launcher for Windows, made to be used on a TV with an Xbox contr
 5. The folder is fixed: `C:\Program Files\Sofa`. There is no folder page, and the `/D=` option with another folder is refused. An older installation outside Program Files is also refused: uninstall it first.
 6. The "Start with Windows" page comes checked. Each Windows user can change it later in Settings.
 
-To play without a keyboard right after turning the PC on, set up automatic sign-in or Windows Hello in Windows. Sofá starts on the desktop, and the installer does not change your sign-in.
+To play without a keyboard right after turning the PC on, set up automatic sign-in or Windows Hello in Windows. SofaLauncher starts on the desktop, and the installer does not change your sign-in.
+
+**Updating from 0.1.0.** Run `SofaLauncher_0.2.0_x64-setup.exe` over the existing install: your library, settings and "Start with Windows" stay, and the old shortcut (named after the 0.1.0 name) is replaced by the SofaLauncher one. The program is now called SofaLauncher, but the technical names do not change: `sofa.exe`, the data folder `%LOCALAPPDATA%\app.sofa.launcher`, the install folder `C:\Program Files\Sofa` and the app identifier `app.sofa.launcher`.
 
 ## Using it with the controller
 
@@ -42,23 +44,23 @@ To play without a keyboard right after turning the PC on, set up automatic sign-
 | Menu | Quick menu |
 | LB / RB | Jump rows |
 | LT / RT | Volume down / up (in the library) |
-| View + Menu | Return combination: back to Sofá while a game is running |
+| View + Menu | Return combination: back to SofaLauncher while a game is running |
 
 **Adding games.** Installed Steam, Epic and GOG games are detected on their own. To add something else, go to Settings, Library, Add game, and pick a `.exe` on a local disk. Network paths, command-line arguments and files that are not `.exe` are not accepted. Each card shows its origin (Steam, Epic, GOG or Manual). "Update library" looks for new games.
 
-**Playing.** Move to a card and press A. While the game runs, its card shows "In progress" and A returns to it. When the game closes, Sofá comes back to the front.
+**Playing.** Move to a card and press A. While the game runs, its card shows "In progress" and A returns to it. When the game closes, SofaLauncher comes back to the front.
 
-**Back to Sofá during a game.** Press View + Menu together. A panel offers: back to the game, close game, go to the library (the game stays open) and quick menu. "Close game" asks the game to close; if it does not answer, "Force close" appears (unsaved progress is lost).
+**Back to SofaLauncher during a game.** Press View + Menu together. A panel offers: back to the game, close game, go to the library (the game stays open) and quick menu. "Close game" asks the game to close; if it does not answer, "Force close" appears (unsaved progress is lost).
 
-**Quick menu (Menu).** Volume, Mute, Shut down, Restart, Suspend, Settings and Exit launcher. Shut down, Restart and Suspend ask for confirmation, with Cancel in focus. The Windows shutdown is the normal one: if another app has unsaved work, Windows warns. Suspend shows as unavailable on PCs that do not support it.
+**Quick menu (Menu).** Volume, Mute, Shut down, Restart, Suspend, Settings and Close the launcher. Shut down, Restart and Suspend ask for confirmation, with Cancel in focus. "Close the launcher" sits in the same group, but it only closes SofaLauncher: it does not touch the PC, and a running game stays open. It also asks for confirmation (Cancel in focus) and says how to open it again: the SofaLauncher shortcut, or restarting the PC. The Windows shutdown is the normal one: if another app has unsaved work, Windows warns. Suspend shows as unavailable on PCs that do not support it.
 
 **Volume.** LT and RT in the library, or the D-pad in the quick menu.
 
 **Game options (View on a card).** Play (or Back to game), Rename, Restore original name, Hide. Renaming uses the PC keyboard. Hiding removes the game from the library and from updates and deletes no file. Hidden items come back in Settings, Hidden items.
 
-**Settings.** Tabs: Display (which monitor Sofá opens on), Library (summary, update, add game), General (Start with Windows) and Hidden items.
+**Settings.** Tabs: Display (which monitor SofaLauncher opens on), Library (summary, update, add game), General (Start with Windows) and Hidden items.
 
-**Start with Windows.** Opens Sofá when you sign in. It applies to your Windows user only.
+**Start with Windows.** Opens SofaLauncher when you sign in. It applies to your Windows user only.
 
 ### Emergency keyboard
 
@@ -76,7 +78,7 @@ Inside a text field only Enter, Esc and Up/Down leave the field. There is no key
 
 ## Data and logs
 
-Sofá keeps your library, hidden items, custom names, last-played dates and settings in `%LOCALAPPDATA%\app.sofa.launcher`. Logs are in `%LOCALAPPDATA%\app.sofa.launcher\logs`. Nothing leaves the PC on its own.
+SofaLauncher keeps your library, hidden items, custom names, last-played dates and settings in `%LOCALAPPDATA%\app.sofa.launcher`. Logs are in `%LOCALAPPDATA%\app.sofa.launcher\logs`. Nothing leaves the PC on its own.
 
 **Reporting a problem.** Download `coletar-logs.ps1` from the release and run it:
 
@@ -84,18 +86,18 @@ Sofá keeps your library, hidden items, custom names, last-played dates and sett
 powershell -ExecutionPolicy Bypass -File .\coletar-logs.ps1
 ```
 
-It reads the data folder (and never changes it) and creates a zip on your desktop with the logs, `settings.json`, Windows, graphics and WebView2 information, and where Sofá is installed. It leaves out `library.json`, covers, your user name and your computer name. Send that zip with your report. Use `-IncluirBiblioteca` only if asked: it adds the list of games.
+It reads the data folder (and never changes it) and creates a zip on your desktop with the logs, `settings.json`, Windows, graphics and WebView2 information, and where SofaLauncher is installed. It leaves out `library.json`, covers, your user name and your computer name. Send that zip with your report. Use `-IncluirBiblioteca` only if asked: it adds the list of games.
 
 ## Uninstall
 
-Windows Settings, Apps, Installed apps, Sofá. The uninstaller asks whether to keep data, and **Keep data (library and settings)** comes checked. Checked, a later reinstall finds your library again. Unchecked, the data of your user is deleted. Updating over an existing install does not delete data.
+Windows Settings, Apps, Installed apps, SofaLauncher. The uninstaller asks whether to keep data, and **Keep data (library and settings)** comes checked. Checked, a later reinstall finds your library again. Unchecked, the data of your user is deleted. Updating over an existing install does not delete data.
 
 ## Common problems
 
 - **SmartScreen warns about the installer.** Expected: it is not signed. Check the SHA-256 and continue only if it matches.
 - **The installer fails on a PC without WebView2.** It downloads the runtime from Microsoft: connect the PC to the internet and try again. There is no offline installer.
-- **The controller does not respond.** Sofá shows "No controller connected". Turn the controller on or plug in the cable. The keyboard works meanwhile.
-- **The game does not come back to the front.** Open the game panel with View + Menu and choose "Back to game". If Windows did not let Sofá take the front, the game was minimized and "Back to game" restores it. A game that runs as administrator may ignore the return combination; use the keyboard (F1) or close the game from its own menu.
+- **The controller does not respond.** SofaLauncher shows "No controller connected". Turn the controller on or plug in the cable. The keyboard works meanwhile.
+- **The game does not come back to the front.** Open the game panel with View + Menu and choose "Back to game". If Windows did not let SofaLauncher take the front, the game was minimized and "Back to game" restores it. A game that runs as administrator may ignore the return combination; use the keyboard (F1) or close the game from its own menu.
 - **The installer refuses to continue.** Remove `/D=` from the command line, or uninstall the earlier copy that lives outside Program Files.
 
 ## For developers

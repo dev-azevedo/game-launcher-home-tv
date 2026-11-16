@@ -844,6 +844,22 @@ public static class SofaReparse {
         Assert-True ($all.Contains('rode este instalador por cima')) 'README sem a instrucao de atualizar por cima'
         Assert-True ($all.Contains('"sha256: $hash"')) 'BUILD-INFO sem o hash'
     }
+    Test-Case 'READMEs: mesmo nome de instalador e versao do tauri.conf.json, sem "Sofa" com acento como nome do produto, com a atualizacao por cima da 0.1.0 (D-49, D-57, BE-74)' {
+        $conf = Get-Content -LiteralPath (Join-Path $root 'src-tauri\tauri.conf.json') -Raw | ConvertFrom-Json
+        $installer = "$($conf.productName)_$($conf.version)_x64-setup.exe"
+        $acute = [string][char]0xE1
+        foreach ($name in @('README.md', 'README.pt-BR.md')) {
+            $text = [System.IO.File]::ReadAllText((Join-Path $root $name), [System.Text.Encoding]::UTF8)
+            Assert-True ($text.Contains($installer)) "$name nao cita $installer"
+            Assert-True ($text.Contains("v$($conf.version)")) "$name nao cita a versao v$($conf.version)"
+            Assert-True (-not $text.Contains('Sof' + $acute)) "$name ainda usa o nome antigo como nome do produto"
+            Assert-True (-not ($text -match 'Sofa_\d+\.\d+\.\d+_x64-setup')) "$name cita o nome antigo do instalador"
+            foreach ($tech in @('sofa.exe', 'app.sofa.launcher', 'C:\Program Files\Sofa')) {
+                Assert-True ($text.Contains($tech)) "$name nao diz que $tech nao muda"
+            }
+            Assert-True ($text.Contains('0.1.0')) "$name sem a atualizacao por cima da 0.1.0"
+        }
+    }
     # =============================================================== o instalador gerado
     Write-Host "`n== Instalador gerado (se existir)" -ForegroundColor Cyan
     $gen = Get-ChildItem -LiteralPath (Join-Path $root 'target') -Recurse -Filter installer.nsi -ErrorAction SilentlyContinue |

@@ -1,12 +1,12 @@
-<p align="center"><img src="docs/brand/sofa/assets/logo-horizontal.svg" alt="Sofá" height="72"></p>
+<p align="center"><img src="docs/brand/sofa/assets/logo-horizontal.svg" alt="SofaLauncher" height="72"></p>
 
 [English](README.md) | **Português (Brasil)**
 
-# Sofá
+# SofaLauncher
 
-O Sofá é um launcher de jogos para Windows, feito para usar na TV com um controle Xbox. Ele reúne numa biblioteca os jogos da Steam, da Epic Games e do GOG, mais qualquer `.exe` que você adicionar. Você abre o jogo, joga e volta ao launcher sem teclado nem mouse.
+O SofaLauncher é um launcher de jogos para Windows, feito para usar na TV com um controle Xbox. Ele reúne numa biblioteca os jogos da Steam, da Epic Games e do GOG, mais qualquer `.exe` que você adicionar. Você abre o jogo, joga e volta ao launcher sem teclado nem mouse.
 
-> Status: pré-release `v0.1.0`. O instalador não tem assinatura de código (veja [Download e instalação](#download-e-instalação)).
+> Status: pré-release `v0.2.0`. O instalador não tem assinatura de código (veja [Download e instalação](#download-e-instalação)).
 
 ## Requisitos
 
@@ -16,11 +16,11 @@ O Sofá é um launcher de jogos para Windows, feito para usar na TV com um contr
 
 ## Download e instalação
 
-1. Baixe `Sofa_0.1.0_x64-setup.exe` e `SHA256SUMS.txt` na [release v0.1.0](https://github.com/dev-azevedo/game-launcher-home-tv/releases/tag/v0.1.0). A release traz também `README.txt`, `BUILD-INFO.txt` e `coletar-logs.ps1`.
+1. Baixe `SofaLauncher_0.2.0_x64-setup.exe` e `SHA256SUMS.txt` na [release v0.2.0](https://github.com/dev-azevedo/game-launcher-home-tv/releases/tag/v0.2.0). A release traz também `README.txt`, `BUILD-INFO.txt` e `coletar-logs.ps1`.
 2. Confira o hash no PowerShell, na pasta do arquivo:
 
    ```powershell
-   Get-FileHash .\Sofa_0.1.0_x64-setup.exe -Algorithm SHA256
+   Get-FileHash .\SofaLauncher_0.2.0_x64-setup.exe -Algorithm SHA256
    ```
 
    O valor tem que ser igual ao de `SHA256SUMS.txt`. Se for diferente, não instale.
@@ -29,7 +29,9 @@ O Sofá é um launcher de jogos para Windows, feito para usar na TV com um contr
 5. A pasta é fixa: `C:\Program Files\Sofa`. Não há página de pasta, e a opção `/D=` com outra pasta é recusada. Uma instalação anterior fora de Program Files também é recusada: desinstale-a antes.
 6. A página "Iniciar com o Windows" vem marcada. Cada usuário do Windows pode mudar depois, em Configurações.
 
-Para jogar sem teclado logo ao ligar o PC, configure o logon automático ou o Windows Hello no Windows. O Sofá começa na área de trabalho, e o instalador não altera o seu logon.
+Para jogar sem teclado logo ao ligar o PC, configure o logon automático ou o Windows Hello no Windows. O SofaLauncher começa na área de trabalho, e o instalador não altera o seu logon.
+
+**Atualizando da 0.1.0.** Rode `SofaLauncher_0.2.0_x64-setup.exe` por cima da instalação existente: a biblioteca, as configurações e o "Iniciar com o Windows" ficam, e o atalho antigo (com o nome da 0.1.0) é trocado pelo do SofaLauncher. O programa agora se chama SofaLauncher, mas os nomes técnicos não mudam: `sofa.exe`, a pasta de dados `%LOCALAPPDATA%\app.sofa.launcher`, a pasta de instalação `C:\Program Files\Sofa` e o identificador do app `app.sofa.launcher`.
 
 ## Usando com o controle
 
@@ -42,23 +44,23 @@ Para jogar sem teclado logo ao ligar o PC, configure o logon automático ou o Wi
 | Menu | Menu rápido |
 | LB / RB | Pular linhas |
 | LT / RT | Diminuir / aumentar o volume (na biblioteca) |
-| View + Menu | Combinação de retorno: volta ao Sofá com um jogo aberto |
+| View + Menu | Combinação de retorno: volta ao SofaLauncher com um jogo aberto |
 
 **Adicionar jogos.** Os jogos instalados na Steam, na Epic e no GOG são detectados sozinhos. Para adicionar outro, vá em Configurações, Biblioteca, Adicionar jogo e escolha um `.exe` em um disco do PC. Pasta de rede, argumentos de linha de comando e arquivos que não sejam `.exe` não são aceitos. Cada card mostra a origem (Steam, Epic, GOG ou Manual). "Atualizar biblioteca" procura jogos novos.
 
-**Jogar.** Vá até o card e aperte A. Com o jogo aberto, o card mostra "Em andamento" e A volta para ele. Quando o jogo fecha, o Sofá volta para a frente.
+**Jogar.** Vá até o card e aperte A. Com o jogo aberto, o card mostra "Em andamento" e A volta para ele. Quando o jogo fecha, o SofaLauncher volta para a frente.
 
-**Voltar ao Sofá durante o jogo.** Aperte View + Menu juntos. Um painel oferece: voltar ao jogo, fechar jogo, ir para a biblioteca (o jogo continua aberto) e menu rápido. "Fechar jogo" pede ao jogo para fechar; se ele não responder, aparece "Forçar fechamento" (o progresso não salvo se perde).
+**Voltar ao SofaLauncher durante o jogo.** Aperte View + Menu juntos. Um painel oferece: voltar ao jogo, fechar jogo, ir para a biblioteca (o jogo continua aberto) e menu rápido. "Fechar jogo" pede ao jogo para fechar; se ele não responder, aparece "Forçar fechamento" (o progresso não salvo se perde).
 
-**Menu rápido (Menu).** Volume, Mudo, Desligar, Reiniciar, Suspender, Configurações e Sair do launcher. Desligar, Reiniciar e Suspender pedem confirmação, com Cancelar em foco. O desligamento é o normal do Windows: se outro app tiver trabalho não salvo, o Windows avisa. Suspender aparece como indisponível em PC que não suporta.
+**Menu rápido (Menu).** Volume, Mudo, Desligar, Reiniciar, Suspender, Configurações e Fechar o launcher. Desligar, Reiniciar e Suspender pedem confirmação, com Cancelar em foco. "Fechar o launcher" fica no mesmo grupo, mas só fecha o SofaLauncher: não mexe no PC, e um jogo aberto continua aberto. Ele também pede confirmação (Cancelar em foco) e diz como abrir de novo: pelo atalho do SofaLauncher ou reiniciando o PC. O desligamento é o normal do Windows: se outro app tiver trabalho não salvo, o Windows avisa. Suspender aparece como indisponível em PC que não suporta.
 
 **Volume.** LT e RT na biblioteca, ou o D-pad no menu rápido.
 
 **Opções do jogo (View no card).** Jogar (ou Voltar ao jogo), Renomear, Restaurar nome original, Ocultar. Renomear usa o teclado do PC. Ocultar tira o jogo da biblioteca e das atualizações e não apaga nenhum arquivo. Os itens ocultos voltam em Configurações, Itens ocultos.
 
-**Configurações.** Abas: Tela (em qual monitor o Sofá abre), Biblioteca (resumo, atualizar, adicionar jogo), Geral (Iniciar com o Windows) e Itens ocultos.
+**Configurações.** Abas: Tela (em qual monitor o SofaLauncher abre), Biblioteca (resumo, atualizar, adicionar jogo), Geral (Iniciar com o Windows) e Itens ocultos.
 
-**Iniciar com o Windows.** Abre o Sofá quando você entra no Windows. Vale só para o seu usuário.
+**Iniciar com o Windows.** Abre o SofaLauncher quando você entra no Windows. Vale só para o seu usuário.
 
 ### Teclado de emergência
 
@@ -76,7 +78,7 @@ Dentro de um campo de texto, só Enter, Esc e ↑↓ saem do campo. Não há tec
 
 ## Dados e logs
 
-O Sofá guarda biblioteca, itens ocultos, nomes personalizados, datas de último jogo e configurações em `%LOCALAPPDATA%\app.sofa.launcher`. Os logs ficam em `%LOCALAPPDATA%\app.sofa.launcher\logs`. Nada sai do PC sozinho.
+O SofaLauncher guarda biblioteca, itens ocultos, nomes personalizados, datas de último jogo e configurações em `%LOCALAPPDATA%\app.sofa.launcher`. Os logs ficam em `%LOCALAPPDATA%\app.sofa.launcher\logs`. Nada sai do PC sozinho.
 
 **Relatar um problema.** Baixe o `coletar-logs.ps1` da release e rode:
 
@@ -88,14 +90,14 @@ Ele lê a pasta de dados (e nunca a altera) e cria um zip na área de trabalho c
 
 ## Desinstalar
 
-Configurações do Windows, Aplicativos, Aplicativos instalados, Sofá. O desinstalador pergunta se mantém os dados, e **Manter dados (biblioteca e configurações)** vem marcada. Marcada, uma reinstalação depois encontra a sua biblioteca. Desmarcada, os dados do seu usuário são apagados. Atualizar por cima não apaga dados.
+Configurações do Windows, Aplicativos, Aplicativos instalados, SofaLauncher. O desinstalador pergunta se mantém os dados, e **Manter dados (biblioteca e configurações)** vem marcada. Marcada, uma reinstalação depois encontra a sua biblioteca. Desmarcada, os dados do seu usuário são apagados. Atualizar por cima não apaga dados.
 
 ## Problemas comuns
 
 - **O SmartScreen avisa sobre o instalador.** É esperado: ele não é assinado. Confira o SHA-256 e continue só se bater.
 - **O instalador falha em PC sem WebView2.** Ele baixa o runtime da Microsoft: conecte o PC à internet e tente de novo. Não há instalador offline.
-- **O controle não responde.** O Sofá mostra "Nenhum controle conectado". Ligue o controle ou conecte o cabo. O teclado funciona enquanto isso.
-- **O jogo não volta para a frente.** Abra o painel do jogo com View + Menu e escolha "Voltar ao jogo". Se o Windows não deixou o Sofá passar na frente, o jogo foi minimizado e "Voltar ao jogo" restaura a janela. Jogo que roda como administrador pode ignorar a combinação de retorno: use o teclado (F1) ou feche o jogo pelo menu dele.
+- **O controle não responde.** O SofaLauncher mostra "Nenhum controle conectado". Ligue o controle ou conecte o cabo. O teclado funciona enquanto isso.
+- **O jogo não volta para a frente.** Abra o painel do jogo com View + Menu e escolha "Voltar ao jogo". Se o Windows não deixou o SofaLauncher passar na frente, o jogo foi minimizado e "Voltar ao jogo" restaura a janela. Jogo que roda como administrador pode ignorar a combinação de retorno: use o teclado (F1) ou feche o jogo pelo menu dele.
 - **O instalador se recusa a continuar.** Tire o `/D=` da linha de comando, ou desinstale a cópia anterior que está fora de Program Files.
 
 ## Para desenvolvedores
@@ -197,7 +199,7 @@ Medium, mesmo usuário), caminho alternativo com o `CreateProcessW` forçado a f
 (só `library.json` e `settings.json`; raiz e arquivos como junction, ponto de reanálise, pasta, hard
 link, somente leitura, em uso; junction trocada em laço), a remoção da tarefa de autostart por SID,
 a **pasta fixa em `Program Files\Sofa`** (`/D=` diferente e instalação anterior fora dela recusados,
-sem página de pasta; SEC-BUG-05) e os acentos ("Sofá" no instalador compilado, um BOM no `.nsi` gerado).
+sem página de pasta; SEC-BUG-05) e os acentos das demais strings (UTF-8 sem mojibake e um BOM no `.nsi` gerado); o nome SofaLauncher no instalador compilado.
 Symlink de verdade exige privilégio: num PowerShell elevado o script o inclui sozinho. O que só vale
 instalando (UAC de outra conta, ACL, `HKU` de outros perfis, DLL plantada) fica no QA-17.
 
