@@ -126,6 +126,14 @@ Write-Host "Compilando o harness e o stub com $Makensis" -ForegroundColor Cyan
 Invoke-Make (Join-Path $testsDir 'stub.nsi') @("/DOUT_EXE=$stub")
 Invoke-Make (Join-Path $testsDir 'harness.nsi') @("/DOUT_EXE=$harness", "/DSOFADIR=$winDir", "/DPLUGINDIR=$pluginDir")
 Invoke-Make (Join-Path $testsDir 'harness.nsi') @("/DOUT_EXE=$harnessFail", "/DSOFADIR=$winDir", "/DPLUGINDIR=$pluginDir", '/DSOFA_TEST_FORCE_CREATE_FAIL')
+# BE-64: o harness do atalho legado precisa do utils.nsh que o bundler gera em target\<triplo>\release\nsis\<arch>
+$harnessLnk = Join-Path $bin 'harness-lnk.exe'
+$utilsNsh = Get-ChildItem -LiteralPath (Join-Path $root 'target') -Recurse -Filter utils.nsh -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -match 'release[\\/]nsis' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if ($utilsNsh) {
+    Invoke-Make (Join-Path $testsDir 'harness.nsi') @("/DOUT_EXE=$harnessLnk", "/DSOFADIR=$winDir", "/DPLUGINDIR=$pluginDir", "/DSOFA_TEST_UTILS=$($utilsNsh.DirectoryName)")
+}
+
 
 # --- utilitarios de cenario
 function Run-Harness([string]$Exe, [string[]]$Opts, [int]$TimeoutSec = 120) {
@@ -720,6 +728,98 @@ public static class SofaReparse {
         # nenhum texto do instalador usa o nome antigo
         foreach ($id in $nsh.Keys) { Assert-True ($nsh[$id] -cnotmatch 'Sof[^a]|Sofa(?!Launcher|Prev)') "nome antigo em $id" }
     }
+    # =============================================================== atalho legado (D-57, BE-64)
+    Write-Host "`n== Limpeza do atalho legado da 0.1.0 (D-57, INV-09, SEC-32)" -ForegroundColor Cyan
+    if (-not $utilsNsh) {
+        Skip-Case 'limpeza do atalho legado' 'utils.nsh do bundler nao encontrado; rode `tauri build` (scripts/ci.ps1 -Release)'
+    } else {
+        $legacyName = 'Sof' + [string][char]0xE1 + '.lnk'
+        function New-TestLnk([string]$Path, [string]$Target) {
+            Assert-InWork $Path
+            $sh = New-Object -ComObject WScript.Shell
+            try { $l = $sh.CreateShortcut($Path); $l.TargetPath = $Target; $l.Save() }
+            finally { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($sh) }
+        }
+        function New-LnkScenario([string]$Name) {
+            # <work>\<Name>\inst (com sofa.exe e outro.exe de mentira), \menu (a pasta dos atalhos) e \outra (sofa.exe de outra pasta)
+            $inst = Join-Path $work "$Name\inst"
+            $menu = Join-Path $work "$Name\menu"
+            $other = Join-Path $work "$Name\outra"
+            foreach ($d in @($inst, $menu, $other)) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
+            foreach ($f in @("$inst\sofa.exe", "$inst\outro.exe", "$other\sofa.exe")) { Set-Content -LiteralPath $f -Value 'x' }
+            return [pscustomobject]@{ Inst = $inst; Menu = $menu; Other = $other }
+        }
+        function Run-Lnk($s) { return (Run-Harness $harnessLnk @('/SCENARIO=legacylnk', "/INSTDIR=$($s.Inst)", "/DIR=$($s.Menu)")) }
+
+        Test-Case 'atalho legado apontando para $INSTDIR\sofa.exe: removido, o SofaLauncher.lnk novo fica' {
+            $s = New-LnkScenario 'lnk-ok'
+            New-TestLnk (Join-Path $s.Menu $legacyName) "$($s.Inst)\sofa.exe"
+            New-TestLnk (Join-Path $s.Menu 'SofaLauncher.lnk') "$($s.Inst)\sofa.exe"
+            $r = Run-Lnk $s
+            Assert-Eq $r['removed'] '1' 'removed'
+            Assert-True (-not (Exists (Join-Path $s.Menu $legacyName))) 'o atalho legado devia ter sido removido'
+            Assert-True (Exists (Join-Path $s.Menu 'SofaLauncher.lnk')) 'o atalho novo nao pode ser removido'
+        }
+        Test-Case 'atalho legado apontando para outro exe da mesma pasta: fica' {
+            $s = New-LnkScenario 'lnk-outro-exe'
+            New-TestLnk (Join-Path $s.Menu $legacyName) "$($s.Inst)\outro.exe"
+            $r = Run-Lnk $s
+            Assert-Eq $r['removed'] '0' 'removed'
+            Assert-True (Exists (Join-Path $s.Menu $legacyName)) 'atalho para outro exe nao pode ser removido'
+        }
+        Test-Case 'atalho legado apontando para um sofa.exe de OUTRA pasta: fica' {
+            $s = New-LnkScenario 'lnk-outra-pasta'
+            New-TestLnk (Join-Path $s.Menu $legacyName) "$($s.Other)\sofa.exe"
+            $r = Run-Lnk $s
+            Assert-Eq $r['removed'] '0' 'removed'
+            Assert-True (Exists (Join-Path $s.Menu $legacyName)) 'atalho para o sofa.exe de outra pasta nao pode ser removido'
+        }
+        Test-Case 'atalho legado ausente: sem erro, nada removido, o novo fica' {
+            $s = New-LnkScenario 'lnk-ausente'
+            New-TestLnk (Join-Path $s.Menu 'SofaLauncher.lnk') "$($s.Inst)\sofa.exe"
+            $r = Run-Lnk $s
+            Assert-Eq $r['removed'] '0' 'removed (o harness tem de terminar e responder)'
+            Assert-True (Exists (Join-Path $s.Menu 'SofaLauncher.lnk')) 'o atalho novo nao pode ser removido'
+        }
+        Test-Case 'sem curinga: outros .lnk da pasta (mesmo para o sofa.exe) ficam' {
+            $s = New-LnkScenario 'lnk-curinga'
+            foreach ($n in @('Sofa Extra.lnk', 'Sofa.lnk', 'Outro.lnk')) { New-TestLnk (Join-Path $s.Menu $n) "$($s.Inst)\sofa.exe" }
+            New-TestLnk (Join-Path $s.Menu $legacyName) "$($s.Inst)\sofa.exe"
+            $r = Run-Lnk $s
+            Assert-Eq $r['removed'] '1' 'removed'
+            foreach ($n in @('Sofa Extra.lnk', 'Sofa.lnk', 'Outro.lnk')) { Assert-True (Exists (Join-Path $s.Menu $n)) "$n nao pode ser removido" }
+        }
+        Test-Case 'arquivo legado que nao e um atalho valido: sem erro e fica' {
+            $s = New-LnkScenario 'lnk-lixo'
+            Set-Content -LiteralPath (Join-Path $s.Menu $legacyName) -Value 'isto nao e um atalho'
+            $r = Run-Lnk $s
+            Assert-Eq $r['removed'] '0' 'removed'
+            Assert-True (Exists (Join-Path $s.Menu $legacyName)) 'arquivo invalido nao pode ser removido'
+        }
+        Test-Case 'template: a limpeza so mexe em $SMPROGRAMS e $DESKTOP e roda no POSTINSTALL (tambem em /UPDATE)' {
+            $nsh = ((Get-Content -LiteralPath (Join-Path $winDir 'legacy-shortcut.nsh') -Encoding UTF8) | Where-Object { $_.TrimStart() -notmatch '^[;#]' }) -join "`n"
+            $dirs = @([regex]::Matches($nsh, '(?m)^\s*Push\s+"([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+            Assert-Eq ($dirs -join ',') '$SMPROGRAMS,$DESKTOP' 'pastas da limpeza'
+            Assert-True ($nsh -match 'IsShortcutTarget "\$R2" "\$INSTDIR\\\$\{MAINBINARYNAME\}\.exe"') 'sem a conferencia IsShortcutTarget do $INSTDIR\sofa.exe'
+            Assert-True ($nsh -match 'UnpinShortcut "\$R2"') 'sem UnpinShortcut antes do Delete'
+            Assert-True ($nsh -notmatch '[*?]') 'curinga no caminho do atalho'
+            $deletes = @([regex]::Matches($nsh, '(?m)^\s*Delete\b.*$') | ForEach-Object { $_.Value.Trim() })
+            Assert-Eq ($deletes -join '|') 'Delete "$R2"' 'unico Delete da limpeza'
+            $isIdx = $nsh.IndexOf('IsShortcutTarget'); $delIdx = $nsh.IndexOf('Delete "$R2"')
+            Assert-True ($isIdx -gt 0 -and $delIdx -gt $isIdx) 'o Delete tem de vir depois da conferencia'
+            $hooks = ((Get-Content -LiteralPath (Join-Path $winDir 'hooks.nsh') -Encoding UTF8) | Where-Object { $_.TrimStart() -notmatch '^[;#]' }) -join "`n"
+            $post = [regex]::Match($hooks, '(?s)!macro NSIS_HOOK_POSTINSTALL(.*?)!macroend').Groups[1].Value
+            Assert-True ($post -match 'Call SofaRemoveLegacyShortcuts') 'NSIS_HOOK_POSTINSTALL nao chama a limpeza'
+            $tpl = ((Get-Content -LiteralPath (Join-Path $winDir 'installer.nsi') -Encoding UTF8) | Where-Object { $_.TrimStart() -notmatch '^[;#]' }) -join "`n"
+            Assert-True ($tpl -match '!include "\$\{SOFADIR\}\\legacy-shortcut\.nsh"') 'installer.nsi nao inclui legacy-shortcut.nsh'
+            # o nome com acento nao esta escrito nas fontes NSIS (UTF-8 sem BOM seria lido como ANSI)
+            foreach ($f in @('legacy-shortcut.nsh', 'hooks.nsh')) {
+                $bytes = [System.IO.File]::ReadAllBytes((Join-Path $winDir $f))
+                Assert-True (@($bytes | Where-Object { $_ -gt 127 }).Count -eq 0) "$f tem byte nao ASCII"
+            }
+        }
+    }
+
     # =============================================================== o instalador gerado
     Write-Host "`n== Instalador gerado (se existir)" -ForegroundColor Cyan
     $gen = Get-ChildItem -LiteralPath (Join-Path $root 'target') -Recurse -Filter installer.nsi -ErrorAction SilentlyContinue |

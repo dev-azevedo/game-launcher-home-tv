@@ -138,6 +138,7 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 ; Sofa: depois das variaveis e do diretorio de plugins (o desinstalador chama nsis_tauri_utils).
 !include "${SOFADIR}\install-dir.nsh"
 !include "${SOFADIR}\install-hooks.nsh"
+!include "${SOFADIR}\legacy-shortcut.nsh"
 !include "${SOFADIR}\uninstall-hooks.nsh"
 
 ; Uninstaller signing command

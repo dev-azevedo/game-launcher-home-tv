@@ -16,6 +16,15 @@ OutFile "${OUT_EXE}"
 !include MUI2.nsh
 !include LogicLib.nsh
 !include FileFunc.nsh
+; BE-64: os macros IsShortcutTarget e UnpinShortcut vem do utils.nsh que o bundler do Tauri gera em
+; target/<triplo>/release/nsis/<arch>; so entra quando o script de teste o encontra (/DSOFA_TEST_UTILS=<pasta>).
+!ifdef SOFA_TEST_UTILS
+  !include x64.nsh
+  !include "Win\COM.nsh"
+  !include "Win\Propkey.nsh"
+  !include "Win\RestartManager.nsh"
+  !include "${SOFA_TEST_UTILS}\utils.nsh"
+!endif
 
 !define PRODUCTNAME "SofaLauncher"
 !define VERSION "0.0.0"
@@ -36,6 +45,9 @@ Var KeepDataCheckboxState
 
 !include "${SOFADIR}\install-dir.nsh"
 !include "${SOFADIR}\uninstall-hooks.nsh"
+!ifdef SOFA_TEST_UTILS
+  !include "${SOFADIR}\legacy-shortcut.nsh"
+!endif
 !include "${SOFADIR}\PortugueseBR.nsh"
 !insertmacro SOFA_UNINSTALL_FUNCS ""
 
@@ -139,6 +151,22 @@ Section
     Call Emit
     StrCpy $0 "instdir=$INSTDIR"
     Call Emit
+
+  ${ElseIf} $Scenario == "legacylnk"
+    ; BE-64: remove <pasta>\<nome legado>.lnk so se apontar para $INSTDIR\sofa.exe. /DIR= e a pasta de
+    ; mentira (nunca $SMPROGRAMS nem $DESKTOP); /INSTDIR= e a pasta de instalacao de mentira.
+!ifdef SOFA_TEST_UTILS
+    ${GetOptions} $R9 "/INSTDIR=" $INSTDIR
+    ${GetOptions} $R9 "/DIR=" $1
+    Push $1
+    Call SofaRemoveLegacyLnkIn
+    Pop $0
+    StrCpy $0 "removed=$0"
+    Call Emit
+!else
+    StrCpy $0 "erro=sem-utils"
+    Call Emit
+!endif
 
   ${ElseIf} $Scenario == "autostart"
     Call ReadSid
