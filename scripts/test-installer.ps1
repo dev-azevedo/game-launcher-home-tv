@@ -820,6 +820,16 @@ public static class SofaReparse {
         }
     }
 
+    Test-Case 'coletar-logs.ps1: nenhum texto exibido usa "Sofa" como nome do produto (D-49, BE-66); caminhos e a tarefa Sofa Autostart ficam' {
+        $lines = Get-Content -LiteralPath (Join-Path $root 'scripts\coletar-logs.ps1') -Encoding UTF8
+        $bad = @($lines | Where-Object { $_.TrimStart() -notmatch '^#' }| Where-Object { $_ -cmatch '\bSof(a|á)\b(?! Autostart|\\|\*)' })
+        Assert-True ($bad.Count -eq 0) ("texto com o nome antigo: " + ($bad -join ' | '))
+        $all = $lines -join "`n"
+        foreach ($keep in @("'app.sofa.launcher'", "'Sofa Autostart*'", "'sofa.txt'", 'sofa-logs-')) {
+            Assert-True ($all.Contains($keep)) "identificador tecnico mudou: $keep"
+        }
+        Assert-True ($all -match 'SofaLauncher') 'o nome novo nao aparece'
+    }
     # =============================================================== o instalador gerado
     Write-Host "`n== Instalador gerado (se existir)" -ForegroundColor Cyan
     $gen = Get-ChildItem -LiteralPath (Join-Path $root 'target') -Recurse -Filter installer.nsi -ErrorAction SilentlyContinue |

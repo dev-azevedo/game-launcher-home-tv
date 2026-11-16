@@ -1,17 +1,17 @@
 <#
 .SYNOPSIS
-  Junta os logs do Sofa e dados tecnicos do PC num zip para o QA analisar (QA-16/QA-17).
+  Junta os logs do SofaLauncher e dados tecnicos do PC num zip para o QA analisar (QA-16/QA-17).
 
 .DESCRIPTION
-  Le (nunca altera) a pasta de dados do Sofa em %LOCALAPPDATA%\app.sofa.launcher e monta um zip
+  Le (nunca altera) a pasta de dados do SofaLauncher em %LOCALAPPDATA%\app.sofa.launcher e monta um zip
   com o minimo necessario. Nada sai do PC sozinho: o zip fica na area de trabalho e voce o envia.
 
   Entra no zip:
-    - logs\*            logs do Sofa (SEC-18: so IDs, nomes e caminhos de jogo, sem dado pessoal)
+    - logs\*            logs do SofaLauncher (SEC-18: so IDs, nomes e caminhos de jogo, sem dado pessoal)
     - settings.json     configuracoes, incluindo a secao "advanced" (degraus 2 e 3, nivel do log)
     - sistema.txt       versao e build do Windows, processador, memoria, placa de video, telas
                         (resolucao e escala), versao do WebView2, `powercfg /a` (se existe Suspender)
-    - sofa.txt          onde o Sofa esta instalado, se roda elevado (integridade), tarefa de inicio
+    - sofa.txt          onde o SofaLauncher esta instalado, se roda elevado (integridade), tarefa de inicio
                         automatico (SID mascarado) e valor Run
     - LEIA-ME.txt       lista do que entrou e do que ficou de fora
 
@@ -92,7 +92,7 @@ if (Test-Path -LiteralPath $dados) {
         if (Test-Path -LiteralPath $lib) { Copiar-Texto $lib 'library.json'; $incluidos.Add('library.json (a pedido)') }
     }
 } else {
-    $ausentes.Add("pasta de dados $dados (o Sofa ainda nao foi aberto neste usuario)")
+    $ausentes.Add("pasta de dados $dados (o SofaLauncher ainda nao foi aberto neste usuario)")
 }
 
 # ------------------------------------------------------------------ sistema
@@ -167,7 +167,7 @@ foreach ($e in $exes) {
     $sofa.Add("ACL da pasta de instalacao:")
     $sofa.Add((& "$env:SystemRoot\System32\icacls.exe" (Split-Path -Parent $e) 2>&1 | Out-String))
 }
-if (-not $exes) { $sofa.Add('Sofa nao encontrado em Program Files (build de teste fora do instalador?)') }
+if (-not $exes) { $sofa.Add('SofaLauncher nao encontrado em Program Files (build de teste fora do instalador?)') }
 
 $integridade = @'
 using System;
@@ -199,7 +199,7 @@ public static class SofaTok {
 try {
     Add-Type -TypeDefinition $integridade -ErrorAction Stop
     $procs = Get-Process -Name sofa -ErrorAction SilentlyContinue
-    if (-not $procs) { $sofa.Add('Processo sofa.exe: nao esta rodando agora (abra o Sofa e rode de novo para registrar a integridade)') }
+    if (-not $procs) { $sofa.Add('Processo sofa.exe: nao esta rodando agora (abra o SofaLauncher e rode de novo para registrar a integridade)') }
     foreach ($p in $procs) {
         $sofa.Add("Processo sofa.exe PID $($p.Id): integridade $([SofaTok]::Nivel($p.Handle)) | memoria privada $([math]::Round($p.PrivateMemorySize64/1MB)) MB | iniciado $($p.StartTime.ToString('s'))")
     }
@@ -219,12 +219,12 @@ try {
         $sofa.Add((Export-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath 2>&1 | Out-String))
     }
 } catch { $sofa.Add("tarefa: erro ($($_.Exception.Message))") }
-$sofa.Add('--- HKCU Run e StartupApproved (so entradas do Sofa) ---')
+$sofa.Add('--- HKCU Run e StartupApproved (so entradas do SofaLauncher) ---')
 try {
     $run = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue
     $achou = $false
     foreach ($n in $run.PSObject.Properties) { if ($n.Name -like 'Sofa*' -or "$($n.Value)" -like '*sofa.exe*') { $sofa.Add("Run: $($n.Name) = $($n.Value)"); $achou = $true } }
-    if (-not $achou) { $sofa.Add('Run: nenhuma entrada do Sofa') }
+    if (-not $achou) { $sofa.Add('Run: nenhuma entrada do SofaLauncher') }
     $ap = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run' -ErrorAction SilentlyContinue
     foreach ($n in $ap.PSObject.Properties) { if ($n.Name -like 'Sofa*') { $sofa.Add("StartupApproved: $($n.Name) = " + (($n.Value | ForEach-Object { $_.ToString('X2') }) -join ' ')) } }
 } catch { }
@@ -233,7 +233,7 @@ $incluidos.Add('sofa.txt')
 
 # ------------------------------------------------------------------ LEIA-ME e zip
 $leia = @()
-$leia += "Coleta do Sofa em $(Get-Date -Format 's')"
+$leia += "Coleta do SofaLauncher em $(Get-Date -Format 's')"
 $leia += ''
 $leia += 'Entrou:'
 $incluidos | ForEach-Object { $leia += "  - $_" }
