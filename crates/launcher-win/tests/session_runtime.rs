@@ -543,6 +543,40 @@ fn forcar_no_job_so_encerra_membros_e_poupa_o_que_esta_fora_da_pasta() {
     kill_and_wait("acompanhante-sofa-qa.exe");
 }
 
+/// BE-73, CA-82 item 3, D-51, RN-35, INV-05: "Fechar o launcher" fecha o handle do Job (o processo do
+/// launcher sai e o kernel o fecha) e o jogo segue vivo, porque o Job nao tem
+/// `KILL_ON_JOB_CLOSE`. Aqui o `drop` da sonda faz o mesmo: solta o Job com o jogo dentro.
+#[test]
+fn fechar_o_handle_do_job_nao_encerra_o_jogo() {
+    let sb = Sandbox::new();
+    let exe = sb.game(r"Jogos\Jogo Vivo\vivo-sofa-qa.exe");
+    let t = target(&exe, &["sleep", COMPANION_MS]);
+    let sink = Arc::new(Sink::default());
+    let (watch, _) = watch_job(&t, &sink);
+    sink.wait("seen", 1, Duration::from_secs(15))
+        .expect("inicio");
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let game = loop {
+        if let Some(h) = pid_by_name("vivo-sofa-qa.exe").and_then(ProcHandle::open) {
+            break h;
+        }
+        assert!(Instant::now() < deadline, "o jogo nao abriu");
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    game.settle(1000);
+    assert_eq!(game.exit_code(), None, "vivo antes de soltar o Job");
+    // O handle do Job fecha aqui (nenhuma outra referencia a ele).
+    drop(watch);
+    std::thread::sleep(Duration::from_millis(500));
+    assert_eq!(
+        game.exit_code(),
+        None,
+        "fechar o handle do Job nao pode encerrar o jogo (STILL_ACTIVE)"
+    );
+    // O jogo vive 2 min: o fim do teste o derruba, para a pasta de teste poder ser apagada.
+    kill_and_wait("vivo-sofa-qa.exe");
+}
+
 /// ARQ-BUG-14: no modo Job nada tira snapshot ToolHelp. Nem a thread da sonda (rajada de processos
 /// novos e saidas) nem `pids`, `request_close` e `force_close`, que o caso de uso chama com o
 /// `Mutex` da sessao preso. O controle, a varredura por pasta, tira snapshots.
