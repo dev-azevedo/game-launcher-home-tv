@@ -261,6 +261,18 @@ fn versao_unica_nos_manifestos_e_maior_que_a_0_1_0() {
     );
 }
 
+/// D-49, D-52: o icone do app (`icon.ico`, que o Tauri grava no `sofa.exe`) e o da marca, byte a byte.
+#[test]
+fn icone_do_app_e_o_icone_da_marca() {
+    let app = fs::read(root().join("icons/icon.ico")).unwrap();
+    let marca = fs::read(root().join("../docs/brand/sofa/assets/icon.ico")).unwrap();
+    assert!(!app.is_empty());
+    assert!(
+        app == marca,
+        "src-tauri/icons/icon.ico difere de docs/brand/sofa/assets/icon.ico"
+    );
+}
+
 /// SEC-31, SEC-32: o template do Sofa nao traz de volta a remocao recursiva de dados do Tauri nem
 /// escreve em HKCU (o instalador elevado pode ser de outra conta, E-19).
 #[test]
