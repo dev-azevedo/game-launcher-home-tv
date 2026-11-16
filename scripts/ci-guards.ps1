@@ -25,6 +25,8 @@ $script:GuardRules = @(
     @{ Id = 'INV-05'; Pattern = 'shutdown\.exe';                    Allow = @() },
     # SEC-BUG-01: o Job so rastreia; nunca se encerra o Job inteiro (so membros, por handle)
     @{ Id = 'INV-05'; Pattern = '\bTerminateJobObject\b';        Allow = @() },
+    # D-51, CA-82 item 3, RN-35: "Fechar o launcher" deixa o jogo vivo porque o Job NAO tem KILL_ON_JOB_CLOSE; ligar o limite derrubaria o jogo ao sair
+    @{ Id = 'INV-05'; Pattern = '\bJOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE\b'; Allow = @() },
     # INV-08: sem hook global, injecao ou acesso a memoria de outro processo
     @{ Id = 'INV-08'; Pattern = '\bSetWindowsHookEx\w*';            Allow = @() },
     @{ Id = 'INV-08'; Pattern = '\bCreateRemoteThread\w*';          Allow = @() },
@@ -290,7 +292,7 @@ function Invoke-GuardSelfTest {
         $planted = @(
             'XInputGetState', 'SetForegroundWindow', 'SendInput', 'AttachThreadInput', 'SetWinEventHook',
             'WINEVENT_INCONTEXT', 'SPI_SETFOREGROUNDLOCKTIMEOUT', 'EWX_FORCEIFHUNG', 'SeDebugPrivilege',
-            'PROCESS_ALL_ACCESS', 'shutdown.exe', 'TerminateJobObject', 'SetWindowsHookExW', 'CreateRemoteThread',
+            'PROCESS_ALL_ACCESS', 'shutdown.exe', 'TerminateJobObject', 'JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE', 'SetWindowsHookExW', 'CreateRemoteThread',
             'ReadProcessMemory', 'WriteProcessMemory', 'LoadLibraryW', 'remove_file', 'remove_dir_all',
             'DeleteFileW', 'fs::rename', 'MoveFileExW',
             'RegisterTaskDefinition', 'CurrentVersion\Run', 'StartupApproved', 'TASK_RUNLEVEL_HIGHEST',
