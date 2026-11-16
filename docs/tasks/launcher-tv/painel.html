@@ -104,7 +104,7 @@
 <script type="application/json" id="dados">
 {
   "feature": "launcher-tv",
-  "atualizado": "2026-11-15 15:11",
+  "atualizado": "2026-11-15 22:02",
   "docs": "D:/GIT/STD/gamelaucher/docs",
   "modulos": [
     {
@@ -1011,6 +1011,54 @@
           ],
           "pronto": "Um teste por ponto em `process_probe::tests` (membro velho de mesmo PID com handle sinalizado; registro forçado a falhar)",
           "status": "feito"
+        },
+        {
+          "id": "BE-71",
+          "agente": "dev-backend",
+          "titulo": "Encerramento de \"Fechar o launcher\": no `exit_hook` (`src-tauri/src/lib.rs`), chamado pelo `app_exit`, uma linha `info` \"fechar o launcher\" com o estado da sessão e o `GameId`, sem caminho, antes do `logging::flush(300 ms)`. O caminho de saída não chama `force_close`, pedido de fechamento, `ForegroundBroker` nem `AutostartRegistry`. Descrição do #30 em `docs/api/launcher-tv.md` passa a citar CA-82 e RN-35 (sem mudar assinatura)",
+          "depende": [],
+          "refs": [
+            "CA-82 (itens 2, 3 e 5)",
+            "CA-05",
+            "RN-35",
+            "D-51",
+            "D-57",
+            "SEC-18",
+            "SEC-28",
+            "INV-02",
+            "INV-03; reusa: `app_exit` em `src-tauri/src/commands/settings.rs`",
+            "`exit_hook` em `src-tauri/src/lib.rs` e `src-tauri/src/state.rs`"
+          ],
+          "pronto": "Teste com fakes: com sessão `Running`, a linha sai com estado e `GameId`, sem caminho, e chega ao arquivo antes do `exit(0)`; sessão, broker e autostart fakes não recebem chamada; lista de comandos segue com 30 (`command_list.rs`)",
+          "status": "feito"
+        },
+        {
+          "id": "BE-72",
+          "agente": "dev-backend",
+          "titulo": "Guard `INV-05` em `scripts/ci-guards.ps1`: padrão `\\bJOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE\\b` com `Allow = @()`, no formato da entrada de `TerminateJobObject`; violação plantada no autoteste",
+          "depende": [],
+          "refs": [
+            "INV-05",
+            "D-51",
+            "CA-82 (item 3)",
+            "RN-35; reusa: tabela de padrões de `scripts/ci-guards.ps1`"
+          ],
+          "pronto": "Autoteste falha com a violação plantada; o repo atual passa (o comentário de `job.rs` com a forma curta não casa)",
+          "status": "feito"
+        },
+        {
+          "id": "BE-73",
+          "agente": "dev-backend",
+          "titulo": "Teste `win-integration` em `crates/launcher-win/tests/session_runtime.rs`: o `sofa-test-game.exe` entra no Job, o handle do Job é fechado (`drop`) e o processo segue vivo (código de saída pelo handle `STILL_ACTIVE`, como no BE-51); o processo é encerrado no fim do teste",
+          "depende": [],
+          "refs": [
+            "CA-82 (item 3)",
+            "D-51",
+            "RN-35",
+            "INV-05; reusa: helper `sofa-test-game.exe` e asserção do BE-51"
+          ],
+          "pronto": "Verde no `-gnu` e no `-FullMsvcTests`; vermelho conferido com `KILL_ON_JOB_CLOSE` ligado localmente (sem commit)",
+          "status": "feito"
         }
       ]
     },
@@ -1328,6 +1376,17 @@
           ],
           "pronto": "Nome so com esses caracteres vira vazio; texto visivel com eles dentro fica como veio",
           "status": "feito"
+        },
+        {
+          "id": "BE-76",
+          "agente": "dev-backend",
+          "titulo": "(nova) `stores::epic::tests::manifestos_maliciosos_sao_recusados_com_o_resto_carregando` não depende do que está instalado no PC: o `m11.item` aponta para `C:\\Program Files\\Sofa\\sofa.exe` e só era recusado porque o exe não existia; com o Sofa instalado ele vira um jogo válido e o teste falhava",
+          "depende": [],
+          "refs": [
+            "BE-61"
+          ],
+          "pronto": "`cargo test --workspace` verde num PC com o SofaLauncher instalado",
+          "status": "feito"
         }
       ]
     },
@@ -1527,6 +1586,98 @@
             "2.1 Settings"
           ],
           "pronto": "Teste do servico com repositorio fake; `AppSettingsStore` vira so ligacao no composition root",
+          "status": "feito"
+        },
+        {
+          "id": "FE-20",
+          "agente": "dev-frontend",
+          "titulo": "Nome e logo: `<title>SofaLauncher</title>` em `ui/index.html`; `alt` da marca em `Brand.tsx`; splash e logo novos pelos assets de `docs/brand/sofa/assets` (alias `@brand`, sem cópia); favicon `<link rel=\"icon\">` a partir de `@brand/assets` (hoje não há)",
+          "depende": [
+            "DES-12"
+          ],
+          "refs": [
+            "D-49",
+            "D-52",
+            "SEC-01; reusa: `ui/src/shared/ui/Brand.tsx`",
+            "docs/brand/sofa/assets/splash.svg",
+            "logo-horizontal.svg",
+            "icon.svg"
+          ],
+          "pronto": "Teste de `alt` e de `<title>`; `BootSplash` e cabeçalho mostram o controle; favicon sai com hash no `dist` e nenhuma URL externa no bundle (CSP `img-src 'self'`); comparado com o mockup de abertura em 1080p",
+          "status": "feito"
+        },
+        {
+          "id": "FE-21",
+          "agente": "dev-frontend",
+          "titulo": "Textos da UI com o nome novo, conforme a microcopy: `shared/domain/errors.ts`, `features/quickmenu/power.ts` (Reiniciar, Suspender), Configurações (Tela, monitor ausente, \"Iniciar com o Windows\", avisos de logon e de elevação, rodapé \"SofaLauncher 0.2.0\"), painel do jogo e Fechar jogo",
+          "depende": [
+            "DES-12"
+          ],
+          "refs": [
+            "D-49",
+            "SEC-06",
+            "SEC-07"
+          ],
+          "pronto": "Testes de texto atualizados (código → texto para 100% dos códigos do contrato); grep em `ui/src` e `ui/index.html` sem \"Sofá\" visível ao usuário (só em teste que confere a ausência)",
+          "status": "feito"
+        },
+        {
+          "id": "FE-22",
+          "agente": "dev-frontend",
+          "titulo": "QuickMenu: item \"Fechar o launcher\" no fim da lista `energy`, depois de Suspender, com o ícone neutro de saída (sem vermelho), abrindo o mesmo `confirmDialog` `{ confirm: 'exit' }`; o item `exit` (\"Sair do launcher\") sai da lista `app`. Vale no menu rápido da biblioteca e do painel do jogo em andamento",
+          "depende": [
+            "DES-12"
+          ],
+          "refs": [
+            "CA-05",
+            "CA-82 (item 1)",
+            "RN-14",
+            "RN-35",
+            "D-50",
+            "D-53; reusa: `ui/src/features/quickmenu/QuickMenu.tsx` (`MenuItemSpec`)"
+          ],
+          "pronto": "`quickmenu.test.tsx`: ordem igual à da microcopy (Volume · Mudo · Desligar · Reiniciar · Suspender · Fechar o launcher · Configurações); nenhum \"Sair do launcher\" na árvore renderizada nem em `ui/src`; item presente com e sem sessão ativa",
+          "status": "feito"
+        },
+        {
+          "id": "FE-23",
+          "agente": "dev-frontend",
+          "titulo": "`ExitDialog`: título \"Fechar o launcher?\"; texto sem jogo e texto com jogo aberto (aviso âmbar com o nome do jogo em texto puro), os dois com o aviso de como reabrir; sem o aviso de progresso perdido do CA-48; \"Cancelar\" à esquerda e em foco, \"Fechar o launcher\" à direita, sem vermelho; nome do diálogo para leitor de tela; confirmar chama `app_exit` uma vez; \"Cancelar\" ou B fecham sem chamar nada. Variante do texto com \"Iniciar com o Windows\" desligado conforme D-58",
+          "depende": [
+            "FE-22",
+            "DES-12"
+          ],
+          "refs": [
+            "CA-82 (itens 1 a 3)",
+            "RN-14",
+            "RN-34",
+            "RN-35",
+            "CA-81",
+            "D-55",
+            "D-57",
+            "R-10",
+            "SEC-07",
+            "D-58; reusa: `ui/src/features/quickmenu/ExitDialog.tsx`",
+            "`ui/src/shared/ui/ConfirmDialog.tsx` (`openGameName`, `defaultFocus=\"cancel\"`)"
+          ],
+          "pronto": "Testes com `mockIPC`: os dois textos iguais à microcopy, caractere a caractere; nome `<img src=x onerror=alert(1)>` aparece literal; foco inicial em \"Cancelar\"; B e \"Cancelar\" não chamam `app_exit`; confirmar chama `app_exit` exatamente uma vez e nenhum comando de sessão",
+          "status": "feito"
+        },
+        {
+          "id": "FE-24",
+          "agente": "dev-frontend",
+          "titulo": "Teclado de emergência em \"Fechar o launcher\": F1 ou tecla de aplicativo abre o menu rápido, setas chegam ao item, Enter abre o diálogo, Escape ou Backspace cancelam, Enter em \"Fechar o launcher\" confirma, com e sem controle conectado. Se faltar algum caminho no `keyboard.ts`, corrigir no mesmo commit",
+          "depende": [
+            "FE-23"
+          ],
+          "refs": [
+            "CA-82 (item 4)",
+            "CA-80",
+            "RN-07",
+            "RN-35",
+            "D-45; reusa: `ui/src/shared/input/keyboard.ts` (mapa do FE-18)"
+          ],
+          "pronto": "Teste de fluxo só por teclado, com `input_status` sem controle e com controle: abre, cancela e confirma (`app_exit` uma vez); nenhuma tecla extra criada para o item",
           "status": "feito"
         }
       ]
@@ -1800,6 +1951,200 @@
           ],
           "pronto": "`-Release` verde",
           "status": "em andamento"
+        },
+        {
+          "id": "BE-61",
+          "agente": "dev-backend",
+          "titulo": "`tauri.conf.json`: `productName` = `SofaLauncher` (ASCII), `publisher` = `SofaLauncher`, `copyright` = `Copyright (c) SofaLauncher`, `shortDescription` com o texto do designer; `identifier` e `mainBinaryName` intactos. `src-tauri/tests/command_list.rs` deixa de travar `productName == \"Sofa\"` e passa a travar `productName == \"SofaLauncher\"`, `identifier == \"app.sofa.launcher\"` e `mainBinaryName == \"sofa\"`",
+          "depende": [
+            "DES-11 (`shortDescription`)"
+          ],
+          "refs": [
+            "D-49",
+            "D-56",
+            "ADR-0007; microcopy \"Fora do `PortugueseBR.nsh`\""
+          ],
+          "pronto": "`command_list.rs` verde e vermelho com `identifier` ou `mainBinaryName` alterados (conferido); `sofa.exe` de build com `ProductName` e `FileDescription` `SofaLauncher` e `LegalCopyright` `Copyright (c) SofaLauncher` (lidos do PE)",
+          "status": "feito"
+        },
+        {
+          "id": "BE-62",
+          "agente": "dev-backend",
+          "titulo": "`DISPLAYNAME` = `SofaLauncher` em `src-tauri/windows/installer.nsi` e em `src-tauri/windows/tests/harness.nsi` (atalhos, `DisplayName` em \"Aplicativos instalados\", títulos). `scripts/test-installer.ps1` deixa de exigir acento em `DISPLAYNAME`/`ProductName` e trava `SofaLauncher`; o guard NSIS-BOM continua (outras strings seguem com acento)",
+          "depende": [
+            "BE-61"
+          ],
+          "refs": [
+            "D-49",
+            "D-56",
+            "ADR-0007",
+            "CA-50"
+          ],
+          "pronto": "`test-installer.ps1` verde; `.nsi` gerado com `DISPLAYNAME` `SofaLauncher` e exatamente um BOM; atalho criado se chama `SofaLauncher.lnk`",
+          "status": "feito"
+        },
+        {
+          "id": "BE-63",
+          "agente": "dev-backend",
+          "titulo": "`UNINSTKEY` fixado no literal `Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Sofa` no `installer.nsi`, com comentário citando ADR-0007 e R-11 (antes derivava de `${PRODUCTNAME}`). Teste no `test-installer.ps1` sobre o template e o `.nsi` gerado: `UNINSTKEY` igual ao literal, sem `${PRODUCTNAME}`; `MANUKEY`, `MANUPRODUCTKEY` e `INSTALLDIRNAME` iguais aos da 0.1.0",
+          "depende": [
+            "BE-61"
+          ],
+          "refs": [
+            "R-11",
+            "D-56",
+            "SEC-BUG-05",
+            "SEC-20",
+            "INV-06",
+            "ADR-0007"
+          ],
+          "pronto": "Teste vermelho com `UNINSTKEY` = `...\\Uninstall\\${PRODUCTNAME}` (conferido) e verde com o literal; `PageReinstall` e `SofaFixInstallDir` sem mudança no diff",
+          "status": "feito"
+        },
+        {
+          "id": "BE-64",
+          "agente": "dev-backend",
+          "titulo": "Limpeza do `Sofá.lnk` legado na instalação: no menu Iniciar e na área de trabalho, apagar `Sofá.lnk` só se `IsShortcutTarget` confirmar que aponta para `$INSTDIR\\sofa.exe`, com o mesmo macro e o mesmo `UnpinShortcut` do desinstalador; caminho fixo, sem curinga; nada fora de `$SMPROGRAMS`/`$DESKTOP`; roda também em `/UPDATE`",
+          "depende": [
+            "BE-62"
+          ],
+          "refs": [
+            "D-57",
+            "CA-53",
+            "INV-09",
+            "SEC-29",
+            "SEC-32",
+            "ADR-0007; reusa: `IsShortcutTarget` e `UnpinShortcut` em `src-tauri/windows/installer.nsi`"
+          ],
+          "pronto": "Casos no harness do `test-installer.ps1`: `Sofá.lnk` apontando para `$INSTDIR\\sofa.exe` é removido; apontando para outro exe fica; ausente não dá erro; `SofaLauncher.lnk` novo fica. Guards do BE-50 e de SEC-32 verdes; acento do nome conferido no `.nsi` gerado",
+          "status": "feito"
+        },
+        {
+          "id": "BE-65",
+          "agente": "dev-backend",
+          "titulo": "`src-tauri/windows/PortugueseBR.nsh` com os textos do designer para o nome novo (microcopy, seção do instalador: Program Files, SofaLauncher aberto, página \"Iniciar com o Windows\", desinstalador); strings com `${DISPLAYNAME}` mudam sozinhas; fonte sem BOM",
+          "depende": [
+            "DES-11",
+            "BE-62"
+          ],
+          "refs": [
+            "D-49",
+            "CA-50",
+            "CA-51",
+            "CA-52",
+            "CA-53",
+            "CA-68",
+            "RN-19"
+          ],
+          "pronto": "Comparação por script: cada string do `.nsh` igual, caractere a caractere, ao texto final da microcopy; testes de BOM e de acento do `test-installer.ps1` verdes",
+          "status": "feito"
+        },
+        {
+          "id": "BE-66",
+          "agente": "dev-backend",
+          "titulo": "`scripts/coletar-logs.ps1`: textos exibidos com \"SofaLauncher\"; caminhos (`%LOCALAPPDATA%\\app.sofa.launcher`, `sofa.log`, `sofa.N.log`, `%TEMP%\\sofa-purge.log`) e o `sofa.txt` ficam",
+          "depende": [],
+          "refs": [
+            "D-49",
+            "ADR-0007",
+            "SEC-18"
+          ],
+          "pronto": "O zip gerado tem os mesmos arquivos que na 0.1.0; nenhuma mensagem exibida usa \"Sofá\" ou \"Sofa\" como nome do produto",
+          "status": "feito"
+        },
+        {
+          "id": "BE-67",
+          "agente": "dev-backend",
+          "titulo": "`scripts/ci-release.ps1`: instalador `SofaLauncher_${version}_x64-setup.exe`; `README.txt`, `BUILD-INFO.txt` e notas com o nome novo e a instrução de atualizar por cima da 0.1.0 (dados e \"Iniciar com o Windows\" ficam); `SHA256SUMS.txt` com o nome novo; pasta `..\\sofa-releases` fica",
+          "depende": [
+            "BE-61"
+          ],
+          "refs": [
+            "D-49",
+            "D-57",
+            "RN-30",
+            "CA-76",
+            "SEC-26"
+          ],
+          "pronto": "`ci.ps1 -Release -AllowUntagged` local gera `SofaLauncher_<versão>_x64-setup.exe`; o hash do `SHA256SUMS.txt` confere recalculando; nenhum texto do release diz \"Sofa\" como nome do produto",
+          "status": "feito"
+        },
+        {
+          "id": "BE-68",
+          "agente": "dev-backend",
+          "titulo": "Versão 0.2.0 em `tauri.conf.json`, nos `Cargo.toml` com versão própria (`src-tauri` e crates do workspace), no `ui/package.json` e nos lockfiles",
+          "depende": [
+            "BE-61"
+          ],
+          "refs": [
+            "D-57",
+            "CA-53",
+            "ADR-0007"
+          ],
+          "pronto": "`FileVersion` e `ProductVersion` do `sofa.exe` = 0.2.0; `.nsi` gerado com `VERSION` 0.2.0; com `allowDowngrades: false`, a 0.2.0 aceita instalar por cima da 0.1.0 (a 0.1.0 é menor)",
+          "status": "feito"
+        },
+        {
+          "id": "BE-69",
+          "agente": "dev-backend",
+          "titulo": "Ícones: `npx tauri icon docs/brand/sofa/assets/png/icon-512.png` e depois sobrescrever `src-tauri/icons/icon.ico` com `docs/brand/sofa/assets/icon.ico`; PNGs gerados versionados como no BE-39",
+          "depende": [],
+          "refs": [
+            "D-49",
+            "D-52; reusa: docs/brand/sofa/assets/png/icon-512.png",
+            "docs/brand/sofa/assets/icon.ico"
+          ],
+          "pronto": "Hash de `src-tauri/icons/icon.ico` igual ao de `docs/brand/sofa/assets/icon.ico`; ícone do `sofa.exe` e do instalador de build extraído do PE é o novo (controle)",
+          "status": "feito"
+        },
+        {
+          "id": "BE-70",
+          "agente": "dev-backend",
+          "titulo": "Título da janela `SofaLauncher` em `src-tauri/src/window.rs`",
+          "depende": [],
+          "refs": [
+            "D-49",
+            "ADR-0007"
+          ],
+          "pronto": "Teste ou conferência no app de dev: título `SofaLauncher` (Alt+Tab e Gerenciador de Tarefas); nenhum outro texto visível com \"Sofá\" no `src-tauri/src` (grep)",
+          "status": "feito"
+        },
+        {
+          "id": "BE-74",
+          "agente": "dev-backend",
+          "titulo": "`README.md` e `README.pt-BR.md` com o nome SofaLauncher, o nome novo do instalador, a atualização por cima da 0.1.0 e a nota de que `sofa.exe`, `app.sofa.launcher` e `Program Files\\Sofa` não mudam",
+          "depende": [
+            "BE-67"
+          ],
+          "refs": [
+            "D-49",
+            "D-56",
+            "D-57",
+            "RN-30",
+            "ADR-0007"
+          ],
+          "pronto": "Os dois READMEs dizem a mesma coisa; `Get-FileHash` aponta para `SofaLauncher_<versão>_x64-setup.exe`; nenhum \"Sofá\" como nome do produto",
+          "status": "feito"
+        },
+        {
+          "id": "BE-75",
+          "agente": "dev-backend",
+          "titulo": "Release oficial `v0.2.0`: docs commitados (exceto `painel.html`), tag anotada `v0.2.0` no commit que fecha o código, `scripts/ci.ps1 -Release -FullMsvcTests` sem `-AllowUntagged`, pasta `..\\sofa-releases\\v0.2.0`. A tag só é criada depois da revisão do arquiteto, para não repetir o BE-60",
+          "depende": [
+            "BE-61 a BE-74",
+            "FE-20 a FE-24",
+            "QA-18",
+            "SG-11",
+            "ARQ-06"
+          ],
+          "refs": [
+            "RN-30",
+            "CA-76",
+            "SEC-26",
+            "D-57"
+          ],
+          "pronto": "`-Release` verde (testes MSVC completos, travas do PE, varredura do Defender, guards, testes do instalador); `SofaLauncher_0.2.0_x64-setup.exe` e `SHA256SUMS.txt` com hash conferido; `BUILD-INFO.txt` sem marca de build sem tag",
+          "status": "a fazer"
         }
       ]
     },
@@ -2316,7 +2661,7 @@
         {
           "id": "QA-13",
           "agente": "qa",
-          "titulo": "Relatório final de QA: consolida QA-02 a QA-12, QA-15 e o resultado do roteiro do usuário (QA-17), bugs com severidade e CA afetado, cobertura por CA/RN/SEC",
+          "titulo": "Relatório final de QA: consolida QA-02 a QA-12, QA-15, QA-18 e o resultado do roteiro do usuário (QA-17), bugs com severidade e CA afetado, cobertura por CA/RN/SEC",
           "depende": [
             "QA-02",
             "QA-03",
@@ -2330,11 +2675,12 @@
             "QA-11",
             "QA-12",
             "QA-15",
-            "QA-17"
+            "QA-17",
+            "QA-18"
           ],
           "refs": [
-            "CA-01 a CA-79",
-            "RN-01 a RN-33",
+            "CA-01 a CA-82",
+            "RN-01 a RN-35",
             "SEC-01 a SEC-32"
           ],
           "pronto": "`docs/qa/launcher-tv.md` com cada CA/RN/SEC como passou, falhou ou não verificado (com motivo)",
@@ -2582,11 +2928,16 @@
         {
           "id": "QA-17",
           "agente": "qa",
-          "titulo": "Execução do roteiro pelo usuário (**com o usuário**) e análise dos logs: matriz jogo × modo × degrau × ms, efeito da tecla sintética, anti-cheat, controle, boot (M-02), retorno (M-04), cliques para abrir o último jogo (M-03), jogos de E-21 e R-03, conta padrão + outro admin, detecção da biblioteca real",
+          "titulo": "Execução do roteiro pelo usuário (**com o usuário**) e análise dos logs: matriz jogo × modo × degrau × ms, efeito da tecla sintética, anti-cheat, controle, boot (M-02), retorno (M-04), cliques para abrir o último jogo (M-03), jogos de E-21 e R-03, conta padrão + outro admin, detecção da biblioteca real. Com a 0.2.0 (D-57), o roteiro roda com o instalador `v0.2.0` e o roteiro atualizado do QA-19",
           "depende": [
-            "QA-16"
+            "QA-16",
+            "QA-19"
           ],
           "refs": [
+            "CA-05",
+            "CA-82",
+            "RN-35",
+            "E-24 a E-27",
             "CA-01",
             "CA-06 a CA-15",
             "CA-16",
@@ -2693,6 +3044,170 @@
             "SEC-23"
           ],
           "pronto": "O `sofa.exe` de release tem `GUARD_CF`; PE sintético sem a flag reprova",
+          "status": "feito"
+        },
+        {
+          "id": "ARQ-06",
+          "agente": "arquiteto",
+          "titulo": "Revisão do diff da 0.2.0 (modo revisão), de `v0.1.0` até o candidato: só o nome visível mudou e os identificadores da tabela 14.1 seguem congelados (ADR-0007); lista de comandos com 30 (INV-02); `app_exit` sem `ForegroundBroker` nem `AutostartRegistry` (INV-03); guard e teste do Job (INV-05); pasta fixa, `UNINSTKEY` e binário iguais (INV-06, SEC-BUG-05); limpeza do atalho fora da pasta de dados (INV-09); termos da spec na UI; glossário com a diferença entre o nome visível e o técnico",
+          "depende": [
+            "BE-61 a BE-74",
+            "FE-20 a FE-24",
+            "QA-18",
+            "SG-11",
+            "DES-13"
+          ],
+          "refs": [
+            "INV-02",
+            "INV-03",
+            "INV-05",
+            "INV-06",
+            "INV-09",
+            "D-49 a D-57",
+            "ADR-0007",
+            "R-11"
+          ],
+          "pronto": "Parecer em `docs/arch/launcher-tv-revisao.md` e na seção 13 da arquitetura sem pendência bloqueante, ou lista de correções devolvida ao PO; libera a tag (BE-75)",
+          "status": "feito"
+        },
+        {
+          "id": "DES-11",
+          "agente": "designer-ux",
+          "titulo": "Atualizar `docs/design/launcher-tv.md`, a microcopy e os mockups para a 0.2.0: nome SofaLauncher e logo do controle (abertura, cabeçalho), \"Fechar o launcher\" no fim do grupo de energia do menu rápido, sem \"Sair do launcher\", `ExitDialog` com os dois textos e o aviso de como reabrir, textos do instalador com o nome novo e o `shortDescription` do `tauri.conf.json`",
+          "depende": [],
+          "refs": [
+            "D-49",
+            "D-50",
+            "D-52",
+            "D-53",
+            "D-55",
+            "CA-05",
+            "CA-82",
+            "RN-34",
+            "RN-35",
+            "R-10; reusa: docs/brand/sofa/assets"
+          ],
+          "pronto": "`menu-rapido.html` e `boot.html` com os estados novos; microcopy com o texto final de cada string visível (UI e instalador); a variante sem \"Iniciar com o Windows\" registrada como D-58",
+          "status": "feito"
+        },
+        {
+          "id": "DES-12",
+          "agente": "designer-ux",
+          "titulo": "Aprovação do usuário dos mockups e da microcopy da 0.2.0",
+          "depende": [
+            "DES-11"
+          ],
+          "refs": [
+            "D-55",
+            "D-58",
+            "CA-82"
+          ],
+          "pronto": "Aprovação registrada no handoff; D-58 decidida; ajustes pedidos aplicados",
+          "status": "feito"
+        },
+        {
+          "id": "DES-13",
+          "agente": "designer-ux",
+          "titulo": "Revisão de design da UI implementada da 0.2.0 contra os mockups aprovados (marca, menu rápido, `ExitDialog`)",
+          "depende": [
+            "FE-20",
+            "FE-21",
+            "FE-22",
+            "FE-23"
+          ],
+          "refs": [
+            "CA-05",
+            "CA-82",
+            "RN-34",
+            "D-49",
+            "D-52"
+          ],
+          "pronto": "Lista de divergências entregue ao dev-frontend e resolvida, ou registro de \"sem divergências\" em `docs/design/launcher-tv/revisao-ui.md`",
+          "status": "a fazer"
+        },
+        {
+          "id": "QA-18",
+          "agente": "qa",
+          "titulo": "Validar CA-82, CA-05 e a troca de nome sem o usuário. (1) UI: menu rápido sem \"Sair do launcher\" e com \"Fechar o launcher\" no grupo de energia, na biblioteca e no painel; diálogo com os dois textos, \"Cancelar\" em foco e à esquerda, B cancela; fluxo só por teclado (CA-82 itens 1 a 4). (2) Núcleo, na máquina de dev com o app de dev e um jogo sintético: fechar sem jogo; fechar com jogo aberto, e o jogo segue vivo, sem `WM_CLOSE`, sem minimizar e sem ser trazido à frente pelo launcher; linha \"fechar o launcher\" no `sofa.log` sem caminho; \"Iniciar com o Windows\" sem mudança (Run/tarefa iguais); reabrir com o jogo vivo: sessão `Idle`, card sem \"Em andamento\", jogo no topo dos recentes (itens 2, 3, 5 e 6; E-25, E-26/R-12, E-27/R-13 observados). (3) Nome: `ProductName`, `FileDescription`, `LegalCopyright` e versão do `sofa.exe` do candidato; nome do arquivo do instalador; `.nsi` gerado com `DISPLAYNAME` `SofaLauncher` e `UNINSTKEY` `Uninstall\\Sofa` (R-11); casos do `Sofá.lnk` no harness; título da janela; grep da UI sem \"Sofá\"; `coletar-logs.ps1` com o texto novo",
+          "depende": [
+            "QA-01",
+            "FE-20",
+            "FE-21",
+            "FE-22",
+            "FE-23",
+            "FE-24",
+            "BE-61 a BE-73"
+          ],
+          "refs": [
+            "CA-05",
+            "CA-82",
+            "RN-14",
+            "RN-34",
+            "RN-35",
+            "CA-80",
+            "CA-81",
+            "D-49 a D-57",
+            "E-24 a E-27",
+            "R-10 a R-13"
+          ],
+          "pronto": "Resultado por caso em `docs/qa/launcher-tv.md` (passou, falhou, ou \"roteiro do usuário\" com motivo); bugs abertos com severidade e CA; evidência entregue ao SG-11",
+          "status": "em andamento"
+        },
+        {
+          "id": "QA-19",
+          "agente": "qa",
+          "titulo": "Atualizar `docs/qa/roteiro-usuario.md` para a 0.2.0: nome SofaLauncher em todo o texto; instalador `SofaLauncher_0.2.0_x64-setup.exe` com SHA-256 conferido pelo `SHA256SUMS.txt`; bloco novo de atualização por cima da 0.1.0 no PC da sala (instalar sem desinstalar antes; uma única entrada \"SofaLauncher\" em \"Aplicativos instalados\"; `Sofá.lnk` sumiu e `SofaLauncher.lnk` existe; biblioteca, configurações e \"Iniciar com o Windows\" mantidos; versão 0.2.0 no rodapé de Configurações); bloco \"Fechar o launcher\" (sem jogo, com jogo, só pelo teclado, cancelar com B, reabrir pelo atalho, próximo login com e sem \"Iniciar com o Windows\", View + Menu sem efeito com o launcher fechado (E-24), sair do jogo com o launcher fechado (E-25), iniciar de novo o mesmo jogo após reabrir (E-26, R-12), reabrir logo depois de fechar (E-27, R-13)); `coletar-logs.ps1` mostrando onde fica a linha \"fechar o launcher\"",
+          "depende": [
+            "BE-75",
+            "BE-66",
+            "QA-18"
+          ],
+          "refs": [
+            "CA-05",
+            "CA-82",
+            "CA-53",
+            "CA-76",
+            "RN-30",
+            "RN-35",
+            "D-54",
+            "D-57",
+            "E-24 a E-27",
+            "R-10 a R-13"
+          ],
+          "pronto": "Blocos com tempo estimado; comandos do roteiro testados nesta máquina; o SHA-256 citado no roteiro é o do `SHA256SUMS.txt` da `v0.2.0`; uma única entrega ao usuário",
+          "status": "feito"
+        },
+        {
+          "id": "SG-11",
+          "agente": "seguranca",
+          "titulo": "Verificação da 0.2.0. (1) Instalador: `UNINSTKEY` no literal `Uninstall\\Sofa` no template e no `.nsi` gerado, com o teste do R-11; `identifier`, `mainBinaryName`, `INSTALLDIRNAME`, `MANUKEY` e `MANUPRODUCTKEY` iguais aos da 0.1.0; `PageReinstall` e `SofaFixInstallDir` intactos (SEC-BUG-05). (2) Limpeza do `Sofá.lnk`: só com `IsShortcutTarget` apontando para `$INSTDIR\\sofa.exe`, caminho fixo em `$SMPROGRAMS`/`$DESKTOP`, sem curinga e sem `Delete` fora disso; guards do BE-50 e de SEC-32 verdes. (3) INV-05: guard de `KILL_ON_JOB_CLOSE` ativo, `job.rs` sem `SetInformationJobObject` de limites, teste do Job passando; caminho do `app_exit` sem `force_close`, `ForegroundBroker` nem `AutostartRegistry` (INV-03, SEC-28); linha de log sem caminho (SEC-18)",
+          "depende": [
+            "BE-63",
+            "BE-64",
+            "BE-65",
+            "BE-71",
+            "BE-72",
+            "BE-73",
+            "QA-18"
+          ],
+          "refs": [
+            "SEC-BUG-05",
+            "SEC-18",
+            "SEC-20",
+            "SEC-25",
+            "SEC-28",
+            "SEC-29",
+            "SEC-32",
+            "INV-03",
+            "INV-05",
+            "INV-06",
+            "INV-09",
+            "R-11",
+            "D-56",
+            "D-57",
+            "ADR-0007"
+          ],
+          "pronto": "Evidência por item (arquivo, teste ou trecho do `.nsi` gerado) em `docs/security/launcher-tv.md` seção 14; achados abertos como tarefa; parecer libera a tag (BE-75)",
           "status": "feito"
         }
       ]
@@ -3015,6 +3530,169 @@
       ],
       "status": "decidida",
       "decisao": "Como nos mockups: Renomear, Restaurar nome original, Ocultar; spec ajustada."
+    },
+    {
+      "id": "D-49",
+      "pergunta": "Nome do produto",
+      "contexto": "Pedido do usuário após a v0.1.0.",
+      "origem": "usuario",
+      "bloqueia": [],
+      "sugestoes": [
+        {
+          "texto": "SofaLauncher, sigla SL no logo/ícone",
+          "motivo": "Escolha do usuário",
+          "recomendada": true
+        }
+      ],
+      "status": "decidida",
+      "decisao": "SofaLauncher (sigla SL no logo e ícone); logo com controle em vez de play."
+    },
+    {
+      "id": "D-50",
+      "pergunta": "Onde fica \"Fechar o launcher\"?",
+      "contexto": "Pedido do usuário após a v0.1.0.",
+      "origem": "usuario",
+      "bloqueia": [],
+      "sugestoes": [
+        {
+          "texto": "No menu de energia, com confirmação (cancelar à esquerda)",
+          "motivo": "Escolha do usuário",
+          "recomendada": true
+        }
+      ],
+      "status": "decidida",
+      "decisao": "\"Fechar o launcher\" no menu de energia, com confirmação, cancelar à esquerda."
+    },
+    {
+      "id": "D-51",
+      "pergunta": "Fechar o launcher com jogo aberto",
+      "contexto": "Pedido do usuário após a v0.1.0.",
+      "origem": "usuario",
+      "bloqueia": [],
+      "sugestoes": [
+        {
+          "texto": "Só fecha o launcher; jogo continua; autostart segue valendo",
+          "motivo": "Escolha do usuário",
+          "recomendada": true
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Com jogo aberto: só fecha o launcher, jogo continua, autostart segue valendo."
+    },
+    {
+      "id": "D-52",
+      "pergunta": "Logo novo (controle, SL só como sigla de texto)",
+      "contexto": "Mudanças pós-0.1.0",
+      "origem": "produto/arquiteto",
+      "bloqueia": [],
+      "sugestoes": [
+        {
+          "texto": "ver decisão",
+          "motivo": "-",
+          "recomendada": true
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Logo aprovado: controle âmbar sobre violeta; SofaLauncher por extenso; SL só sigla de texto."
+    },
+    {
+      "id": "D-53",
+      "pergunta": "Q-14: \"Fechar o launcher\" substitui \"Sair do launcher\"?",
+      "contexto": "Mudanças pós-0.1.0",
+      "origem": "produto/arquiteto",
+      "bloqueia": [],
+      "sugestoes": [
+        {
+          "texto": "ver decisão",
+          "motivo": "-",
+          "recomendada": true
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Substituir: fica só \"Fechar o launcher\" no menu de energia; sai \"Sair do launcher\" do menu rápido."
+    },
+    {
+      "id": "D-54",
+      "pergunta": "Q-15: reabrir com jogo rodando",
+      "contexto": "Mudanças pós-0.1.0",
+      "origem": "produto/arquiteto",
+      "bloqueia": [],
+      "sugestoes": [
+        {
+          "texto": "ver decisão",
+          "motivo": "-",
+          "recomendada": true
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Reabrir com jogo rodando: jogo tratado como aberto fora do launcher (E-07), sem retomar sessão; jogo no topo dos recentes."
+    },
+    {
+      "id": "D-55",
+      "pergunta": "Q-16: confirmação avisa como reabrir?",
+      "contexto": "Mudanças pós-0.1.0",
+      "origem": "produto/arquiteto",
+      "bloqueia": [],
+      "sugestoes": [
+        {
+          "texto": "ver decisão",
+          "motivo": "-",
+          "recomendada": true
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Confirmação avisa como reabrir (atalho SofaLauncher ou reiniciar o PC)."
+    },
+    {
+      "id": "D-56",
+      "pergunta": "Q-18/ADR-0007: identificadores técnicos ficam?",
+      "contexto": "Mudanças pós-0.1.0",
+      "origem": "produto/arquiteto",
+      "bloqueia": [],
+      "sugestoes": [
+        {
+          "texto": "ver decisão",
+          "motivo": "-",
+          "recomendada": true
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Recomendado (orquestrador): identificadores técnicos ficam (app.sofa.launcher, sofa.exe, Program Files\\Sofa, Uninstall\\Sofa literal); ADR-0007 aceito."
+    },
+    {
+      "id": "D-57",
+      "pergunta": "Q-17 e atualização dos PCs",
+      "contexto": "Mudanças pós-0.1.0",
+      "origem": "produto/arquiteto",
+      "bloqueia": [],
+      "sugestoes": [
+        {
+          "texto": "ver decisão",
+          "motivo": "-",
+          "recomendada": true
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Recomendado (orquestrador): não trazer o jogo à frente antes de sair (Q-17); atualizar os PCs por cima com versão 0.2.0 e limpeza do Sofá.lnk."
+    },
+    {
+      "id": "D-58",
+      "pergunta": "Texto de reabrir com 'Iniciar com o Windows' desligado",
+      "contexto": "Reiniciar não reabre o launcher nesse caso.",
+      "origem": "designer-ux/po",
+      "bloqueia": [
+        "FE-23",
+        "DES-12"
+      ],
+      "sugestoes": [
+        {
+          "texto": "Variante só com o atalho",
+          "motivo": "Texto correto",
+          "recomendada": true
+        }
+      ],
+      "status": "decidida",
+      "decisao": "Recomendado (orquestrador): com autostart desligado, usar a variante \"Para reabrir, use o atalho do SofaLauncher (com teclado ou mouse).\""
     }
   ]
 }
