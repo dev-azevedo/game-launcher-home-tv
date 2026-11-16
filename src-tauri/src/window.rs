@@ -8,9 +8,12 @@ use crate::webview_hardening;
 /// Rotulo unico da janela; e o que `capabilities/main.json` referencia em `windows`.
 pub const MAIN_LABEL: &str = "main";
 
+/// Titulo da janela (Alt+Tab, Gerenciador de Tarefas): o nome visivel do produto (D-49, ADR-0007).
+pub const MAIN_TITLE: &str = "SofaLauncher";
+
 pub fn create_main_window<R: Runtime>(app: &impl Manager<R>) -> tauri::Result<()> {
     let builder = WebviewWindowBuilder::new(app, MAIN_LABEL, WebviewUrl::App("index.html".into()))
-        .title("Sofa")
+        .title(MAIN_TITLE)
         .decorations(false)
         .fullscreen(true)
         .resizable(false);
