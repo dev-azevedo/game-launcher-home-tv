@@ -137,13 +137,23 @@ if ($utilsNsh) {
 
 # --- utilitarios de cenario
 function Run-Harness([string]$Exe, [string[]]$Opts, [int]$TimeoutSec = 120) {
-    $out = Join-Path $work ('out-' + [guid]::NewGuid().ToString('N') + '.txt')
-    $arguments = @('/S') + $Opts + @("/OUT=$out")
-    $p = Start-Process -FilePath $Exe -ArgumentList $arguments -PassThru -WindowStyle Hidden
-    if (-not $p.WaitForExit($TimeoutSec * 1000)) { $p.Kill(); throw "harness nao terminou em $TimeoutSec s" }
-    $res = @{}
-    if (Test-Path -LiteralPath $out) {
-        foreach ($l in Get-Content -LiteralPath $out) { if ($l -match '^([^=]+)=(.*)$') { $res[$Matches[1]] = $Matches[2] } }
+    # O harness sempre grava /OUT ao terminar. Saida vazia = o processo nao chegou a rodar o cenario (visto sob
+    # carga, com o antivirus inspecionando o exe recem-copiado): tenta de novo, ate 3 vezes. Um resultado gravado,
+    # certo ou errado, nunca e repetido.
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $out = Join-Path $work ('out-' + [guid]::NewGuid().ToString('N') + '.txt')
+        $arguments = @('/S') + $Opts + @("/OUT=$out")
+        $p = Start-Process -FilePath $Exe -ArgumentList $arguments -PassThru -WindowStyle Hidden
+        if (-not $p.WaitForExit($TimeoutSec * 1000)) { $p.Kill(); throw "harness nao terminou em $TimeoutSec s" }
+        $res = @{}
+        if (Test-Path -LiteralPath $out) {
+            foreach ($l in Get-Content -LiteralPath $out) { if ($l -match '^([^=]+)=(.*)$') { $res[$Matches[1]] = $Matches[2] } }
+        }
+        if ($res.Count -gt 0) { return $res }
+        if ($attempt -lt 3) {
+            Write-Host "        harness sem saida (tentativa $attempt de 3); repetindo" -ForegroundColor DarkYellow
+            Start-Sleep -Seconds 2
+        }
     }
     return $res
 }
@@ -589,7 +599,9 @@ public static class SofaReparse {
             $p = Start-Process -FilePath $harness -ArgumentList @('/S', '/SCENARIO=autostart', ('/SIDFILE=' + (Write-SidFile $fakeSid)), "/OUT=$(Join-Path $work 'out-as.txt')") -PassThru -WindowStyle Hidden
             $seen = @{}
             while (-not $p.HasExited) {
-                Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" -ErrorAction SilentlyContinue | ForEach-Object { $seen[$_.ExecutablePath] = $true }
+                # Um filho que termina durante a leitura vem sem caminho: ignora (chave nula quebra a hashtable).
+                Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" -ErrorAction SilentlyContinue |
+                    Where-Object { $_.ExecutablePath } | ForEach-Object { $seen[$_.ExecutablePath] = $true }
             }
             Assert-True (-not (Test-TaskExists $taskName)) 'a tarefa continua la'
             $paths = @($seen.Keys | Where-Object { $_ })
