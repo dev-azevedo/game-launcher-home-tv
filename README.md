@@ -6,7 +6,7 @@
 
 SofaLauncher is a game launcher for Windows, made to be used on a TV with an Xbox controller. It shows your Steam, Epic Games and GOG games, plus any `.exe` you add, in one library. You open a game, play, and come back to the launcher without a keyboard or mouse.
 
-> Status: release `v0.3.0`. The installer is not code-signed (see [Download and install](#download-and-install)).
+> Status: release `v0.4.0`. The installer is not code-signed (see [Download and install](#download-and-install)).
 
 ## Requirements
 
@@ -16,11 +16,11 @@ SofaLauncher is a game launcher for Windows, made to be used on a TV with an Xbo
 
 ## Download and install
 
-1. Download `SofaLauncher_0.3.0_x64-setup.exe` and `SHA256SUMS.txt` from the [v0.3.0 release](https://github.com/dev-azevedo/game-launcher-home-tv/releases/tag/v0.3.0). The release also has `README.txt`, `BUILD-INFO.txt` and `coletar-logs.ps1`.
+1. Download `SofaLauncher_0.4.0_x64-setup.exe` and `SHA256SUMS.txt` from the [v0.4.0 release](https://github.com/dev-azevedo/game-launcher-home-tv/releases/tag/v0.4.0). The release also has `README.txt`, `BUILD-INFO.txt` and `coletar-logs.ps1`.
 2. Check the hash in PowerShell, in the folder of the file:
 
    ```powershell
-   Get-FileHash .\SofaLauncher_0.3.0_x64-setup.exe -Algorithm SHA256
+   Get-FileHash .\SofaLauncher_0.4.0_x64-setup.exe -Algorithm SHA256
    ```
 
    The value must match the one in `SHA256SUMS.txt`. If it differs, do not install.
@@ -31,7 +31,7 @@ SofaLauncher is a game launcher for Windows, made to be used on a TV with an Xbo
 
 To play without a keyboard right after turning the PC on, set up automatic sign-in or Windows Hello in Windows. SofaLauncher starts on the desktop, and the installer does not change your sign-in.
 
-**Updating from 0.1.0.** Run `SofaLauncher_0.3.0_x64-setup.exe` over the existing install: your library, settings and "Start with Windows" stay, and the old shortcut (named after the 0.1.0 name) is replaced by the SofaLauncher one. The program is now called SofaLauncher, but the technical names do not change: `sofa.exe`, the data folder `%LOCALAPPDATA%\app.sofa.launcher`, the install folder `C:\Program Files\Sofa` and the app identifier `app.sofa.launcher`.
+**Updating from 0.1.0.** Run `SofaLauncher_0.4.0_x64-setup.exe` over the existing install: your library, settings and "Start with Windows" stay, and the old shortcut (named after the 0.1.0 name) is replaced by the SofaLauncher one. The program is now called SofaLauncher, but the technical names do not change: `sofa.exe`, the data folder `%LOCALAPPDATA%\app.sofa.launcher`, the install folder `C:\Program Files\Sofa` and the app identifier `app.sofa.launcher`.
 
 **Updates.** From 0.3.0 on, SofaLauncher checks for a new version when it opens and asks before installing (Settings > General > Check for updates). Installing asks for administrator permission (UAC), confirmed with keyboard or mouse. From 0.2.0 or older, install 0.3.0 by hand once.
 
