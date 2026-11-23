@@ -4,6 +4,8 @@ import { useDirectionHandler } from '@/app/navigation/directionHandler';
 import type { ScreenEntry } from '@/app/navigation/screens';
 import { useNavigation } from '@/app/navigation/store';
 import { SafeArea } from '@/app/SafeArea';
+import { LAYOUTS } from '@/features/appearance/domain';
+import { useAppearance } from '@/features/appearance/store';
 import { AppHeader } from '@/features/library/components/AppHeader';
 import { useLibrary } from '@/features/library/store';
 import { useUpdate } from '@/features/update/store';
@@ -20,9 +22,10 @@ import { APP_FOOTER, APP_VERSION, chosenMonitorMissing, librarySummary, mechanis
 import { useSettings } from './store';
 import './settings.css';
 
-type TabId = 'screen' | 'library' | 'general' | 'hidden';
+type TabId = 'screen' | 'appearance' | 'library' | 'general' | 'hidden';
 const TABS: ReadonlyArray<{ id: TabId; label: string; icon: IconName }> = [
   { id: 'screen', label: 'Tela', icon: 'monitor' },
+  { id: 'appearance', label: 'Aparência', icon: 'layout' },
   { id: 'library', label: 'Biblioteca', icon: 'grid' },
   { id: 'general', label: 'Geral', icon: 'sliders' },
   { id: 'hidden', label: 'Itens ocultos', icon: 'eyeoff' },
@@ -75,6 +78,7 @@ export default function SettingsScreen({
   const games = useLibrary((s) => s.games);
   const refreshing = useLibrary((s) => s.refreshing);
   const updatePhase = useUpdate((s) => s.phase);
+  const layout = useAppearance((s) => s.layout);
 
   useEffect(() => {
     void useSettings.getState().load();
@@ -114,6 +118,26 @@ export default function SettingsScreen({
             onSelect: () => void st().chooseMonitor(m),
           })),
           after: monitors.length === 1 ? <div className="sub">Só há um monitor conectado.</div> : null,
+        };
+      case 'appearance':
+        return {
+          heading: 'Layout da tela inicial',
+          lead: 'Muda a disposição dos jogos e as cores do SofaLauncher. Vale na hora.',
+          items: LAYOUTS.map((l) => ({
+            id: `layout-${l.id}`,
+            label: l.label,
+            icon: l.icon,
+            hint: l.hint,
+            role: 'menuitemradio' as const,
+            checked: layout === l.id,
+            right:
+              layout === l.id ? (
+                <span className="tagsm">
+                  Em uso <Icon name="check" size="s" />
+                </span>
+              ) : null,
+            onSelect: () => useAppearance.getState().setLayout(l.id),
+          })),
         };
       case 'library':
         return {
@@ -217,7 +241,7 @@ export default function SettingsScreen({
           ),
         };
     }
-  }, [tab, settings, monitors, hidden, games, refreshing, autostartFailed, updatePhase, push]);
+  }, [tab, settings, monitors, hidden, games, refreshing, autostartFailed, updatePhase, layout, push]);
 
   const firstKey = pane.items.find((i) => !i.disabled) ? `menu-${pane.items.find((i) => !i.disabled)!.id}` : null;
   const enterPane = () => {

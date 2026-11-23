@@ -10,6 +10,41 @@ const PATHS = {
     </>
   ),
   menu: <path d="M5 8h14M5 12h14M5 16h14" />,
+  layout: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />
+      <path d="M3.5 9.5h17M9.5 9.5v10" />
+    </>
+  ),
+  /** Layout "Sofa": destaque no alto e cartazes. */
+  posters: (
+    <>
+      <rect x="3.5" y="4" width="17" height="6" rx="1" />
+      <rect x="3.5" y="13" width="4.5" height="7" rx="1" />
+      <rect x="9.75" y="13" width="4.5" height="7" rx="1" />
+      <rect x="16" y="13" width="4.5" height="7" rx="1" />
+    </>
+  ),
+  /** Layout "Vitrine": fileira de icones sobre a arte. */
+  strip: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />
+      <rect x="6" y="7" width="3" height="3" rx=".6" />
+      <rect x="10.5" y="7" width="3" height="3" rx=".6" />
+      <rect x="15" y="7" width="3" height="3" rx=".6" />
+      <path d="M6 15h7M6 17.5h4" />
+    </>
+  ),
+  /** Layout "Mosaico": um bloco largo e blocos quadrados. */
+  tiles: (
+    <>
+      <rect x="3.5" y="4" width="10" height="7" rx="1" />
+      <rect x="15.5" y="4" width="5" height="7" rx="1" />
+      <rect x="3.5" y="13" width="5" height="7" rx="1" />
+      <rect x="10" y="13" width="5" height="7" rx="1" />
+      <rect x="16.5" y="13" width="4" height="7" rx="1" />
+    </>
+  ),
   clock: (
     <>
       <circle cx="12" cy="12" r="8" />

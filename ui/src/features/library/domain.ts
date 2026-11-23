@@ -52,6 +52,15 @@ export function alphabetical(games: readonly GameDto[]): GameDto[] {
   return [...games].sort((a, b) => compareKeys(sortKey(a.name), sortKey(b.name)) || compareKeys(a.id, b.id));
 }
 
+/**
+ * Fileira unica do layout Vitrine: Recentes e depois a fileira A-Z sem repetir jogo. Usa a mesma fileira
+ * A-Z da Home (`LIBRARY_ROW_MAX`), entao todo jogo que `initialHomeFocus` pode apontar esta aqui.
+ */
+export function stripGames(recents: readonly GameDto[], libraryRow: readonly GameDto[]): GameDto[] {
+  const seen = new Set(recents.map((g) => g.id));
+  return [...recents, ...libraryRow.filter((g) => !seen.has(g.id))];
+}
+
 /** Chaves de foco: o mesmo jogo aparece em Recentes e na Biblioteca, entao as chaves diferem. */
 export const focusKeyRecent = (id: GameId) => `r:${id}`;
 export const focusKeyLibrary = (id: GameId) => `a:${id}`;

@@ -207,14 +207,14 @@ describe('menu rapido (FE-10)', () => {
     await waitFor(() => expect(focusedText()).toBe('Voltar'));
   });
 
-  it('Fechar o launcher: grupo de energia, depois de Suspender e antes de Configuracoes; sem "Sair do launcher"', async () => {
+  it('Fechar o launcher: grupo de energia, depois de Suspender e antes de Layout e Configuracoes; sem "Sair do launcher"', async () => {
     mockCore({ volume_get: VOL, power_capabilities: CAPS });
     stop = startVolume();
     await renderHome();
     await openMenu();
     const labels = Array.from(document.querySelectorAll('.menu .mi')).map((e) => e.textContent ?? '');
-    const order = ['Volume', 'Mudo', 'Desligar', 'Reiniciar', 'Suspender', 'Fechar o launcher', 'Configurações'];
-    expect(order.map((l) => labels.findIndex((t) => t.includes(l)))).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    const order = ['Volume', 'Mudo', 'Desligar', 'Reiniciar', 'Suspender', 'Fechar o launcher', 'Layout', 'Configurações'];
+    expect(order.map((l) => labels.findIndex((t) => t.includes(l)))).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
     expect(screen.queryByText('Sair do launcher')).toBeNull();
     // Sem o vermelho dos itens que afetam o PC.
     expect(screen.getByText('Fechar o launcher').closest('.mi')).not.toHaveClass('danger');

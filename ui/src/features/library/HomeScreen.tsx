@@ -4,12 +4,15 @@ import { useFocusedGame } from '@/app/navigation/focusedGame';
 import { usePageHandler } from '@/app/navigation/pageHandler';
 import { useNavigation } from '@/app/navigation/store';
 import { SafeArea } from '@/app/SafeArea';
+import { useAppearance } from '@/features/appearance/store';
+import type { LayoutId } from '@/features/appearance/domain';
 import { useSession } from '@/features/session/store';
 import type { GameDto } from '@/shared/ipc';
 import { scrollBehavior } from '@/shared/theme/motion';
 import { ButtonHints } from '@/shared/ui/ButtonHints';
 import { FocusLayer } from '@/shared/ui/Focusable';
 import { AppHeader } from './components/AppHeader';
+import { Backdrop } from './components/Backdrop';
 import { EmptyLibrary, LoadingLibrary } from './components/EmptyLibrary';
 import { AllGamesCard, GameCard } from './components/GameCard';
 import { HeroGame } from './components/HeroGame';
@@ -21,6 +24,7 @@ import {
   initialHomeFocus,
   LIBRARY_ROW_MAX,
   recentGames,
+  stripGames,
 } from './domain';
 import { useLibrary } from './store';
 
@@ -41,6 +45,7 @@ export function HomeScreen({ active, headerExtras }: { active: boolean; headerEx
   const games = useLibrary((s) => s.games);
   const refreshing = useLibrary((s) => s.refreshing);
   const refresh = useLibrary((s) => s.refresh);
+  const layout = useAppearance((s) => s.layout);
   const push = useNavigation((s) => s.push);
   const openAdd = useCallback(() => push('folderBrowser'), [push]);
 
@@ -54,11 +59,12 @@ export function HomeScreen({ active, headerExtras }: { active: boolean; headerEx
     body = <EmptyLibrary active={active} onAdd={openAdd} onRefresh={() => void refresh()} refreshing={refreshing} />;
     hints = EMPTY_HINTS;
   } else {
-    body = <HomeLibrary active={active} games={games} />;
+    // `key`: trocar de layout remonta a fileira (foco e rolagem recomecam do jogo atual).
+    body = <HomeLibrary key={layout} active={active} games={games} layout={layout} />;
   }
 
   return (
-    <div className="layer home screen" data-active={active ? 'true' : 'false'} data-screen="home">
+    <div className="layer home screen" data-active={active ? 'true' : 'false'} data-screen="home" data-layout={layout}>
       <div className="spot" />
       <SafeArea>
         <AppHeader refreshing={refreshing}>{headerExtras}</AppHeader>
@@ -71,7 +77,14 @@ export function HomeScreen({ active, headerExtras }: { active: boolean; headerEx
 
 type HeroFocus = { kind: 'game'; id: string } | { kind: 'all' };
 
-function HomeLibrary({ active, games }: { active: boolean; games: GameDto[] }) {
+/**
+ * Corpo da Home com jogos. A estrutura muda com o layout:
+ * - `sofa`: heroi no alto + Recentes + Biblioteca (cartazes 2:3);
+ * - `vitrine`: uma fileira de icones no alto (Recentes e depois A-Z), arte do jogo ao fundo e heroi embaixo;
+ * - `mosaico`: duas fileiras de blocos quadrados, o ultimo jogado em bloco largo, arte ao fundo.
+ * As chaves de foco sao as mesmas nos tres (r:, a:, all), entao foco inicial e retorno de sessao nao mudam.
+ */
+function HomeLibrary({ active, games, layout }: { active: boolean; games: GameDto[]; layout: LayoutId }) {
   const focusGameId = useLibrary((s) => s.focusGameId);
   const push = useNavigation((s) => s.push);
   const play = useSession((s) => s.play);
@@ -80,12 +93,15 @@ function HomeLibrary({ active, games }: { active: boolean; games: GameDto[] }) {
 
   const recents = useMemo(() => recentGames(games), [games]);
   const libraryRow = useMemo(() => alphabetical(games).slice(0, LIBRARY_ROW_MAX), [games]);
+  // Vitrine: a fileira A-Z sem repetir quem ja esta em Recentes.
+  const strip = useMemo(() => stripGames(recents, libraryRow), [recents, libraryRow]);
+  const single = layout === 'vitrine';
   const initialKey = useMemo(() => initialHomeFocus(games, focusGameId), [games, focusGameId]);
 
-  const [hero, setHero] = useState<HeroFocus | null>(null);
+  const [heroFocus, setHero] = useState<HeroFocus | null>(null);
   const focusedKey = useRef<string>(initialKey);
   const [now] = useState(() => Date.now());
-  const heroGame = hero?.kind === 'game' ? (games.find((g) => g.id === hero.id) ?? null) : null;
+  const heroGame = heroFocus?.kind === 'game' ? (games.find((g) => g.id === heroFocus.id) ?? null) : null;
 
   const reveal = useCallback((key: string, instant = false) => {
     const root = rootRef.current;
@@ -95,7 +111,16 @@ function HomeLibrary({ active, games }: { active: boolean; games: GameDto[] }) {
     const row = card?.parentElement;
     if (!card || !row) return;
     const behavior = scrollBehavior(instant);
-    const left = Math.max(0, Math.min(row.scrollWidth - row.clientWidth, card.offsetLeft - (row.clientWidth - card.offsetWidth) / 2));
+    let left: number;
+    if (single) {
+      // Vitrine: o icone em foco fica na ponta esquerda. A conta usa o indice (todos tem a mesma largura
+      // base), porque a margem do icone que perdeu o foco ainda esta em transicao.
+      const index = Array.prototype.indexOf.call(row.children, card);
+      const gap = parseFloat(getComputedStyle(row).columnGap || '0') || 0;
+      left = Math.max(0, index * (card.offsetWidth + gap));
+    } else {
+      left = Math.max(0, Math.min(row.scrollWidth - row.clientWidth, card.offsetLeft - (row.clientWidth - card.offsetWidth) / 2));
+    }
     if (typeof row.scrollTo === 'function') row.scrollTo({ left, behavior });
     const block = row.closest<HTMLElement>('.rowblock');
     const rows = root;
@@ -108,7 +133,7 @@ function HomeLibrary({ active, games }: { active: boolean; games: GameDto[] }) {
       const x = ((row.getBoundingClientRect().left + card.offsetLeft - left + card.offsetWidth / 2) / window.innerWidth) * 100;
       screen.style.setProperty('--spot-x', `${Math.max(12, Math.min(88, x))}%`);
     }
-  }, []);
+  }, [single]);
 
   const onFocusGame = useCallback(
     (game: GameDto, key: string) => {
@@ -137,7 +162,7 @@ function HomeLibrary({ active, games }: { active: boolean; games: GameDto[] }) {
       firstRun.current = false;
       return;
     }
-    const current = hero?.kind === 'game' ? hero.id : null;
+    const current = heroFocus?.kind === 'game' ? heroFocus.id : null;
     const gone = current !== null && !games.some((g) => g.id === current);
     if (focusGameId || gone) setFocus(initialHomeFocus(games, focusGameId));
     // So reage a mudanca da biblioteca.
@@ -146,6 +171,12 @@ function HomeLibrary({ active, games }: { active: boolean; games: GameDto[] }) {
 
   // LB/RB pulam uma linha: RB desce para a Biblioteca, LB sobe para Recentes (mesma coluna).
   usePageHandler((delta) => {
+    if (single) {
+      // Uma fileira so: RB vai ao primeiro jogo de A-Z, LB volta ao primeiro recente.
+      const target = delta > 0 ? strip.find((g) => !recents.includes(g)) : recents[0];
+      if (target) setFocus(delta > 0 ? focusKeyLibrary(target.id) : focusKeyRecent(target.id));
+      return;
+    }
     const inRecents = focusedKey.current.startsWith('r:');
     const column = Math.max(
       0,
@@ -160,39 +191,47 @@ function HomeLibrary({ active, games }: { active: boolean; games: GameDto[] }) {
     }
   }, active);
 
+  const hero = <HeroGame game={heroGame} allGames={heroFocus?.kind === 'all'} now={now} cta={single} />;
+  const allCard = <AllGamesCard count={games.length} focusKey={FOCUS_ALL} onOpen={openAll} onFocusAll={onFocusAll} />;
+  const card = (game: GameDto, key: string, wide = false) => (
+    <GameCard key={key} game={game} focusKey={key} onPlay={play} onFocusGame={onFocusGame} wide={wide} />
+  );
+
+  if (single) {
+    const recentIds = new Set(recents.map((g) => g.id));
+    return (
+      <FocusLayer focusKey="home" defaultFocus={initialKey} active={active} rememberFocus>
+        <Backdrop game={heroGame} />
+        <div className="rows" ref={rootRef}>
+          <section className="rowblock" aria-label="Jogos">
+            <div className="row">
+              {strip.map((game) => card(game, recentIds.has(game.id) ? focusKeyRecent(game.id) : focusKeyLibrary(game.id)))}
+              {allCard}
+            </div>
+          </section>
+        </div>
+        {hero}
+      </FocusLayer>
+    );
+  }
+
+  const mosaic = layout === 'mosaico';
   return (
     <FocusLayer focusKey="home" defaultFocus={initialKey} active={active} rememberFocus>
-      <HeroGame game={heroGame} allGames={hero?.kind === 'all'} now={now} />
+      {mosaic ? <Backdrop game={heroGame} /> : null}
+      {hero}
       <div className="rows" ref={rootRef}>
         {recents.length > 0 ? (
           <section className="rowblock" aria-label="Recentes">
             <div className="rowtitle">Recentes</div>
-            <div className="row">
-              {recents.map((game) => (
-                <GameCard
-                  key={game.id}
-                  game={game}
-                  focusKey={focusKeyRecent(game.id)}
-                  onPlay={play}
-                  onFocusGame={onFocusGame}
-                />
-              ))}
-            </div>
+            <div className="row">{recents.map((game, i) => card(game, focusKeyRecent(game.id), mosaic && i === 0))}</div>
           </section>
         ) : null}
         <section className="rowblock" aria-label="Biblioteca">
           <div className="rowtitle">Biblioteca</div>
           <div className="row">
-            {libraryRow.map((game) => (
-              <GameCard
-                key={game.id}
-                game={game}
-                focusKey={focusKeyLibrary(game.id)}
-                onPlay={play}
-                onFocusGame={onFocusGame}
-              />
-            ))}
-            <AllGamesCard count={games.length} focusKey={FOCUS_ALL} onOpen={openAll} onFocusAll={onFocusAll} />
+            {libraryRow.map((game) => card(game, focusKeyLibrary(game.id)))}
+            {allCard}
           </div>
         </section>
       </div>

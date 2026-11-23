@@ -12,15 +12,17 @@ interface GameCardProps {
   onFocusGame: (game: GameDto, focusKey: string) => void;
   /** Card em foco: destaca o nome (o resto fica a 72%). */
   on?: boolean;
+  /** Bloco largo (layout Mosaico: o ultimo jogado). */
+  wide?: boolean;
 }
 
 /**
  * Cartaz 2:3 (CA-60): capa ou placeholder, origem embaixo, "Em andamento" no alto (CA-36).
  * Nome em 1 linha com reticencias (E-13), sempre como texto (SEC-07).
  */
-export const GameCard = memo(function GameCard({ game, focusKey, onPlay, onFocusGame, on }: GameCardProps) {
+export const GameCard = memo(function GameCard({ game, focusKey, onPlay, onFocusGame, on, wide = false }: GameCardProps) {
   return (
-    <div className="card" data-on={on ? 'true' : 'false'} data-game-card>
+    <div className={wide ? 'card wide' : 'card'} data-on={on ? 'true' : 'false'} data-game-card>
       <Focusable
         focusKey={focusKey}
         className="poster"

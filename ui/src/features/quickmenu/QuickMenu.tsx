@@ -3,6 +3,8 @@ import { getCurrentFocusKey } from '@noriginmedia/norigin-spatial-navigation';
 import { useDirectionHandler } from '@/app/navigation/directionHandler';
 import type { ScreenEntry } from '@/app/navigation/screens';
 import { useNavigation } from '@/app/navigation/store';
+import { layoutLabel } from '@/features/appearance/domain';
+import { useAppearance } from '@/features/appearance/store';
 import { useLibrary } from '@/features/library/store';
 import { openGameName } from '@/features/session/panel';
 import { useSession } from '@/features/session/store';
@@ -15,7 +17,7 @@ import { FocusLayer } from '@/shared/ui/Focusable';
 import { MenuList, type MenuItemSpec } from '@/shared/ui/MenuList';
 
 const HINTS = [
-  { glyphs: ['dpad' as const], label: 'Ajustar volume' },
+  { glyphs: ['dpad' as const], label: 'Ajustar' },
   { glyphs: ['A' as const], label: 'Escolher' },
   { glyphs: ['B' as const], label: 'Fechar' },
 ];
@@ -23,7 +25,7 @@ const NO_AUDIO = 'Nenhum dispositivo de áudio encontrado';
 const NO_POWER = 'Esta ação não está disponível neste PC.';
 
 /**
- * Menu rapido (CA-05, CA-37 a CA-48): volume com ←/→, mudo, energia com confirmacao, energia, fechar o launcher e configuracoes.
+ * Menu rapido (CA-05, CA-37 a CA-48): volume com ←/→, mudo, layout da tela inicial com ←/→, energia com confirmacao, energia, fechar o launcher e configuracoes.
  * O nivel exibido vem da store, alimentada por `volume://changed` (CA-41).
  */
 export function QuickMenu({ active, entry }: { active: boolean; entry: ScreenEntry }) {
@@ -32,6 +34,7 @@ export function QuickMenu({ active, entry }: { active: boolean; entry: ScreenEnt
   const toggleMute = useVolume((s) => s.toggleMute);
   const session = useSession((s) => s.session);
   const games = useLibrary((s) => s.games);
+  const layout = useAppearance((s) => s.layout);
   const { push, remove } = useNavigation.getState();
   const [caps, setCaps] = useState<PowerCapabilities | null>(null);
 
@@ -45,9 +48,15 @@ export function QuickMenu({ active, entry }: { active: boolean; entry: ScreenEnt
   const muted = volume?.muted ?? false;
   const inGame = openGameName(session, games) !== null;
 
-  // ←/→ no Volume mudam 5 pontos; nos demais itens a direcao segue para o foco.
+  // ←/→ no Volume mudam 5 pontos, no Layout trocam o layout; nos demais itens a direcao segue para o foco.
   useDirectionHandler((direction) => {
-    if ((direction !== 'left' && direction !== 'right') || getCurrentFocusKey() !== 'menu-vol') return false;
+    if (direction !== 'left' && direction !== 'right') return false;
+    const key = getCurrentFocusKey();
+    if (key === 'menu-layout') {
+      useAppearance.getState().cycle(direction === 'right' ? 1 : -1);
+      return true;
+    }
+    if (key !== 'menu-vol') return false;
     if (!audioOff) void step(direction === 'right' ? 'Up' : 'Down');
     return true;
   }, active);
@@ -105,6 +114,20 @@ export function QuickMenu({ active, entry }: { active: boolean; entry: ScreenEnt
     },
   ];
   const app: MenuItemSpec[] = [
+    {
+      id: 'layout',
+      label: 'Layout',
+      icon: 'layout',
+      role: 'button',
+      right: (
+        <span className="tagsm cycler">
+          <span aria-hidden="true">‹</span>
+          {layoutLabel(layout)}
+          <span aria-hidden="true">›</span>
+        </span>
+      ),
+      onSelect: () => useAppearance.getState().cycle(1),
+    },
     {
       id: 'settings',
       label: 'Configurações',
