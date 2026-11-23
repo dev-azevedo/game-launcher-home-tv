@@ -1,4 +1,5 @@
 import type { GameDto } from '@/shared/ipc';
+import { useInputMode } from '@/shared/input/mode';
 import { originLabel } from '@/shared/ui/Badges';
 import { lastPlayedLabel } from '../domain';
 
@@ -11,13 +12,14 @@ interface HeroGameProps {
 
 /** Heroi fixo no alto (nome inteiro em ate 2 linhas; o card trunca, E-13). Atualiza ao mover o foco. */
 export function HeroGame({ game, allGames = false, now }: HeroGameProps) {
+  const confirmKey = useInputMode((s) => (s.mode === 'keyboard' ? 'Enter' : 'A'));
   return (
     <div className="hero" aria-live="polite">
       <div className="eyebrow">
         {game ? (
           <>
             <span className="pill">{originLabel(game.origin)}</span>
-            <span>{game.inProgress ? 'Em andamento. Aperte A para voltar ao jogo.' : lastPlayedLabel(game.lastPlayedAt, now)}</span>
+            <span>{game.inProgress ? `Em andamento. Aperte ${confirmKey} para voltar ao jogo.` : lastPlayedLabel(game.lastPlayedAt, now)}</span>
           </>
         ) : allGames ? (
           <span>Biblioteca</span>

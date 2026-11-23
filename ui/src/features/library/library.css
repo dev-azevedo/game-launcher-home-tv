@@ -24,6 +24,7 @@
 .sub{font:400 var(--text-body)/var(--leading-body) var(--font-text);color:var(--brand-text-muted)}
 .hints{position:relative;z-index:3;height:var(--foot-h);display:flex;align-items:center;gap:var(--space-6);flex:none;font:600 var(--text-caption)/1 var(--font-text);color:var(--brand-text-muted)}
 .hint{display:flex;align-items:center;gap:var(--space-1)}
+.g.key{border-radius:calc(8*var(--u));min-width:calc(44*var(--u));padding:0 calc(10*var(--u));font:700 calc(20*var(--u))/1 var(--font-text);background:var(--brand-surface-raised);box-shadow:0 calc(3*var(--u)) 0 var(--brand-text-muted)}
 .hints::before{content:"";position:absolute;z-index:-1;left:calc(-1*var(--safe-x));right:calc(-1*var(--safe-x));bottom:calc(-1*var(--safe-y));top:calc(-70*var(--u));background:linear-gradient(180deg,rgba(20,16,43,0),var(--brand-ink) 62%)}
 .g{display:inline-grid;place-items:center;min-width:calc(36*var(--u));height:calc(36*var(--u));border-radius:999px;border:calc(2*var(--u)) solid var(--brand-text-muted);color:var(--brand-text);font:700 calc(24*var(--u))/1 var(--font-display);padding:0 calc(4*var(--u))}
 .g.pill{border-radius:calc(12*var(--u));padding:0 calc(10*var(--u));min-width:calc(52*var(--u));height:calc(36*var(--u));background:none}

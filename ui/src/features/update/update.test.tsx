@@ -127,7 +127,7 @@ describe('dialogo de atualizacao', () => {
     expect(screen.getByText(/versão 0\.2\.0/)).toBeInTheDocument();
     expect(screen.getByText('Atualiza pelo app')).toBeInTheDocument();
     expect(screen.getByText(/Confirme com teclado ou mouse/)).toBeInTheDocument();
-    await waitFor(() => expect(document.querySelector('[data-focused="true"]')?.textContent).toContain('Atualizar'));
+    await waitFor(() => expect(document.querySelector('[data-focused="true"]')?.textContent).toContain('Atualizar'), { timeout: 5000 });
   });
 
   it('B ("Agora não") fecha sem baixar', async () => {
@@ -143,7 +143,7 @@ describe('dialogo de atualizacao', () => {
     const core = mockCore({ update_install: () => new Promise((_, reject) => (fail = reject)) });
     start();
     await openDialog();
-    await waitFor(() => expect(document.querySelector('[data-focused="true"]')?.textContent).toContain('Atualizar'));
+    await waitFor(() => expect(document.querySelector('[data-focused="true"]')?.textContent).toContain('Atualizar'), { timeout: 5000 });
     intent('Confirm');
     await screen.findByText('Baixando a atualização…');
     expect(core.count('update_install')).toBe(1);

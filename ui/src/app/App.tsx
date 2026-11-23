@@ -13,6 +13,7 @@ import { startUpdates } from '@/features/update/store';
 import { startVolume } from '@/features/volume/store';
 import { VolumeHud } from '@/features/volume/VolumeHud';
 import { createKeyboardSource } from '@/shared/input/keyboard';
+import { withInputMode } from '@/shared/input/mode';
 import { mergeSources } from '@/shared/input/intents';
 import { createCoreIntentSource } from '@/shared/ipc';
 
@@ -23,8 +24,16 @@ const Gallery = import.meta.env.DEV ? lazy(() => import('../dev/Gallery')) : nul
 const needsDevCore = () => import.meta.env.DEV && !('__TAURI_INTERNALS__' in window);
 
 export function App() {
-  // Uma rota so: nucleo (`input://intent`) + teclado de emergencia (RN-07).
-  const source = useMemo(() => mergeSources(createCoreIntentSource(), createKeyboardSource(window)), []);
+  // Uma rota so: nucleo (`input://intent`) + teclado de emergencia (RN-07). Cada fonte marca o modo de
+  // entrada, que troca as dicas de botao entre controle e teclado.
+  const source = useMemo(
+    () =>
+      mergeSources(
+        withInputMode(createCoreIntentSource(), 'gamepad'),
+        withInputMode(createKeyboardSource(window), 'keyboard'),
+      ),
+    [],
+  );
   const showGallery = Gallery !== null && window.location.hash.startsWith('#gallery');
   const libraryStatus = useLibrary((s) => s.status);
   const [coreReady, setCoreReady] = useState(!needsDevCore());
