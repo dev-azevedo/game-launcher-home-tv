@@ -5,7 +5,9 @@ import { ScreenStack } from '@/app/ScreenStack';
 import { defaultDeps, dispatchIntent } from '@/app/navigation/dispatch';
 import { resetSpatialNavigation } from '@/app/navigation/spatial';
 import { useNavigation } from '@/app/navigation/store';
+import { FOCUS_HDR_SETTINGS } from '@/features/library/components/ConsoleHeader';
 import { stripGames } from '@/features/library/domain';
+import { FOCUS_HERO_MORE } from '@/features/library/HomeScreen';
 import { useLibrary } from '@/features/library/store';
 import { IDLE_SESSION } from '@/features/session/overlay';
 import { useSession } from '@/features/session/store';
@@ -108,17 +110,49 @@ describe('Home por layout', () => {
     expect(screen.queryByRole('region', { name: 'Recentes' })).toBeNull();
     // Foco inicial: o ultimo jogado (mesma regra do padrao).
     await waitFor(() => expect(getCurrentFocusKey()).toBe('r:steam:1'));
-    expect(screen.getByTestId('backdrop').querySelector('img')).not.toBeNull();
-    expect(document.querySelector('.hero-cta')).toHaveTextContent('Jogar');
+    expect(screen.getByTestId('backdrop').querySelector('img.backdrop-img')).not.toBeNull();
+    // Barra de console: aba "Jogos", relogio e configuracoes (o padrao mostra a marca).
+    expect(document.querySelector('.c-tab.sel')).toHaveTextContent('Jogos');
+    expect(document.querySelector('.c-clock')?.textContent).toMatch(/^\d{2}:\d{2}$/);
+    expect(document.querySelector('.brand-logo')).toBeNull();
+    // Ultimo icone: "Biblioteca de jogos".
+    expect(screen.getByRole('button', { name: /^Biblioteca de jogos/ })).toBeInTheDocument();
   });
 
-  it('Mosaico: o ultimo jogado vira bloco largo e ha arte de fundo', async () => {
+  it('Vitrine: "Jogar" e "⋯" abaixo do nome recebem foco; "⋯" abre as opcoes do jogo', async () => {
+    act(() => useAppearance.getState().setLayout('vitrine'));
+    await renderHome();
+    await waitFor(() => expect(getCurrentFocusKey()).toBe('r:steam:1'));
+    expect(screen.getByRole('button', { name: 'Jogar' })).toBeInTheDocument();
+    press(() => setFocus(FOCUS_HERO_MORE));
+    await waitFor(() => expect(getCurrentFocusKey()).toBe(FOCUS_HERO_MORE));
+    press(activateFocused);
+    await waitFor(() => expect(useNavigation.getState().stack.map((e) => e.kind)).toEqual(['home', 'gameOptions']));
+    expect(useNavigation.getState().stack[1]?.params).toEqual({ gameId: 'steam:1' });
+  });
+
+  it('Vitrine e Mosaico: o botao de configuracoes da barra abre as configuracoes', async () => {
+    mockCore({ settings_get: null, display_monitors: [], library_hidden: [] });
+    act(() => useAppearance.getState().setLayout('mosaico'));
+    await renderHome();
+    press(() => setFocus(FOCUS_HDR_SETTINGS));
+    await waitFor(() => expect(getCurrentFocusKey()).toBe(FOCUS_HDR_SETTINGS));
+    press(activateFocused);
+    await waitFor(() => expect(useNavigation.getState().stack.map((e) => e.kind)).toEqual(['home', 'settings']));
+  });
+
+  it('Mosaico: primeira fileira sem titulo, ultimo jogado em bloco grande e "Meus jogos" no fim', async () => {
     act(() => useAppearance.getState().setLayout('mosaico'));
     await renderHome();
     const recents = screen.getByRole('region', { name: 'Recentes' });
+    expect(recents.querySelector('.rowtitle')).toBeNull();
     const cards = recents.querySelectorAll('.card');
-    expect(cards[0]).toHaveClass('wide');
-    expect(cards[1]).not.toHaveClass('wide');
+    expect(cards[0]).toHaveClass('featured');
+    expect(cards[1]).not.toHaveClass('featured');
+    expect(cards[cards.length - 1]).toHaveTextContent('Meus jogos');
+    // "Meus jogos" sai da Biblioteca quando ha Recentes.
+    expect(screen.getByRole('region', { name: 'Biblioteca' }).querySelector('[data-focus-key="all"]')).toBeNull();
+    expect(document.querySelector('.c-avatar')).not.toBeNull();
     expect(screen.getByTestId('backdrop')).toBeInTheDocument();
   });
 

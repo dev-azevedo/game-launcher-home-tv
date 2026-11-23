@@ -1,10 +1,11 @@
 /*
  * Layouts da tela inicial (html[data-layout]). `sofa` e o padrao e nao tem regra aqui: usa so os tokens da marca.
  * Cada layout troca os tokens de cor/raio (valem no app todo: menus, dialogos, configuracoes) e,
- * so na Home (.home[data-layout]), as medidas e a disposicao das fileiras. Medidas em --u (100vh/1080).
+ * so na Home (.home[data-layout]), as medidas e a disposicao. Medidas em --u (100vh/1080).
+ * Vitrine segue a disposicao da tela inicial do PS5; Mosaico, a do Xbox Series. Icones, fontes e marca sao do app.
  */
 
-/* ---------- comum aos layouts alternativos ---------- */
+/* ---------- comum aos layouts de console ---------- */
 html[data-layout="vitrine"] .hints::before,
 html[data-layout="mosaico"] .hints::before{background:linear-gradient(180deg,transparent,var(--brand-ink) 62%)}
 html[data-layout="vitrine"] .callout,
@@ -14,13 +15,24 @@ html[data-layout="mosaico"] .callout{background:color-mix(in srgb,var(--brand-pr
 
 /* arte de fundo (Backdrop.tsx): ocupa a tela toda, atras do conteudo da area segura */
 .backdrop{position:absolute;inset:calc(-1*var(--safe-y)) calc(-1*var(--safe-x));z-index:0;overflow:hidden;pointer-events:none;background:var(--brand-ink)}
-.backdrop-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;animation:bd-in 420ms var(--ease-out)}
+.backdrop-img,.backdrop-blur{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;animation:bd-in 420ms var(--ease-out)}
+.backdrop-blur{transform:scale(1.15);filter:blur(calc(30*var(--u))) saturate(1.2);opacity:.55}
 .backdrop-veil{position:absolute;inset:0}
 @keyframes bd-in{from{opacity:0}}
-html.reduced .backdrop-img{animation:none}
-@media (prefers-reduced-motion:reduce){.backdrop-img{animation:none}}
+html.reduced .backdrop-img,html.reduced .backdrop-blur{animation:none}
+@media (prefers-reduced-motion:reduce){.backdrop-img,.backdrop-blur{animation:none}}
 
-/* ---------- Vitrine: fileira de icones no alto, arte em tela cheia (inspirado no PS5) ---------- */
+/* barra do topo (ConsoleHeader.tsx) */
+.c-hdr .c-left{display:flex;align-items:center;gap:var(--space-4)}
+.c-tab{font:700 var(--text-label)/1 var(--font-display);color:var(--brand-text-muted)}
+.c-tab.sel{color:var(--brand-text)}
+.c-clock{font:600 var(--text-label)/1 var(--font-text);color:var(--brand-text);font-variant-numeric:tabular-nums}
+.c-avatar{width:calc(56*var(--u));height:calc(56*var(--u));border-radius:50%;display:grid;place-items:center;flex:none;background:linear-gradient(145deg,var(--brand-secondary),var(--brand-surface-raised));color:var(--brand-text);box-shadow:0 0 0 calc(3*var(--u)) rgba(255,255,255,.18)}
+.c-iconbtn{--focus-scale:1.08;width:calc(56*var(--u));height:calc(56*var(--u));border-radius:50%;display:grid;place-items:center;flex:none;color:var(--brand-text);background:rgba(255,255,255,.10)}
+.c-iconbtn[data-focused="true"]{background:var(--brand-primary);color:var(--brand-on-primary)}
+.c-hdr .chips{gap:var(--space-3)}
+
+/* ---------- Vitrine (disposicao do PS5) ---------- */
 html[data-layout="vitrine"]{
   --brand-ink:#05070F;
   --brand-surface:#121A2E;
@@ -31,6 +43,7 @@ html[data-layout="vitrine"]{
   --brand-on-primary:#05070F;
   --brand-secondary:#4F7BFF;
   --brand-scrim:#020309;
+  --scrim:rgba(2,3,9,.82);
   --radius-card:calc(14*var(--u));
   --radius-card-focus:calc(16*var(--u));
   --radius-button:calc(42*var(--u));
@@ -39,38 +52,49 @@ html[data-layout="vitrine"]{
   --focus-ring:0 0 0 calc(4*var(--u)) var(--brand-ink),0 0 0 calc(9*var(--u)) var(--brand-primary);
 }
 html[data-layout="vitrine"] .spotlight{background:radial-gradient(ellipse 60% 55% at 70% 0%,rgba(79,123,255,.20),rgba(79,123,255,0) 70%)}
+html[data-layout="vitrine"] .cover-ph{background:linear-gradient(165deg,#22315A 0%,#0D1428 100%)}
 
 .home[data-layout="vitrine"]{
-  --card-w:calc(176*var(--u));
-  --card-h:calc(176*var(--u));
+  --card-w:calc(160*var(--u));
+  --card-h:calc(160*var(--u));
   --gap:calc(18*var(--u));
-  --tile-grow:1.36;
+  --tile-grow:1.4;
+  /* espaco a direita do icone em foco para o nome (como no console) */
+  --name-room:calc(400*var(--u));
 }
-/* arte nitida a direita, desfocada atras; veu escuro a esquerda para o texto */
+/* arte nitida a direita sobre a copia desfocada; veu escuro a esquerda e embaixo para o texto */
 .home[data-layout="vitrine"] .backdrop-img{left:auto;width:72%;object-position:center 20%;-webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 38%);mask-image:linear-gradient(90deg,transparent 0%,#000 38%)}
-.home[data-layout="vitrine"] .backdrop-veil{background:linear-gradient(180deg,rgba(5,7,15,.55) 0%,rgba(5,7,15,0) 28%,rgba(5,7,15,0) 55%,rgba(5,7,15,.9) 100%),linear-gradient(90deg,rgba(5,7,15,.92) 0%,rgba(5,7,15,.45) 50%,rgba(5,7,15,.05) 100%)}
-.home[data-layout="vitrine"] .rows{flex:none;margin-top:calc(-1*var(--P) + var(--space-2))}
+.home[data-layout="vitrine"] .backdrop-veil{background:linear-gradient(180deg,rgba(5,7,15,.6) 0%,rgba(5,7,15,0) 30%,rgba(5,7,15,0) 55%,rgba(5,7,15,.9) 100%),linear-gradient(90deg,rgba(5,7,15,.9) 0%,rgba(5,7,15,.4) 50%,rgba(5,7,15,.05) 100%)}
+.home[data-layout="vitrine"] .rows{flex:none;margin-top:calc(-1*var(--P) + var(--space-3))}
 .home[data-layout="vitrine"] .rowblock{padding:0}
-.home[data-layout="vitrine"] .row{align-items:flex-start}
-/* o icone em foco cresce a partir do canto e empurra os vizinhos (margem a direita) */
-.home[data-layout="vitrine"] .card{transition:margin-right 160ms var(--ease-out)}
-.home[data-layout="vitrine"] .card:has(.poster[data-focused="true"]){margin-right:calc(var(--card-w)*(var(--tile-grow) - 1))}
+.home[data-layout="vitrine"] .row{align-items:flex-start;clip-path:inset(-100vh -100vw -100vh calc(var(--P) + var(--inset) - 14*var(--u)))}
+/* o icone em foco cresce a partir do canto e abre espaco para o nome ao lado */
+.home[data-layout="vitrine"] .card{position:relative;height:calc(var(--card-h)*var(--tile-grow) + 12*var(--u));transition:margin-right 160ms var(--ease-out)}
+/* selecionado = em foco, ou o jogo do heroi quando o foco esta em "Jogar"/barra (data-on) */
+.home[data-layout="vitrine"] .card[data-on="true"],
+.home[data-layout="vitrine"] .card:has(.poster[data-focused="true"]){margin-right:calc(var(--card-w)*(var(--tile-grow) - 1) + var(--name-room))}
 .home[data-layout="vitrine"] .poster{--focus-scale:var(--tile-grow);transform-origin:left top}
+.home[data-layout="vitrine"] .card[data-on="true"] .poster{transform:scale(var(--tile-grow));opacity:1}
+.home[data-layout="vitrine"] .row .poster[data-focused="true"]{box-shadow:var(--focus-ring)}
 .home[data-layout="vitrine"] .poster .b-origin,
 .home[data-layout="vitrine"] .poster .scrim{display:none}
-.home[data-layout="vitrine"] .poster .cover-ph-name{inset:var(--space-1);align-items:flex-end;font-size:calc(22*var(--u))}
-.home[data-layout="vitrine"] .poster.all{font-size:calc(22*var(--u));gap:var(--space-1)}
-.home[data-layout="vitrine"] .poster.all .ic{width:calc(40*var(--u));height:calc(40*var(--u))}
-.home[data-layout="vitrine"] .card .nm{visibility:hidden;margin-top:calc(var(--card-h)*(var(--tile-grow) - 1) + 14*var(--u));color:var(--brand-text)}
-.home[data-layout="vitrine"] .card:has(.poster[data-focused="true"]) .nm{visibility:visible}
-.home[data-layout="vitrine"] .hero{height:auto;flex:1;min-height:0;justify-content:flex-start;padding-top:var(--space-4);gap:var(--space-3);max-width:calc(1100*var(--u))}
+.home[data-layout="vitrine"] .poster .cover-ph-name{inset:var(--space-1);align-items:flex-end;font-size:calc(20*var(--u))}
+.home[data-layout="vitrine"] .poster .cover-ph-name span{-webkit-line-clamp:4}
+.home[data-layout="vitrine"] .poster.all{font-size:calc(20*var(--u));gap:var(--space-1)}
+.home[data-layout="vitrine"] .poster.all span:not(.muted){display:none}
+.home[data-layout="vitrine"] .poster.all .ic{width:calc(48*var(--u));height:calc(48*var(--u))}
+.home[data-layout="vitrine"] .card .nm{position:absolute;margin:0;left:calc(var(--card-w)*var(--tile-grow) + var(--space-3));top:calc(var(--card-h)*var(--tile-grow)/2);transform:translateY(-50%);width:calc(var(--name-room) - var(--space-6));font:600 calc(30*var(--u))/1.2 var(--font-text);color:var(--brand-text);opacity:0;transition:opacity 160ms var(--ease-out)}
+.home[data-layout="vitrine"] .card[data-on="true"] .nm,
+.home[data-layout="vitrine"] .card:has(.poster[data-focused="true"]) .nm{opacity:1}
+.home[data-layout="vitrine"] .hero{height:auto;flex:1;min-height:0;justify-content:flex-start;padding-top:var(--space-8);gap:var(--space-3);max-width:calc(1100*var(--u))}
 .home[data-layout="vitrine"] .hero .name-big{font-size:calc(84*var(--u));min-height:0}
 .home[data-layout="vitrine"] .hero .pill{background:rgba(255,255,255,.14)}
-.hero-cta{display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-2)}
-.hero-btn{display:inline-flex;align-items:center;gap:var(--space-2);height:calc(76*var(--u));padding:0 var(--space-6);border-radius:999px;background:var(--brand-primary);color:var(--brand-on-primary);font:700 var(--text-label)/1 var(--font-text)}
-.hero-key{display:inline-grid;place-items:center;min-width:calc(40*var(--u));height:calc(40*var(--u));padding:0 calc(8*var(--u));border-radius:999px;border:calc(2*var(--u)) solid var(--brand-text-muted);font:700 calc(20*var(--u))/1 var(--font-display);color:var(--brand-text-muted)}
+.hero-actions{display:flex;align-items:center;gap:var(--space-3);margin-top:var(--space-2)}
+.hero-btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);height:calc(76*var(--u));min-width:calc(280*var(--u));padding:0 var(--space-6);border-radius:999px;background:rgba(255,255,255,.16);color:var(--brand-text);font:700 var(--text-label)/1 var(--font-text)}
+.hero-more{width:calc(76*var(--u));height:calc(76*var(--u));border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.16);color:var(--brand-text)}
+.hero-btn[data-focused="true"],.hero-more[data-focused="true"]{background:var(--brand-primary);color:var(--brand-on-primary)}
 
-/* ---------- Mosaico: blocos quadrados, ultimo jogado em destaque, acento verde (inspirado no Xbox Series) ---------- */
+/* ---------- Mosaico (disposicao do Xbox Series) ---------- */
 html[data-layout="mosaico"]{
   --brand-ink:#0F0F10;
   --brand-surface:#1E1F21;
@@ -82,6 +106,7 @@ html[data-layout="mosaico"]{
   --brand-secondary:#5DC21E;
   --brand-danger:#E5484D;
   --brand-scrim:#060607;
+  --scrim:rgba(6,6,7,.82);
   --radius-card:calc(8*var(--u));
   --radius-card-focus:calc(8*var(--u));
   --radius-button:calc(8*var(--u));
@@ -93,34 +118,29 @@ html[data-layout="mosaico"]{
 html[data-layout="mosaico"] .spotlight{background:radial-gradient(ellipse 70% 60% at 15% 0%,rgba(16,124,16,.26),rgba(16,124,16,0) 70%)}
 html[data-layout="mosaico"] .chip .ic,
 html[data-layout="mosaico"] .poster.all .ic{color:var(--brand-secondary)}
+html[data-layout="mosaico"] .cover-ph{background:linear-gradient(165deg,#34363B 0%,#1A1B1D 100%)}
 
 .home[data-layout="mosaico"]{
-  --card-w:calc(222*var(--u));
-  --card-h:calc(222*var(--u));
-  --gap:calc(14*var(--u));
+  --card-w:calc(196*var(--u));
+  --card-h:calc(196*var(--u));
+  --feature:calc(296*var(--u));
+  --gap:calc(12*var(--u));
 }
-.home[data-layout="mosaico"] .backdrop-img{transform:scale(1.15);filter:blur(calc(26*var(--u))) saturate(1.2);opacity:.6}
-.home[data-layout="mosaico"] .backdrop-veil{background:linear-gradient(180deg,rgba(15,15,16,.35) 0%,rgba(15,15,16,.7) 45%,rgba(15,15,16,.95) 100%),radial-gradient(ellipse 70% 60% at 15% 0%,rgba(16,124,16,.30),rgba(16,124,16,0) 70%)}
-.home[data-layout="mosaico"] .hero{height:calc(150*var(--u));gap:var(--space-1)}
-.home[data-layout="mosaico"] .hero .name-big{font:700 calc(52*var(--u))/1.1 var(--font-display);min-height:0;-webkit-line-clamp:1}
-.home[data-layout="mosaico"] .rowtitle{font:600 var(--text-caption)/1 var(--font-text);color:var(--brand-text-muted);text-transform:uppercase;letter-spacing:.06em}
-.home[data-layout="mosaico"] .rowblock{padding-bottom:var(--space-1)}
+/* arte em tela cheia, mais viva no alto; escurece embaixo onde ficam os blocos */
+.home[data-layout="mosaico"] .backdrop-img{object-position:center 25%;filter:blur(calc(6*var(--u))) saturate(1.1);transform:scale(1.04)}
+.home[data-layout="mosaico"] .backdrop-veil{background:linear-gradient(180deg,rgba(15,15,16,.35) 0%,rgba(15,15,16,.15) 30%,rgba(15,15,16,.75) 60%,rgba(15,15,16,.97) 100%),radial-gradient(ellipse 70% 60% at 10% 0%,rgba(16,124,16,.28),rgba(16,124,16,0) 70%)}
+/* palco: espaco livre para a arte, com o nome do jogo em foco no pe */
+.c-stage{flex:1;min-height:0;display:flex;align-items:flex-end;padding:0 var(--inset) var(--space-2);position:relative;z-index:1;font:700 calc(44*var(--u))/1.1 var(--font-display);color:var(--brand-text);text-shadow:0 calc(2*var(--u)) calc(16*var(--u)) rgba(0,0,0,.6)}
+.c-stage span{max-width:calc(1200*var(--u))}
+.home[data-layout="mosaico"] .rows{flex:none}
+.home[data-layout="mosaico"] .rowblock{padding-top:0;padding-bottom:var(--space-1)}
+.home[data-layout="mosaico"] .rowblock.first .row{align-items:flex-end}
+.home[data-layout="mosaico"] .rowtitle{font:600 var(--text-caption)/1 var(--font-text);color:var(--brand-text-muted);padding-top:var(--space-1)}
 .home[data-layout="mosaico"] .poster{--focus-scale:1.05}
-.home[data-layout="mosaico"] .card.wide{width:calc(var(--card-w)*2 + var(--gap))}
-.home[data-layout="mosaico"] .card.wide .cover-img{object-position:center 25%}
-.home[data-layout="mosaico"] .card .nm{visibility:hidden;margin-top:calc(18*var(--u));color:var(--brand-text)}
-.home[data-layout="mosaico"] .card:has(.poster[data-focused="true"]) .nm{visibility:visible}
-
-/* ---------- capas sem imagem e fundo de dialogos nos layouts alternativos ---------- */
-html[data-layout="vitrine"]{--scrim:rgba(2,3,9,.82)}
-html[data-layout="mosaico"]{--scrim:rgba(6,6,7,.82)}
-html[data-layout="vitrine"] .cover-ph{background:linear-gradient(165deg,#22315A 0%,#0D1428 100%)}
-html[data-layout="mosaico"] .cover-ph{background:linear-gradient(165deg,#34363B 0%,#1A1B1D 100%)}
-/* blocos quadrados: nome do placeholder em ate 2 linhas, acima do selo de origem */
-.home[data-layout="mosaico"] .poster .cover-ph-name{inset:var(--space-2) var(--space-2) calc(64*var(--u));font-size:calc(30*var(--u))}
+.home[data-layout="mosaico"] .card.featured{width:var(--feature)}
+.home[data-layout="mosaico"] .card.featured .poster{height:var(--feature)}
+.home[data-layout="mosaico"] .card.featured .cover-img{object-position:center 25%}
+.home[data-layout="mosaico"] .poster .cover-ph-name{inset:var(--space-2) var(--space-2) calc(64*var(--u));font-size:calc(28*var(--u))}
 .home[data-layout="mosaico"] .poster .cover-ph-name span{-webkit-line-clamp:2}
-.home[data-layout="mosaico"] .card.wide .cover-ph-name span{-webkit-line-clamp:2}
-.home[data-layout="vitrine"] .poster .cover-ph-name span{-webkit-line-clamp:4}
-/* Vitrine: os icones que ja passaram somem na margem esquerda (sobra so o espaco do anel de foco) */
-.home[data-layout="vitrine"] .row{clip-path:inset(-100vh -100vw -100vh calc(var(--P) + var(--inset) - 14*var(--u)))}
-.home[data-layout="vitrine"] .row .poster[data-focused="true"]{box-shadow:var(--focus-ring)}
+.home[data-layout="mosaico"] .card .nm{visibility:hidden;margin-top:calc(16*var(--u));color:var(--brand-text)}
+.home[data-layout="mosaico"] .card:has(.poster[data-focused="true"]) .nm{visibility:visible}

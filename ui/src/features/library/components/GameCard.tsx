@@ -12,17 +12,17 @@ interface GameCardProps {
   onFocusGame: (game: GameDto, focusKey: string) => void;
   /** Card em foco: destaca o nome (o resto fica a 72%). */
   on?: boolean;
-  /** Bloco largo (layout Mosaico: o ultimo jogado). */
-  wide?: boolean;
+  /** Bloco grande (layout Mosaico: o ultimo jogado). */
+  featured?: boolean;
 }
 
 /**
  * Cartaz 2:3 (CA-60): capa ou placeholder, origem embaixo, "Em andamento" no alto (CA-36).
  * Nome em 1 linha com reticencias (E-13), sempre como texto (SEC-07).
  */
-export const GameCard = memo(function GameCard({ game, focusKey, onPlay, onFocusGame, on, wide = false }: GameCardProps) {
+export const GameCard = memo(function GameCard({ game, focusKey, onPlay, onFocusGame, on, featured = false }: GameCardProps) {
   return (
-    <div className={wide ? 'card wide' : 'card'} data-on={on ? 'true' : 'false'} data-game-card>
+    <div className={featured ? 'card featured' : 'card'} data-on={on ? 'true' : 'false'} data-game-card>
       <Focusable
         focusKey={focusKey}
         className="poster"
@@ -46,25 +46,27 @@ interface AllGamesCardProps {
   onOpen: () => void;
   onFocusAll: () => void;
   focusKey: string;
+  /** Rotulo do card (padrao "Todos os jogos"; layouts de console usam o nome do console). */
+  label?: string;
 }
 
 /** Ultimo card da fileira Biblioteca: abre "Todos os jogos". */
-export const AllGamesCard = memo(function AllGamesCard({ count, onOpen, onFocusAll, focusKey }: AllGamesCardProps) {
+export const AllGamesCard = memo(function AllGamesCard({ count, onOpen, onFocusAll, focusKey, label = 'Todos os jogos' }: AllGamesCardProps) {
   return (
     <div className="card" data-game-card>
       <Focusable
         focusKey={focusKey}
         className="poster all"
         role="button"
-        ariaLabel={`Todos os jogos, ${count}`}
+        ariaLabel={`${label}, ${count}`}
         onActivate={onOpen}
         onFocus={onFocusAll}
       >
         <Icon name="grid" size="l" />
-        <span>Todos os jogos</span>
+        <span>{label}</span>
         <span className="muted">{count}</span>
       </Focusable>
-      <div className="nm">{' '}</div>
+      <div className="nm">{label === 'Todos os jogos' ? ' ' : label}</div>
     </div>
   );
 });

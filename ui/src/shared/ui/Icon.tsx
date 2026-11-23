@@ -10,6 +10,13 @@ const PATHS = {
     </>
   ),
   menu: <path d="M5 8h14M5 12h14M5 16h14" />,
+  more: (
+    <>
+      <circle cx="6" cy="12" r="1.2" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.2" fill="currentColor" />
+      <circle cx="18" cy="12" r="1.2" fill="currentColor" />
+    </>
+  ),
   layout: (
     <>
       <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />

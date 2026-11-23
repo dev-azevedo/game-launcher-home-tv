@@ -10,8 +10,10 @@ import { useSession } from '@/features/session/store';
 import type { GameDto } from '@/shared/ipc';
 import { scrollBehavior } from '@/shared/theme/motion';
 import { ButtonHints } from '@/shared/ui/ButtonHints';
-import { FocusLayer } from '@/shared/ui/Focusable';
+import { Focusable, FocusLayer } from '@/shared/ui/Focusable';
+import { Icon } from '@/shared/ui/Icon';
 import { AppHeader } from './components/AppHeader';
+import { ConsoleHeader } from './components/ConsoleHeader';
 import { Backdrop } from './components/Backdrop';
 import { EmptyLibrary, LoadingLibrary } from './components/EmptyLibrary';
 import { AllGamesCard, GameCard } from './components/GameCard';
@@ -39,6 +41,10 @@ const EMPTY_HINTS = [
   { glyphs: ['menu' as const], label: 'Menu' },
 ];
 
+/** Botoes do heroi do layout Vitrine. */
+export const FOCUS_HERO_PLAY = 'hero-play';
+export const FOCUS_HERO_MORE = 'hero-more';
+
 /** Inicio (CA-22, CA-23): carregando, vazio ou heroi + Recentes + Biblioteca. */
 export function HomeScreen({ active, headerExtras }: { active: boolean; headerExtras?: React.ReactNode }) {
   const status = useLibrary((s) => s.status);
@@ -51,6 +57,8 @@ export function HomeScreen({ active, headerExtras }: { active: boolean; headerEx
 
   let body;
   let hints = HOME_HINTS;
+  // Layouts de console trazem a propria barra do topo, dentro da camada de foco (o botao de configuracoes e focavel).
+  let consoleHeader = false;
   // Cache vazio com varredura em curso: esqueleto "Procurando jogos…" (handoff 5).
   if (games.length === 0 && (status === 'loading' || refreshing)) {
     body = <LoadingLibrary active={active} onAdd={openAdd} />;
@@ -60,14 +68,17 @@ export function HomeScreen({ active, headerExtras }: { active: boolean; headerEx
     hints = EMPTY_HINTS;
   } else {
     // `key`: trocar de layout remonta a fileira (foco e rolagem recomecam do jogo atual).
-    body = <HomeLibrary key={layout} active={active} games={games} layout={layout} />;
+    body = (
+      <HomeLibrary key={layout} active={active} games={games} layout={layout} refreshing={refreshing} headerExtras={headerExtras} />
+    );
+    consoleHeader = layout !== 'sofa';
   }
 
   return (
     <div className="layer home screen" data-active={active ? 'true' : 'false'} data-screen="home" data-layout={layout}>
       <div className="spot" />
       <SafeArea>
-        <AppHeader refreshing={refreshing}>{headerExtras}</AppHeader>
+        {consoleHeader ? null : <AppHeader refreshing={refreshing}>{headerExtras}</AppHeader>}
         {body}
         <ButtonHints hints={hints} />
       </SafeArea>
@@ -80,11 +91,25 @@ type HeroFocus = { kind: 'game'; id: string } | { kind: 'all' };
 /**
  * Corpo da Home com jogos. A estrutura muda com o layout:
  * - `sofa`: heroi no alto + Recentes + Biblioteca (cartazes 2:3);
- * - `vitrine`: uma fileira de icones no alto (Recentes e depois A-Z), arte do jogo ao fundo e heroi embaixo;
- * - `mosaico`: duas fileiras de blocos quadrados, o ultimo jogado em bloco largo, arte ao fundo.
+ * - `vitrine` (disposicao do PS5): barra com aba "Jogos", relogio e configuracoes; uma fileira de icones (Recentes e
+ *   depois A-Z) com o nome ao lado do icone em foco; arte ao fundo; nome grande com "Jogar" e "⋯" embaixo;
+ * - `mosaico` (disposicao do Xbox Series): barra com avatar, configuracoes e relogio; arte ao fundo na parte de cima;
+ *   primeira fileira sem titulo com o ultimo jogado em bloco grande e "Meus jogos" no fim; depois a Biblioteca.
  * As chaves de foco sao as mesmas nos tres (r:, a:, all), entao foco inicial e retorno de sessao nao mudam.
  */
-function HomeLibrary({ active, games, layout }: { active: boolean; games: GameDto[]; layout: LayoutId }) {
+function HomeLibrary({
+  active,
+  games,
+  layout,
+  refreshing,
+  headerExtras,
+}: {
+  active: boolean;
+  games: GameDto[];
+  layout: LayoutId;
+  refreshing: boolean;
+  headerExtras?: React.ReactNode;
+}) {
   const focusGameId = useLibrary((s) => s.focusGameId);
   const push = useNavigation((s) => s.push);
   const play = useSession((s) => s.play);
@@ -191,17 +216,88 @@ function HomeLibrary({ active, games, layout }: { active: boolean; games: GameDt
     }
   }, active);
 
-  const hero = <HeroGame game={heroGame} allGames={heroFocus?.kind === 'all'} now={now} cta={single} />;
-  const allCard = <AllGamesCard count={games.length} focusKey={FOCUS_ALL} onOpen={openAll} onFocusAll={onFocusAll} />;
-  const card = (game: GameDto, key: string, wide = false) => (
-    <GameCard key={key} game={game} focusKey={key} onPlay={play} onFocusGame={onFocusGame} wide={wide} />
+  const allGames = heroFocus?.kind === 'all';
+  const allCard = (
+    <AllGamesCard
+      count={games.length}
+      focusKey={FOCUS_ALL}
+      onOpen={openAll}
+      onFocusAll={onFocusAll}
+      label={layout === 'sofa' ? undefined : layout === 'vitrine' ? 'Biblioteca de jogos' : 'Meus jogos'}
+    />
+  );
+  // Vitrine: o jogo selecionado continua destacado quando o foco desce para "Jogar" ou sobe para a barra.
+  const selectedId = single ? (heroGame?.id ?? null) : null;
+  const card = (game: GameDto, key: string, featured = false) => (
+    <GameCard
+      key={key}
+      game={game}
+      focusKey={key}
+      onPlay={play}
+      onFocusGame={onFocusGame}
+      featured={featured}
+      on={selectedId === game.id}
+    />
+  );
+
+  if (layout === 'sofa') {
+    return (
+      <FocusLayer focusKey="home" defaultFocus={initialKey} active={active} rememberFocus>
+        <HeroGame game={heroGame} allGames={allGames} now={now} />
+        <div className="rows" ref={rootRef}>
+          {recents.length > 0 ? (
+            <section className="rowblock" aria-label="Recentes">
+              <div className="rowtitle">Recentes</div>
+              <div className="row">{recents.map((game) => card(game, focusKeyRecent(game.id)))}</div>
+            </section>
+          ) : null}
+          <section className="rowblock" aria-label="Biblioteca">
+            <div className="rowtitle">Biblioteca</div>
+            <div className="row">
+              {libraryRow.map((game) => card(game, focusKeyLibrary(game.id)))}
+              {allCard}
+            </div>
+          </section>
+        </div>
+      </FocusLayer>
+    );
+  }
+
+  const header = (
+    <ConsoleHeader layout={layout} refreshing={refreshing}>
+      {headerExtras}
+    </ConsoleHeader>
   );
 
   if (single) {
+    // Vitrine: botoes "Jogar" e "⋯" abaixo do nome, como no console (↓ a partir do icone).
+    const actions = heroGame ? (
+      <>
+        <Focusable focusKey={FOCUS_HERO_PLAY} className="hero-btn" role="button" onActivate={() => play(heroGame)}>
+          <Icon name="play" size="s" />
+          <span>{heroGame.inProgress ? 'Voltar ao jogo' : 'Jogar'}</span>
+        </Focusable>
+        <Focusable
+          focusKey={FOCUS_HERO_MORE}
+          className="hero-more"
+          role="button"
+          ariaLabel="Opções do jogo"
+          onActivate={() => push('gameOptions', FOCUS_HERO_MORE, { gameId: heroGame.id })}
+        >
+          <Icon name="more" size="s" />
+        </Focusable>
+      </>
+    ) : allGames ? (
+      <Focusable focusKey={FOCUS_HERO_PLAY} className="hero-btn" role="button" onActivate={openAll}>
+        <Icon name="grid" size="s" />
+        <span>Abrir</span>
+      </Focusable>
+    ) : null;
     const recentIds = new Set(recents.map((g) => g.id));
     return (
       <FocusLayer focusKey="home" defaultFocus={initialKey} active={active} rememberFocus>
-        <Backdrop game={heroGame} />
+        <Backdrop game={heroGame} layered />
+        {header}
         <div className="rows" ref={rootRef}>
           <section className="rowblock" aria-label="Jogos">
             <div className="row">
@@ -210,28 +306,34 @@ function HomeLibrary({ active, games, layout }: { active: boolean; games: GameDt
             </div>
           </section>
         </div>
-        {hero}
+        <HeroGame game={heroGame} allGames={allGames} now={now} actions={actions} />
       </FocusLayer>
     );
   }
 
-  const mosaic = layout === 'mosaico';
+  // Mosaico: primeira fileira sem titulo (ultimo jogado em bloco grande + "Meus jogos" no fim), depois Biblioteca.
+  const hasRecents = recents.length > 0;
   return (
     <FocusLayer focusKey="home" defaultFocus={initialKey} active={active} rememberFocus>
-      {mosaic ? <Backdrop game={heroGame} /> : null}
-      {hero}
+      <Backdrop game={heroGame} />
+      {header}
+      <div className="c-stage" aria-live="polite">
+        <span className="clamp1">{heroGame ? heroGame.name : allGames ? 'Todos os jogos' : ''}</span>
+      </div>
       <div className="rows" ref={rootRef}>
-        {recents.length > 0 ? (
-          <section className="rowblock" aria-label="Recentes">
-            <div className="rowtitle">Recentes</div>
-            <div className="row">{recents.map((game, i) => card(game, focusKeyRecent(game.id), mosaic && i === 0))}</div>
+        {hasRecents ? (
+          <section className="rowblock first" aria-label="Recentes">
+            <div className="row">
+              {recents.map((game, i) => card(game, focusKeyRecent(game.id), i === 0))}
+              {allCard}
+            </div>
           </section>
         ) : null}
         <section className="rowblock" aria-label="Biblioteca">
           <div className="rowtitle">Biblioteca</div>
           <div className="row">
             {libraryRow.map((game) => card(game, focusKeyLibrary(game.id)))}
-            {allCard}
+            {hasRecents ? null : allCard}
           </div>
         </section>
       </div>
