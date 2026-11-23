@@ -203,7 +203,7 @@ fn error_dto_serializa_como_o_contrato() {
 #[test]
 fn todo_app_error_tem_o_mesmo_codigo_no_dto() {
     use launcher_core::application::error::ALL_CODES;
-    // O enum `ErrorCode` serializa os mesmos 26 nomes do contrato.
+    // O enum `ErrorCode` serializa os mesmos 28 nomes do contrato.
     let json = serde_json::to_value(ErrorCode::Busy).unwrap();
     assert_eq!(json, json!("Busy"));
     for code in ALL_CODES {

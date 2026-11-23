@@ -6,6 +6,7 @@ import { useNavigation } from '@/app/navigation/store';
 import { SafeArea } from '@/app/SafeArea';
 import { AppHeader } from '@/features/library/components/AppHeader';
 import { useLibrary } from '@/features/library/store';
+import { useUpdate } from '@/features/update/store';
 import { useBackHandler } from '@/shared/input/activation';
 import { events } from '@/shared/ipc';
 import { scrollBehavior } from '@/shared/theme/motion';
@@ -15,7 +16,7 @@ import { Switch } from '@/shared/ui/Controls';
 import { Focusable, FocusLayer } from '@/shared/ui/Focusable';
 import { Icon, type IconName } from '@/shared/ui/Icon';
 import { MenuList, type MenuItemSpec } from '@/shared/ui/MenuList';
-import { APP_FOOTER, chosenMonitorMissing, librarySummary, mechanismLabel } from './domain';
+import { APP_FOOTER, APP_VERSION, chosenMonitorMissing, librarySummary, mechanismLabel } from './domain';
 import { useSettings } from './store';
 import './settings.css';
 
@@ -73,6 +74,7 @@ export default function SettingsScreen({
   const autostartFailed = useSettings((s) => s.autostartFailed);
   const games = useLibrary((s) => s.games);
   const refreshing = useLibrary((s) => s.refreshing);
+  const updatePhase = useUpdate((s) => s.phase);
 
   useEffect(() => {
     void useSettings.getState().load();
@@ -150,6 +152,15 @@ export default function SettingsScreen({
               right: <Switch on={settings?.autostart ?? false} />,
               onSelect: () => void st().setAutostart(!(settings?.autostart ?? false)),
             },
+            {
+              id: 'update',
+              label: 'Procurar atualizações',
+              icon: 'download' as const,
+              hint: `Você usa a versão ${APP_VERSION}. Precisa de internet.`,
+              right:
+                updatePhase !== 'idle' ? <div className="spinner sm" role="status" aria-label="Procurando atualizações" /> : null,
+              onSelect: () => void useUpdate.getState().check(true),
+            },
           ],
           after: (
             <>
@@ -206,7 +217,7 @@ export default function SettingsScreen({
           ),
         };
     }
-  }, [tab, settings, monitors, hidden, games, refreshing, autostartFailed, push]);
+  }, [tab, settings, monitors, hidden, games, refreshing, autostartFailed, updatePhase, push]);
 
   const firstKey = pane.items.find((i) => !i.disabled) ? `menu-${pane.items.find((i) => !i.disabled)!.id}` : null;
   const enterPane = () => {

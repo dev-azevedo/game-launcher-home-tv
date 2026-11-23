@@ -1,4 +1,4 @@
-// Lista fechada dos 30 comandos (arquitetura 4.1, contrato secao 2). Fonte unica: `build.rs`
+// Lista fechada dos 32 comandos (arquitetura 4.1, contrato secao 2). Fonte unica: `build.rs`
 // gera o `AppManifest` a partir dela e os testes comparam `generate_handler!` e
 // `capabilities/main.json` com ela (INV-02, CT-08). Comando novo exige revisao de seguranca.
 pub const COMMAND_NAMES: &[&str] = &[
@@ -32,4 +32,6 @@ pub const COMMAND_NAMES: &[&str] = &[
     "display_monitors",
     "input_status",
     "app_exit",
+    "update_check",
+    "update_install",
 ];

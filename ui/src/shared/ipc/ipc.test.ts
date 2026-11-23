@@ -8,7 +8,7 @@ afterEach(() => resetCore());
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 describe('comandos', () => {
-  it('a fachada cobre os 30 comandos do contrato, cada um chamando o nome certo', async () => {
+  it('a fachada cobre os 32 comandos do contrato, cada um chamando o nome certo', async () => {
     const core = mockCore(Object.fromEntries(COMMAND_NAMES.map((c) => [c, null])));
     await ipc.libraryGet();
     await ipc.libraryRefresh();
@@ -40,7 +40,9 @@ describe('comandos', () => {
     await ipc.displayMonitors();
     await ipc.inputStatus();
     await ipc.appExit();
-    expect(COMMAND_NAMES).toHaveLength(30);
+    await ipc.updateCheck();
+    await ipc.updateInstall();
+    expect(COMMAND_NAMES).toHaveLength(32);
     expect(core.calls.map((c) => c.command).sort()).toEqual([...COMMAND_NAMES].sort());
   });
 
@@ -100,9 +102,9 @@ describe('eventos', () => {
     expect(got).toHaveLength(3);
   });
 
-  it('cobre os 8 eventos do contrato e entrega o estado completo', async () => {
+  it('cobre os 9 eventos do contrato e entrega o estado completo', async () => {
     mockCore();
-    expect(EVENT_NAMES).toHaveLength(8);
+    expect(EVENT_NAMES).toHaveLength(9);
     const spy = {
       controllers: vi.fn(),
       library: vi.fn(),
@@ -111,6 +113,7 @@ describe('eventos', () => {
       volume: vi.fn(),
       display: vi.fn(),
       resumed: vi.fn(),
+      update: vi.fn(),
     };
     const offs = [
       events.controllers(spy.controllers),
@@ -120,6 +123,7 @@ describe('eventos', () => {
       events.volumeChanged(spy.volume),
       events.displayChanged(spy.display),
       events.systemResumed(spy.resumed),
+      events.updateProgress(spy.update),
     ];
     await flush();
     await emitCoreEvent('input://controllers', { connected: 2 });
@@ -130,6 +134,8 @@ describe('eventos', () => {
     await emitCoreEvent('volume://changed', { level: 40, muted: false, available: true });
     await emitCoreEvent('display://changed', []);
     await emitCoreEvent('system://resumed', {});
+    await emitCoreEvent('update://progress', { downloaded: 512, total: 2048 });
+    await emitCoreEvent('update://progress', { downloaded: 'x', total: 2048 });
     expect(spy.controllers).toHaveBeenCalledTimes(1);
     expect(spy.controllers).toHaveBeenCalledWith(2);
     expect(spy.library).toHaveBeenCalledWith({ games: [], focusGameId: 'steam:620' });
@@ -138,6 +144,8 @@ describe('eventos', () => {
     expect(spy.volume).toHaveBeenCalledTimes(1);
     expect(spy.display).toHaveBeenCalledWith([]);
     expect(spy.resumed).toHaveBeenCalledTimes(1);
+    expect(spy.update).toHaveBeenCalledTimes(1);
+    expect(spy.update).toHaveBeenCalledWith({ downloaded: 512, total: 2048 });
     offs.forEach((off) => off());
   });
 });

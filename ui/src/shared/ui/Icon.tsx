@@ -74,6 +74,7 @@ const PATHS = {
     </>
   ),
   pencil: <path d="M4 20l1-4L16 5a2.1 2.1 0 013 3L8 19l-4 1z" />,
+  download: <path d="M12 4.5v10M7.5 10.5l4.5 4.5 4.5-4.5M5 19.5h14" />,
   refresh: (
     <>
       <path d="M19.5 12a7.5 7.5 0 11-2.4-5.5" />

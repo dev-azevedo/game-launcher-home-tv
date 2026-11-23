@@ -16,6 +16,7 @@ pub mod marks;
 pub mod runtime;
 pub mod single_instance;
 pub mod state;
+pub mod updater;
 pub mod webview_hardening;
 pub mod window;
 
@@ -28,7 +29,7 @@ use tauri::{Builder, Manager, Runtime};
 /// `generate_handler!` e `capabilities/main.json` sao comparados com a lista em
 /// `tests/command_list.rs` (INV-02).
 pub fn configure<R: Runtime>(builder: Builder<R>) -> Builder<R> {
-    use commands::{library::*, power::*, session::*, settings::*, volume::*};
+    use commands::{library::*, power::*, session::*, settings::*, update::*, volume::*};
     builder
         .manage(state::AppState::default())
         // `cover://<gameId>` (SEC-08): fora da thread da janela, so GameId existente.
@@ -73,6 +74,8 @@ pub fn configure<R: Runtime>(builder: Builder<R>) -> Builder<R> {
             display_monitors,
             input_status,
             app_exit,
+            update_check,
+            update_install,
         ])
 }
 
@@ -81,9 +84,19 @@ pub fn configure<R: Runtime>(builder: Builder<R>) -> Builder<R> {
 pub fn run(start: StartMode) {
     marks::start(start);
     // O plugin de instancia unica vai primeiro (SEC-19, BE-35).
-    configure(tauri::Builder::default().plugin(single_instance::plugin()))
+    // SEC-33: o updater so e usado pelo Rust (`updater.rs`); a capability nao da `updater:` a UI.
+    let builder = tauri::Builder::default()
+        .plugin(single_instance::plugin())
+        .plugin(tauri_plugin_updater::Builder::new().build());
+    configure(builder)
         .setup(|app| {
             bootstrap::init_user_data(app)?;
+            let _ = app
+                .state::<state::AppState>()
+                .updater
+                .set(std::sync::Arc::new(updater::TauriUpdater::new(
+                    app.handle().clone(),
+                )));
             tracing::info!(origem = marks::origin(), "partida");
             bootstrap::init_volume(app.handle());
             bootstrap::init_power(app.handle());

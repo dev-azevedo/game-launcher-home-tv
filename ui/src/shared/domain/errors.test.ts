@@ -46,8 +46,8 @@ describe('texto por codigo de erro', () => {
 });
 
 describe('cobertura do contrato (docs/api secao 5)', () => {
-  it('os 26 codigos do contrato tem texto proprio, sem cair em "Desconhecido" por omissao', () => {
-    expect(CONTRACT_ERROR_CODES).toHaveLength(26);
+  it('os 28 codigos do contrato tem texto proprio, sem cair em "Desconhecido" por omissao', () => {
+    expect(CONTRACT_ERROR_CODES).toHaveLength(28);
     for (const code of CONTRACT_ERROR_CODES) expect(KNOWN_ERROR_CODES).toContain(code);
   });
 

@@ -30,6 +30,9 @@ serde_json = "1.0.154"
 tauri = { version = "2", default-features = false, features = ["wry", "compression"] }
 # BE-35 (SEC-19): so traz a janela; o callback descarta argv e cwd.
 tauri-plugin-single-instance = "2.5"
+# SEC-33, ADR-0008: atualizacao do app so pelo Rust (sem permissao na capability). TLS do Windows
+# (schannel via native-tls), sem rustls e sem zip.
+tauri-plugin-updater = { version = "2.14", default-features = false, features = ["native-tls"] }
 tracing = "0.1.44"
 ts-rs = "10.1.0"
 webview2-com = "0.39"

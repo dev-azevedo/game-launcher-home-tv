@@ -1,4 +1,4 @@
-//! `AppError`: erro de aplicacao com os 26 codigos do contrato (secao 5 de
+//! `AppError`: erro de aplicacao com os 28 codigos do contrato (secao 5 de
 //! `docs/api/launcher-tv.md`). A apresentacao mapeia para `ErrorDto` num lugar so (SEC-06).
 //!
 //! `Display` serve ao log: nunca leva caminho nem texto do sistema. `params` do contrato so
@@ -60,10 +60,14 @@ pub enum AppError {
     AutostartFailed,
     #[error("monitor desconhecido")]
     UnknownMonitor,
+    #[error("atualizacao do app falhou")]
+    UpdateFailed,
+    #[error("instalador da atualizacao recusado")]
+    UpdateCancelled,
 }
 
-/// Os 26 codigos do contrato, na ordem da secao 5.
-pub const ALL_CODES: [&str; 26] = [
+/// Os 28 codigos do contrato, na ordem da secao 5.
+pub const ALL_CODES: [&str; 28] = [
     "Busy",
     "InvalidRequest",
     "Internal",
@@ -90,6 +94,8 @@ pub const ALL_CODES: [&str; 26] = [
     "Rejected",
     "AutostartFailed",
     "UnknownMonitor",
+    "UpdateFailed",
+    "UpdateCancelled",
 ];
 
 impl AppError {
@@ -122,6 +128,8 @@ impl AppError {
             AppError::Rejected => "Rejected",
             AppError::AutostartFailed => "AutostartFailed",
             AppError::UnknownMonitor => "UnknownMonitor",
+            AppError::UpdateFailed => "UpdateFailed",
+            AppError::UpdateCancelled => "UpdateCancelled",
         }
     }
 
@@ -186,11 +194,13 @@ mod tests {
             AppError::Rejected,
             AppError::AutostartFailed,
             AppError::UnknownMonitor,
+            AppError::UpdateFailed,
+            AppError::UpdateCancelled,
         ]
     }
 
     #[test]
-    fn codigos_de_app_error_sao_os_26_do_contrato_em_ordem() {
+    fn codigos_de_app_error_sao_os_28_do_contrato_em_ordem() {
         let codes: Vec<&str> = one_of_each().iter().map(AppError::code).collect();
         assert_eq!(codes, ALL_CODES);
     }

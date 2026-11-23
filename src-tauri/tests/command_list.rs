@@ -1,4 +1,4 @@
-//! INV-02 / SEC-03 / SEC-05 / CT-08: a lista fechada de 30 comandos esta igual em todos os lugares
+//! INV-02 / SEC-03 / SEC-05 / CT-08: a lista fechada de 32 comandos esta igual em todos os lugares
 //! (contrato, `command_list.rs`, `generate_handler!`, `build.rs` e `capabilities/main.json`), e a
 //! capability nao ganha nada alem disso.
 
@@ -30,14 +30,14 @@ fn kebab(name: &str) -> String {
 }
 
 #[test]
-fn lista_tem_30_nomes_unicos() {
-    assert_eq!(COMMAND_NAMES.len(), 30);
-    assert_eq!(list_set().len(), 30);
+fn lista_tem_32_nomes_unicos() {
+    assert_eq!(COMMAND_NAMES.len(), 32);
+    assert_eq!(list_set().len(), 32);
 }
 
 /// Tabela da secao 2 do contrato (`| N | `comando` |`).
 #[test]
-fn contrato_secao_2_lista_os_mesmos_30_comandos() {
+fn contrato_secao_2_lista_os_mesmos_32_comandos() {
     let doc = read("../docs/api/launcher-tv.md");
     let section = doc
         .split("## 2. Comandos")
@@ -93,7 +93,7 @@ fn permissions(cap: &Value) -> Vec<String> {
 }
 
 #[test]
-fn capability_main_so_tem_allow_dos_30_comandos_e_listen() {
+fn capability_main_so_tem_allow_dos_32_comandos_e_listen() {
     let cap = capability();
     assert_eq!(cap["identifier"], "main");
     assert_eq!(cap["windows"], serde_json::json!(["main"]));
@@ -319,10 +319,40 @@ fn tauri_sem_features_de_devtools_nem_plugins() {
         "tauri-plugin-opener",
         "tauri-plugin-dialog",
         "tauri-plugin-process",
-        "tauri-plugin-updater",
         "tauri-plugin-sql",
         "tauri-plugin-autostart",
     ] {
         assert!(!deps.contains(banned), "SEC-04: {banned}");
     }
+}
+
+/// SEC-33, ADR-0008: o updater entra so no Rust, sem `rustls` nem `zip`, com chave minisign e
+/// endpoint HTTPS fixo do GitHub Releases; instalacao passiva (UAC). A webview segue sem
+/// permissao `updater:` (teste da capability) e sem origem externa na CSP (tests/csp.rs).
+#[test]
+fn updater_so_no_rust_com_assinatura_e_endpoint_fixo() {
+    let manifest = read("Cargo.toml");
+    let deps = manifest.split("[dependencies]").nth(1).unwrap();
+    let line = deps
+        .lines()
+        .find(|l| l.trim_start().starts_with("tauri-plugin-updater = "))
+        .expect("dependencia tauri-plugin-updater");
+    assert!(line.contains("default-features = false"), "{line}");
+    assert!(line.contains("native-tls") && !line.contains("rustls") && !line.contains("zip"));
+
+    let conf: Value = serde_json::from_str(&read("tauri.conf.json")).unwrap();
+    assert_eq!(conf["bundle"]["createUpdaterArtifacts"], true);
+    let up = &conf["plugins"]["updater"];
+    let pubkey = up["pubkey"].as_str().expect("pubkey minisign");
+    assert!(pubkey.len() > 40, "pubkey vazia");
+    assert_eq!(
+        up["endpoints"],
+        serde_json::json!([
+            "https://github.com/dev-azevedo/game-launcher-home-tv/releases/latest/download/latest.json"
+        ])
+    );
+    assert_eq!(up["windows"]["installMode"], "passive");
+    assert!(up.get("dangerousInsecureTransportProtocol").is_none());
+    assert!(up.get("dangerousAcceptInvalidCerts").is_none());
+    assert!(up.get("dangerousAcceptInvalidHostnames").is_none());
 }

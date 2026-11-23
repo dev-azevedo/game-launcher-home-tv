@@ -17,7 +17,41 @@
     7. testes do instalador e do desinstalador sem instalar (scripts/test-installer.ps1)
     8. copia o instalador para <releases>\v<versao>\, gera SHA256SUMS.txt, README.txt e BUILD-INFO.txt
        e confere o hash recalculando
+    9. ATUALIZACAO NO APP (SEC-33, ADR-0008): o `tauri build` assina o instalador com a chave minisign
+       (TAURI_SIGNING_PRIVATE_KEY; padrao: %USERPROFILE%\.tauri\sofalauncher.key) e gera o `.sig`. O release
+       ganha `latest.json`, o arquivo que o app consulta em
+       https://github.com/dev-azevedo/game-launcher-home-tv/releases/latest/download/latest.json.
+       Publique o release no GitHub como "Latest" (NAO pre-release) com o instalador, o `.sig` e o `latest.json`.
+       Notas opcionais em docs/releases/v<versao>.md (vao no aviso do app).
 #>
+
+$script:UpdaterRepo = 'dev-azevedo/game-launcher-home-tv'
+
+# Chave privada minisign do updater (SEC-33). O Tauri aceita o conteudo ou o caminho do arquivo em
+# TAURI_SIGNING_PRIVATE_KEY. Sem chave o build nao sai: instalador sem `.sig` nao atualiza ninguem.
+function Resolve-UpdaterSigningKey {
+    if ($env:TAURI_SIGNING_PRIVATE_KEY) { return 'TAURI_SIGNING_PRIVATE_KEY (ambiente)' }
+    $file = Join-Path $env:USERPROFILE '.tauri\sofalauncher.key'
+    if (Test-Path -LiteralPath $file) {
+        $env:TAURI_SIGNING_PRIVATE_KEY = $file
+        return $file
+    }
+    throw "chave de assinatura do updater ausente: defina TAURI_SIGNING_PRIVATE_KEY ou crie $file (npx tauri signer generate -w `"$file`"; a chave publica vai em src-tauri/tauri.conf.json, plugins.updater.pubkey)"
+}
+
+# latest.json no formato do tauri-plugin-updater (estatico, um alvo: windows-x86_64).
+function New-UpdaterManifest([string]$Version, [string]$InstallerName, [string]$Signature, [string]$Notes) {
+    $url = "https://github.com/$($script:UpdaterRepo)/releases/download/v$Version/$InstallerName"
+    $manifest = [ordered]@{
+        version   = $Version
+        notes     = $Notes
+        pub_date  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
+        platforms = [ordered]@{
+            'windows-x86_64' = [ordered]@{ signature = $Signature; url = $url }
+        }
+    }
+    return ($manifest | ConvertTo-Json -Depth 5)
+}
 
 function Get-PinnedRustChannel([string]$Root) {
     $toml = Get-Content -LiteralPath (Join-Path $Root 'rust-toolchain.toml') -Raw
@@ -187,7 +221,10 @@ function Invoke-Release {
             }
         }
 
-        & $Step 'tauri build (MSVC, NSIS)' {
+        $keySource = Resolve-UpdaterSigningKey
+        Write-Host ("Chave do updater: {0}" -f $keySource) -ForegroundColor Cyan
+
+        & $Step 'tauri build (MSVC, NSIS, assinado para o updater)' {
             Push-Location $Root
             try { & (Join-Path $Root 'ui\node_modules\.bin\tauri.cmd') build --target $target --bundles nsis } finally { Pop-Location }
         }
@@ -227,6 +264,16 @@ function Invoke-Release {
             $built = Join-Path $bundleDir $installerName
             if (-not (Test-Path -LiteralPath $built)) { throw "instalador nao encontrado: $built" }
             Copy-Item -LiteralPath $built -Destination (Join-Path $stage $installerName)
+
+            # updater (SEC-33): `.sig` do minisign gerado pelo tauri build e o latest.json
+            $sig = "$built.sig"
+            if (-not (Test-Path -LiteralPath $sig)) { throw "assinatura do updater nao gerada: $sig (createUpdaterArtifacts e TAURI_SIGNING_PRIVATE_KEY)" }
+            $signature = (Get-Content -LiteralPath $sig -Raw).Trim()
+            if (-not $signature) { throw "assinatura do updater vazia: $sig" }
+            Copy-Item -LiteralPath $sig -Destination (Join-Path $stage "$installerName.sig")
+            $notesFile = Join-Path $Root "docs\releases\v$version.md"
+            $notes = if (Test-Path -LiteralPath $notesFile) { (Get-Content -LiteralPath $notesFile -Raw -Encoding UTF8).Trim() } else { "SofaLauncher $version" }
+            [System.IO.File]::WriteAllText((Join-Path $stage 'latest.json'), (New-UpdaterManifest $version $installerName $signature $notes), (New-Object System.Text.UTF8Encoding($false)))
             $hash = (Get-FileHash -LiteralPath (Join-Path $stage $installerName) -Algorithm SHA256).Hash.ToLowerInvariant()
             # formato do `sha256sum -c` (hash, dois espacos, nome), LF
             [System.IO.File]::WriteAllText((Join-Path $stage 'SHA256SUMS.txt'), ("{0}  {1}`n" -f $hash, $installerName), (New-Object System.Text.UTF8Encoding($false)))
@@ -250,6 +297,8 @@ function Invoke-Release {
                 "A pasta e fixa: nao ha escolha de pasta e a opcao /D= de outra pasta e recusada.",
                 "Sem o WebView2 (comum so no Windows 10), o instalador baixa da Microsoft e precisa de internet.",
                 "Desinstalar: Configuracoes > Aplicativos instalados > SofaLauncher. A caixa 'Manter dados' vem marcada.",
+                "Atualizacoes: o SofaLauncher procura versao nova ao abrir e pergunta antes de instalar (Configuracoes > Geral > Procurar atualizacoes).",
+                "O instalador baixado pelo app so roda se a assinatura (arquivo .sig, chave do projeto) conferir.",
                 "",
                 "Relatorios desta versao: pasta 'relatorios' (cargo deny e npm audit). Detalhes do build: BUILD-INFO.txt."
             )
@@ -283,6 +332,7 @@ function Invoke-Release {
             Move-Item -LiteralPath $stage -Destination $outDir
             Write-Host ("  pasta de release: {0}" -f $outDir)
             Write-Host ("  {0}  {1}" -f $pub, $name)
+            Write-Host ("  updater: publique no GitHub como Latest (nao pre-release): {0}, {0}.sig e latest.json" -f $installerName) -ForegroundColor Yellow
         }
     }
     finally {

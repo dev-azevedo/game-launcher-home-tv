@@ -1,10 +1,10 @@
 import { isInputIntent, type IntentEvent, type IntentSource } from '@/shared/input/intents';
 import { listenRaw } from './transport';
-import type { FrontOutcome, LibrarySnapshot, MonitorDto, SessionDto, VolumeState } from './types';
+import type { FrontOutcome, LibrarySnapshot, MonitorDto, SessionDto, UpdateProgressEvent, VolumeState } from './types';
 
 type Unsubscribe = () => void;
 
-/** Oito eventos do nucleo (docs/api secao 3). Carregam estado completo, nao deltas. */
+/** Nove eventos do nucleo (docs/api secao 3). Carregam estado completo, nao deltas. */
 export const events = {
   controllers: (handler: (connected: number) => void): Unsubscribe =>
     listenRaw('input://controllers', (p) => {
@@ -36,6 +36,12 @@ export const events = {
       if (Array.isArray(p)) handler(p as MonitorDto[]);
     }),
   systemResumed: (handler: () => void): Unsubscribe => listenRaw('system://resumed', () => handler()),
+  updateProgress: (handler: (progress: UpdateProgressEvent) => void): Unsubscribe =>
+    listenRaw('update://progress', (p) => {
+      const { downloaded, total } = (p ?? {}) as { downloaded?: unknown; total?: unknown };
+      if (typeof downloaded !== 'number' || downloaded < 0) return;
+      handler({ downloaded, total: typeof total === 'number' && total > 0 ? total : null });
+    }),
 } as const;
 
 /**

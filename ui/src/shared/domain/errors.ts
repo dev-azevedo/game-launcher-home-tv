@@ -2,7 +2,7 @@ import type { ErrorDto, Origin } from '@/shared/ipc/types';
 
 /**
  * Texto pt-BR por codigo de erro (catalogo: docs/design/launcher-tv/microcopy.md, secao 2),
- * cobrindo os 26 codigos de docs/api/launcher-tv.md. A UI traduz o `code` e nunca mostra texto
+ * cobrindo os 28 codigos de docs/api/launcher-tv.md. A UI traduz o `code` e nunca mostra texto
  * vindo do nucleo (SEC-06). Os `params` (`gameId`, `origin`) so resolvem o nome do jogo (pela
  * biblioteca) e o nome da loja. Codigo fora da tabela cai em "Desconhecido".
  */
@@ -128,6 +128,14 @@ const CATALOG: Record<string, CopyFactory> = {
   UnknownMonitor: () => ({
     message: 'Esse monitor não está mais conectado. Escolha outro.',
     actions: [],
+  }),
+  UpdateFailed: () => ({
+    message: 'Não foi possível baixar a atualização. Confira a internet e tente de novo.',
+    actions: ['Voltar'],
+  }),
+  UpdateCancelled: () => ({
+    message: 'A atualização não foi instalada porque o Windows não deu permissão. Tente de novo quando quiser.',
+    actions: ['Voltar'],
   }),
 };
 

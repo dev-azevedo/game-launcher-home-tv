@@ -49,9 +49,9 @@ fn gera_bindings_e_confere_o_contrato() {
         FrontOutcome, AutostartMechanism, DirEntryKind, LaunchFailure, ErrorCode,
         // saidas
         GameDto, LibrarySnapshot, SessionDto, VolumeState, MonitorDto, SettingsDto, DirEntry,
-        DirListing, PowerCapabilities, InputStatus, ErrorParams, ErrorDto,
+        DirListing, PowerCapabilities, InputStatus, UpdateDto, ErrorParams, ErrorDto,
         // eventos
-        InputIntentEvent, ControllersEvent, SessionPanelEvent,
+        InputIntentEvent, ControllersEvent, SessionPanelEvent, UpdateProgressEvent,
         // entradas
         GameIdArgs, RenameArgs, AddManualArgs, ListDirArgs, VolumeStepArgs, PowerPrepareArgs,
         PowerExecuteArgs, SetAutostartArgs, SetMonitorArgs,
@@ -91,8 +91,8 @@ fn gera_bindings_e_confere_o_contrato() {
     }
     assert_eq!(
         error_code.matches('"').count(),
-        26 * 2,
-        "ErrorCode deve ter exatamente 26 codigos"
+        28 * 2,
+        "ErrorCode deve ter exatamente 28 codigos"
     );
 
     // Origin.ts (nome TS do OriginDto) e sem `bigint`/`any`/`unknown` em nenhum tipo.

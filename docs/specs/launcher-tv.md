@@ -119,7 +119,7 @@ Usar estes nomes na UI, no código e nos próximos documentos.
 - Detecção automática da TV entre os monitores.
 - Assinatura de código do instalador.
 - Telemetria e envio de dados para qualquer servidor.
-- Atualização automática do launcher.
+- Atualização silenciosa (sem perguntar) do launcher. A atualização com confirmação do usuário entrou depois do MVP (RN-36, ADR-0008).
 
 ## 6. Premissas de UI
 
@@ -403,9 +403,19 @@ Se o usuário recusar no UAC, aparece "O Windows não deu permissão para abrir 
 5. Depois de fechar, "Iniciar com o Windows" continua como estava. Se estiver ligado, o launcher abre no próximo login (CA-01).
 6. Ao ser aberto de novo (atalho, menu Iniciar ou próximo login), o launcher abre como numa inicialização normal: tela cheia no monitor do launcher, biblioteca com os dados preservados (CA-25) e, se o fechamento aconteceu durante uma sessão, o jogo dela no topo dos recentes (CA-75). Se esse jogo ainda estiver aberto, ele é tratado como aberto fora do launcher (E-07): a sessão não é retomada, o card não mostra "Em andamento" e a combinação de retorno não funciona para ele (D-54).
 
+### Atualização pelo app
+
+**CA-83**: Dado o launcher aberto, com internet e versão nova publicada, quando passam alguns segundos da abertura e nenhum jogo está em sessão, então aparece "Nova versão disponível" com a versão nova, a atual, um resumo das novidades e o aviso de que o Windows vai pedir permissão de administrador (confirmar com teclado ou mouse). "Agora não" fica à esquerda e "Atualizar" à direita, em foco (RN-34). O aviso aparece uma vez por abertura. Com jogo em sessão, espera o jogo fechar.
+
+**CA-84**: Dado o diálogo do CA-83, quando o usuário escolhe "Atualizar", então o launcher mostra o progresso do download. No fim, abre o instalador (o Windows pede UAC), o launcher fecha, o instalador atualiza sem perguntas e reabre o launcher sem administrador. Biblioteca, configurações e "Iniciar com o Windows" ficam (CA-53).
+
+**CA-85**: Dado o download ou o instalador do CA-84, quando falta internet, a assinatura do instalador não confere ou o usuário recusa o UAC, então nada é instalado, o launcher continua aberto e um aviso explica o que houve.
+
+**CA-86**: Dado Configurações > Geral, quando o usuário escolhe "Procurar atualizações", então o launcher procura na hora: com versão nova abre o diálogo do CA-83; sem versão nova avisa "Você já está na versão mais nova."; sem internet avisa que não conseguiu. A versão atual aparece no item.
+
 ## 10. Regras de negócio
 
-**RN-01**: O launcher funciona só com dados locais. Não há login, conta, servidor nem chamada de rede obrigatória.
+**RN-01**: O launcher funciona só com dados locais. Não há login, conta, servidor nem chamada de rede obrigatória. A única chamada de rede é a procura de versão nova (RN-36), e sem internet o launcher funciona igual.
 
 **RN-02**: Jogos entram na biblioteca por quatro origens no MVP: `Manual` (executável escolhido pelo usuário), `Steam`, `Epic` e `GOG` (detectados entre os jogos instalados). Só jogos instalados aparecem. Xbox/Game Pass e outras lojas ficam fora.
 
@@ -474,6 +484,8 @@ Se o usuário recusar no UAC, aparece "O Windows não deu permissão para abrir 
 **RN-34**: Em todo diálogo, "Cancelar" ou "Voltar" fica sempre à esquerda e a ação principal à direita. A posição não muda o foco padrão, que segue RN-14 e o CA de cada diálogo (CA-81).
 
 **RN-35**: "Fechar o launcher" é a única forma de fechar o launcher pelo menu rápido ("Sair do launcher" deixou de existir, D-53). Fica no grupo de energia, junto de "Desligar" e "Reiniciar", mas não é ação de energia: encerra só o launcher e não mexe no PC (D-50, D-51). Sempre pede confirmação com "Cancelar" à esquerda e em foco por padrão (RN-14, RN-34), e a confirmação diz como reabrir: pelo atalho do SofaLauncher ou reiniciando o PC (D-55). O teclado de emergência cobre o item e o diálogo como qualquer ação do controle (RN-07). Com sessão de jogo ativa, o launcher não fecha, não minimiza, não pausa e não traz o jogo à frente antes de sair (D-57); deixa de acompanhar a sessão, e a data de último jogado já gravada no início dela continua valendo (RN-05). Fechar o launcher não altera "Iniciar com o Windows" (RN-17). Enquanto o launcher estiver fechado, a combinação de retorno não tem efeito e o fim do jogo não traz nada à frente. Ao reabrir com o jogo ainda rodando, o jogo é tratado como aberto fora do launcher (E-07): a sessão não é retomada e o jogo fica no topo dos recentes (CA-75, D-54) (CA-82).
+
+**RN-36**: O launcher procura versão nova ao abrir e quando o usuário pede (Configurações > Geral). Nunca instala sem a confirmação do usuário, nunca com jogo em sessão, e só instala o que tem a assinatura do projeto. A procura automática sem internet não mostra nada. Atualizar segue RN-26: exige administrador (UAC), feito com teclado ou mouse (R-04). Origem, assinatura e permissões: ADR-0008 e SEC-33 (CA-83 a CA-86).
 
 ## 11. Requisitos não funcionais
 

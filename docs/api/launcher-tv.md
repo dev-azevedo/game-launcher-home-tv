@@ -87,7 +87,7 @@ ErrorDto { code: string, params?: { gameId?: GameId, origin?: Origin } }
 
 `GameDto` não leva caminho de instalação nem do executável. `logDir` é o único caminho que o núcleo devolve (pasta de logs do próprio Sofá, para o usuário copiar).
 
-## 2. Comandos (UI → núcleo): 30
+## 2. Comandos (UI → núcleo): 32
 
 Legenda: "Auth" é sempre a capability `main` (`allow-<comando>`).
 
@@ -185,9 +185,18 @@ Passo de 5, limite 0 a 100; RT no mudo desmuta e sobe; LT no mudo baixa o nível
 
 `settings_set_autostart`: o núcleo recusa ligar se o exe em execução não estiver em `%ProgramFiles%` (DR-04) → `AutostartFailed`. Os valores `advanced.*` de `settings.json` **não** têm comando (9.3 da arquitetura).
 
+### 2.6 Atualização do app (SEC-33, ADR-0008)
+
+| # | Comando | Entrada | Saída | Erros |
+|---|---|---|---|---|
+| 31 | `update_check` | — | `UpdateDto \| null` (`{ version, currentVersion, notes \| null }`; `null` = já está na versão mais nova) | `UpdateFailed` |
+| 32 | `update_install` | — | `()` só em erro; em sucesso o launcher fecha e o instalador o reabre | `UpdateFailed`, `UpdateCancelled`, `InvalidState`, `Busy` |
+
+Sem argumentos: a UI não escolhe URL, versão nem arquivo. Só o processo Rust acessa a rede (`tauri-plugin-updater`, TLS do Windows); a CSP continua sem origem externa e a capability não tem permissão `updater:`. Endpoint fixo em `tauri.conf.json` (`https://github.com/dev-azevedo/game-launcher-home-tv/releases/latest/download/latest.json`). O instalador baixado só roda se a assinatura minisign bater com a chave pública da configuração e a versão for maior que a instalada. `update_install` recusa com jogo em sessão (`InvalidState`), baixa emitindo `update://progress` e abre o instalador NSIS com `/P /UPDATE /R`: o Windows pede UAC (RN-26), os dados ficam (CA-53) e o launcher reabre sem elevação. UAC recusado → `UpdateCancelled` e o launcher continua aberto.
+
 Nunca expostos como comando: `--purge-user-data`, a escada de primeiro plano, `SendInput`, `power` sem ticket e qualquer acesso a caminho de jogo.
 
-## 3. Eventos (núcleo → UI): 8
+## 3. Eventos (núcleo → UI): 9
 
 Permissão de ouvir: `core:event:allow-listen` (a UI não emite eventos).
 
@@ -201,6 +210,7 @@ Permissão de ouvir: `core:event:allow-listen` (a UI não emite eventos).
 | 6 | `volume://changed` | `VolumeState` | Mudança interna ou externa (teclado, mixer) e troca de dispositivo (CA-41, CA-42) |
 | 7 | `display://changed` | `MonitorDto[]` | Monitor ligado ou desligado (CA-66, CA-67) |
 | 8 | `system://resumed` | `{}` | Volta da suspensão (CA-46) |
+| 9 | `update://progress` | `{ downloaded: number, total: number \| null }` | Download do instalador em `update_install` (a cada 256 KiB e no fim) |
 
 Exemplo (#4, jogo aberto e a tela de espera dispensada):
 ```json
@@ -223,11 +233,11 @@ Exemplo (#4, jogo aberto e a tela de espera dispensada):
 
 `session_launch_with_uac` só em `NeedsElevation`; `session_replace` só em `Running` (em `CloseOverdue` e nos demais → `InvalidState`) e só pede o fechamento normal; o novo jogo abre depois de `Idle` (CT-01).
 
-## 5. Códigos de erro (26)
+## 5. Códigos de erro (28)
 
 | Código | `params` | Comandos | Significado |
 |---|---|---|---|
-| `Busy` | — | #2, #11, #12, #13, #17 | Outra ação serializada em andamento |
+| `Busy` | — | #2, #11, #12, #13, #17, #32 | Outra ação serializada em andamento |
 | `InvalidRequest` | — | todos | Campo extra/ausente, tipo errado, `GameId`/`MonitorId`/ticket mal formado, comprimento fora do limite |
 | `Internal` | — | todos | Falha inesperada ou pânico capturado; detalhe só no log |
 | `Duplicate` | — | #3 | Jogo já cadastrado (CA-20) |
@@ -243,7 +253,7 @@ Exemplo (#4, jogo aberto e a tela de espera dispensada):
 | `StoreNotInstalled` | `origin` | #11, #12, #13, #17 | Steam/Epic ausente |
 | `NeedsElevation` | `gameId` | #11, #13, #17 | Jogo exige administrador; aviso da 1ª etapa (CA-73) |
 | `ElevationDenied` | `gameId` | #12 | UAC recusado. Também aparece como `launchFailure` em `SessionDto` |
-| `InvalidState` | — | #12, #13 (também em `CloseOverdue`), #15, #17 | Comando fora do estado permitido (seção 4) |
+| `InvalidState` | — | #12, #13 (também em `CloseOverdue`), #15, #17, #32 (jogo em sessão) | Comando fora do estado permitido (seção 4) |
 | `NoActiveSession` | — | #14, #15, #16 | Não há jogo aberto |
 | `ForegroundDenied` | — | #14 | A escada não trouxe o jogo à frente |
 | `NotOverdue` | — | #16 | Forçar fora de `CloseOverdue` |
@@ -253,6 +263,8 @@ Exemplo (#4, jogo aberto e a tela de espera dispensada):
 | `Rejected` | — | #24 | O Windows recusou o pedido |
 | `AutostartFailed` | — | #26 | Não conseguiu ligar/desligar (inclui exe fora de `%ProgramFiles%`) |
 | `UnknownMonitor` | — | #27 | `monitorId` fora de `display_monitors` |
+| `UpdateFailed` | — | #31, #32 | Sem internet, servidor fora, release sem `latest.json` ou assinatura inválida; nada é executado |
+| `UpdateCancelled` | — | #32 | O instalador não abriu (em geral o UAC recusado); o launcher continua aberto |
 
 Exemplos:
 ```json

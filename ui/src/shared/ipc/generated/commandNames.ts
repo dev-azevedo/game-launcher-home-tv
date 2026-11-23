@@ -32,6 +32,8 @@ export const COMMAND_NAMES = [
   'display_monitors',
   'input_status',
   'app_exit',
+  'update_check',
+  'update_install',
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];

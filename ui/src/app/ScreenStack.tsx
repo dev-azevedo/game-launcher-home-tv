@@ -10,6 +10,7 @@ import { useLibrary } from '@/features/library/store';
 import { CloseConfirmDialog } from '@/features/session/CloseConfirmDialog';
 import { LaunchFlow, useLaunchFlowEntry } from '@/features/session/LaunchFlow';
 import { SessionPanel } from '@/features/session/SessionPanel';
+import { UpdateDialog } from '@/features/update/UpdateDialog';
 import { Toast } from '@/shared/ui/Toast';
 import { useNavigation } from './navigation/store';
 
@@ -56,6 +57,8 @@ export function ScreenStack({ headerExtras }: { headerExtras?: React.ReactNode }
                 return <PowerDialog key={entry.key} active={active} entry={entry} />;
               case 'exit':
                 return <ExitDialog key={entry.key} active={active} entry={entry} />;
+              case 'update':
+                return <UpdateDialog key={entry.key} active={active} entry={entry} />;
               default:
                 return null;
             }

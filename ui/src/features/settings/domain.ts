@@ -1,5 +1,6 @@
 import type { AutostartMechanism, GameDto, MonitorDto, Origin, SettingsDto } from '@/shared/ipc';
 import { originLabel } from '@/shared/ui/Badges';
+import { version } from '../../../package.json';
 
 const ORDER: Origin[] = ['Steam', 'Epic', 'Gog', 'Manual'];
 
@@ -26,4 +27,7 @@ const MECHANISM: Record<AutostartMechanism, string> = {
 /** Texto do mecanismo de inicializacao (so leitura, sem acao). */
 export const mechanismLabel = (m: AutostartMechanism): string => MECHANISM[m];
 
-export const APP_FOOTER = 'SofaLauncher 0.2.0 · Fontes Sora e Figtree sob licença OFL';
+/** Versao do app: a do `package.json`, travada igual a do `tauri.conf.json` (tests/command_list.rs). */
+export const APP_VERSION: string = version;
+
+export const APP_FOOTER = `SofaLauncher ${APP_VERSION} · Fontes Sora e Figtree sob licença OFL`;

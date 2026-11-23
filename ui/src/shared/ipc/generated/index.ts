@@ -36,6 +36,8 @@ export type { SessionState } from './SessionState';
 export type { SetAutostartArgs } from './SetAutostartArgs';
 export type { SetMonitorArgs } from './SetMonitorArgs';
 export type { SettingsDto } from './SettingsDto';
+export type { UpdateDto } from './UpdateDto';
+export type { UpdateProgressEvent } from './UpdateProgressEvent';
 export type { VolumeDirection } from './VolumeDirection';
 export type { VolumeState } from './VolumeState';
 export type { VolumeStepArgs } from './VolumeStepArgs';

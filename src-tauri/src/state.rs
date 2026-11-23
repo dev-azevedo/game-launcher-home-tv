@@ -56,4 +56,6 @@ pub struct AppState {
     /// A primeira leitura da biblioteca (primeiro paint da UI) dispara a varredura em segundo
     /// plano, uma vez so (BE-40).
     pub initial_refresh: AtomicBool,
+    /// Atualizacao do app (SEC-33); definido no `setup` com o plugin do updater registrado.
+    pub updater: OnceLock<Arc<dyn crate::updater::AppUpdater>>,
 }

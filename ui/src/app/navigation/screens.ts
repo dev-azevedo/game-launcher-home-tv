@@ -19,7 +19,7 @@ export type ScreenKind = (typeof SCREEN_KINDS)[number];
 export interface ScreenParams {
   gameId?: string;
   /** Qual confirmacao o `confirmDialog` mostra. */
-  confirm?: 'hide' | 'close' | 'power' | 'exit' | 'restore';
+  confirm?: 'hide' | 'close' | 'power' | 'exit' | 'restore' | 'update';
   /** Acao de energia do `confirmDialog` `power` (so o enum, nunca texto livre). */
   power?: 'Shutdown' | 'Restart' | 'Suspend';
 }

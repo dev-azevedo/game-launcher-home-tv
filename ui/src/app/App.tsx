@@ -9,6 +9,7 @@ import { startLibrary, useLibrary } from '@/features/library/store';
 import { ControllerBanner, ControllerChip } from '@/features/input/ControllerStatus';
 import { startControllers } from '@/features/input/store';
 import { startSession } from '@/features/session/store';
+import { startUpdates } from '@/features/update/store';
 import { startVolume } from '@/features/volume/store';
 import { VolumeHud } from '@/features/volume/VolumeHud';
 import { createKeyboardSource } from '@/shared/input/keyboard';
@@ -35,7 +36,7 @@ export function App() {
       if (import.meta.env.DEV && needsDevCore()) await (await import('../dev/devCore')).installDevCore();
       if (cancelled) return;
       setCoreReady(true);
-      stops = [startLibrary(), startSession(), startControllers(), startVolume(), startSystemResume(), startBackgroundGuard()];
+      stops = [startLibrary(), startSession(), startControllers(), startVolume(), startSystemResume(), startBackgroundGuard(), startUpdates()];
     })();
     return () => {
       cancelled = true;

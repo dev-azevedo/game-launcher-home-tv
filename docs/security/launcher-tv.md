@@ -325,8 +325,8 @@ Executável do launcher chama `SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYST
 Teste: Process Monitor durante a instalação e a primeira execução: nenhuma tentativa de carregar DLL a partir de Downloads ou da pasta de dados.
 
 **SEC-24 [ALTO] Toolchain e dependências.** (back + front)
-Rust estável >= 1.77.2 (correção de CVE-2024-24576 no `Command` com `.bat/.cmd`) fixado em `rust-toolchain.toml`. `Cargo.lock` e lockfile do gerenciador JS commitados. `cargo audit` (ou `cargo deny`) e audit nativo do gerenciador JS sem achado crítico/alto alcançável antes de cada release. Scripts de instalação de pacotes JS bloqueados por padrão (`ignore-scripts` ou política equivalente), com exceções explícitas. Nenhuma dependência de cliente HTTP no núcleo (ex.: `reqwest`) nem plugin `updater` (RN-01, sem atualização automática). WebView2 Evergreen (AF-07).
-Teste: `cargo tree | grep -i -E "reqwest|hyper|ureq"` vazio; relatório de audit anexado ao PR de release.
+Rust estável >= 1.77.2 (correção de CVE-2024-24576 no `Command` com `.bat/.cmd`) fixado em `rust-toolchain.toml`. `Cargo.lock` e lockfile do gerenciador JS commitados. `cargo audit` (ou `cargo deny`) e audit nativo do gerenciador JS sem achado crítico/alto alcançável antes de cada release. Scripts de instalação de pacotes JS bloqueados por padrão (`ignore-scripts` ou política equivalente), com exceções explícitas. Nenhuma dependência de cliente HTTP no núcleo (ex.: `reqwest`). Exceção única (SEC-33, ADR-0008): `tauri-plugin-updater` no crate de apresentação, que traz `reqwest`. WebView2 Evergreen (AF-07).
+Teste: `cargo deny check bans` (o `deny.toml` aceita `reqwest` só via `tauri-plugin-updater` e `hyper` só via a pilha do `reqwest`); `launcher-core` sem cliente HTTP; relatório de audit anexado ao PR de release.
 
 **SEC-25 [ALTO] Desinstalador apaga só a pasta de dados exata.** (back)
 Com "Manter dados" desmarcado (CA-68), o desinstalador apaga apenas `%LOCALAPPDATA%\<identificador>` (e `%APPDATA%\<identificador>` se usado), com o identificador fixo no build, nunca lido de config ou registro gravável pelo usuário. Antes de apagar: o alvo resolvido está exatamente um nível abaixo de `%LOCALAPPDATA%`/`%APPDATA%`, e contém o arquivo de biblioteca esperado. A remoção não segue junctions/symlinks (apaga o ponto de reanálise, não o destino). Se o desinstalador elevado não conseguir resolver o perfil do usuário interativo (E-19), não apaga nada e informa. Remover também o autostart do usuário, tarefa e/ou `Run` (CA-52, SEC-22), e a pasta de dados do WebView2 dentro da pasta de dados. A remoção em si segue SEC-31 (sem elevação). **Escopo (rev. 2):** CA-68 fala da pasta de dados "do usuário"; apagar dados de **outros** perfis carregados (troca rápida de usuário) é decisão de produto ainda não tomada (DR-03). Até a decisão, apagar só os dados do usuário interativo que rodou o desinstalador.
@@ -361,8 +361,8 @@ Nenhum código do launcher apaga, move ou sobrescreve arquivos fora da própria 
 Teste: grep por `remove_file`/`remove_dir_all`/`DeleteFileW`/`rename` e confirmar que os alvos são derivados só da pasta de dados.
 
 **SEC-30 [BAIXO] Sem rede e sem telemetria.** (back + front)
-Nenhuma chamada de rede em tempo de execução: CSP sem origens externas (SEC-01), núcleo sem cliente HTTP (SEC-24), sem crash reporter remoto. Únicas saídas de rede aceitas: lojas iniciadas pelo usuário (fora do processo do launcher) e o bootstrapper do WebView2 no instalador.
-Teste: Resource Monitor/firewall de saída com o launcher aberto por 10 minutos: nenhuma conexão do processo do launcher nem da WebView2 do app.
+Nenhuma chamada de rede em tempo de execução: CSP sem origens externas (SEC-01), núcleo sem cliente HTTP (SEC-24), sem crash reporter remoto. Únicas saídas de rede aceitas: lojas iniciadas pelo usuário (fora do processo do launcher), o bootstrapper do WebView2 no instalador e a procura e o download de atualização pelo processo Rust (SEC-33), só para o GitHub.
+Teste: Resource Monitor/firewall de saída com o launcher aberto por 10 minutos: nenhuma conexão da WebView2 do app; do processo do launcher, só HTTPS para `github.com` e o CDN de releases (`objects.githubusercontent.com` ou `release-assets.githubusercontent.com`).
 
 ### Desinstalação (rev. 2)
 
@@ -376,6 +376,18 @@ Qualquer executável chamado pelo instalador ou desinstalador elevado (ex.: `sch
 Teste: revisar o script NSIS (`nsExec` só com `$SYSDIR\...`); Process Monitor na desinstalação mostra `C:\Windows\System32\schtasks.exe`, sem busca na pasta temporária do desinstalador.
 
 ---
+
+### Atualização do app (rev. 8)
+
+**SEC-33 [ALTO] Atualização pelo app só assinada, só pelo Rust e só com confirmação.** (back + front)
+- **Origem fixa e HTTPS:** endpoint único em `tauri.conf.json` (`plugins.updater.endpoints`), no GitHub Releases do projeto; sem `dangerousInsecureTransportProtocol`, `dangerousAcceptInvalidCerts` nem `dangerousAcceptInvalidHostnames`. A URL do instalador vem do `latest.json`, mas o que vale é a assinatura.
+- **Assinatura obrigatória:** o instalador baixado só é executado se a assinatura minisign conferir com a `pubkey` da configuração, e só se a versão for maior que a instalada (o plugin recusa as duas coisas). A chave privada nunca entra no repositório nem no instalador (`%USERPROFILE%\.tauri\sofalauncher.key` ou `TAURI_SIGNING_PRIVATE_KEY` no build). Backup da chave fora do PC de build.
+- **Webview fora da rede:** a capability `main` não tem permissão `updater:` e a CSP segue sem origem externa (SEC-01, SEC-04). A UI só chama `update_check` e `update_install`, sem argumento (não escolhe URL, versão nem arquivo). Versão e notas voltam como texto e são renderizadas como texto (SEC-07).
+- **Execução:** o instalador NSIS é aberto com `ShellExecuteW` e `/P /UPDATE /R`; a elevação é a do próprio instalador (`RequestExecutionLevel admin`, UAC). O launcher continua `asInvoker` (SEC-20) e é reaberto sem elevação (`RunAsUser`). O arquivo baixado fica na pasta temporária do usuário, a única escrita fora da pasta de dados aceita além de SEC-29.
+- **Confirmação e sessão:** nunca instala sem o usuário escolher "Atualizar"; `update_install` recusa com jogo em sessão (`InvalidState`) e chamadas concorrentes (`Busy`). Erros de rede e assinatura → `UpdateFailed`; instalador que não abre (UAC recusado) → `UpdateCancelled`. Detalhe técnico só no log.
+- **Dependência:** `tauri-plugin-updater` com `default-features = false` e `native-tls` (schannel), sem `rustls` e sem `zip`; `cargo deny` aceita `reqwest` só por ele (SEC-24).
+
+Teste: `tests/command_list.rs` (`updater_so_no_rust_com_assinatura_e_endpoint_fixo`, capability sem `updater:`), `tests/csp.rs` (sem origem externa), `cargo deny check bans`; manual: (a) `latest.json` com assinatura trocada → `UpdateFailed`, nada executado; (b) versão igual à instalada → "já está na versão mais nova"; (c) UAC recusado → `UpdateCancelled` e o launcher continua aberto; (d) com jogo aberto, o aviso não aparece e `update_install` → `InvalidState`.
 
 ## 7. Ask first
 

@@ -33,6 +33,8 @@ fn code_of(e: &AppError) -> ErrorCode {
         AppError::Rejected => ErrorCode::Rejected,
         AppError::AutostartFailed => ErrorCode::AutostartFailed,
         AppError::UnknownMonitor => ErrorCode::UnknownMonitor,
+        AppError::UpdateFailed => ErrorCode::UpdateFailed,
+        AppError::UpdateCancelled => ErrorCode::UpdateCancelled,
     }
 }
 

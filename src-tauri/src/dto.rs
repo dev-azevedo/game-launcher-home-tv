@@ -89,7 +89,9 @@ wire_enum!(ErrorCode {
     TicketInvalid,
     Rejected,
     AutostartFailed,
-    UnknownMonitor
+    UnknownMonitor,
+    UpdateFailed,
+    UpdateCancelled
 });
 
 /// `Origin` do contrato. O nome TS e `Origin`.
@@ -222,6 +224,16 @@ pub struct InputStatus {
     pub connected: u8,
 }
 
+/// Versao nova publicada (`update_check`, SEC-33). So texto: versao e notas do release, mostradas
+/// como texto puro na UI (SEC-07). Nenhuma URL vai para a webview.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateDto {
+    pub version: String,
+    pub current_version: String,
+    pub notes: Option<String>,
+}
+
 // ---------------------------------------------------------------------------------- eventos
 
 #[derive(Debug, Clone, Copy, Serialize, TS)]
@@ -242,6 +254,16 @@ pub struct ControllersEvent {
 pub struct SessionPanelEvent {
     pub open: bool,
     pub outcome: FrontOutcome,
+}
+
+/// `update://progress`: bytes baixados do instalador e o total, se o servidor informou.
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateProgressEvent {
+    #[ts(type = "number")]
+    pub downloaded: u64,
+    #[ts(type = "number | null")]
+    pub total: Option<u64>,
 }
 
 // ------------------------------------------------------------------------------------ erro

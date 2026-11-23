@@ -5,9 +5,10 @@ pub mod library;
 pub mod power;
 pub mod session;
 pub mod settings;
+pub mod update;
 pub mod volume;
 
-/// Os 30 nomes de comando, na ordem do contrato.
+/// Os 32 nomes de comando, na ordem do contrato.
 pub mod list {
     include!("../../command_list.rs");
 }

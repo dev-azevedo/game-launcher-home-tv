@@ -13,6 +13,7 @@ import type {
   PowerTicket,
   SessionDto,
   SettingsDto,
+  UpdateDto,
   VolumeDirection,
   VolumeState,
 } from './types';
@@ -28,7 +29,7 @@ async function call<T>(command: CommandName, args?: Record<string, unknown>): Pr
 const noValue = (command: CommandName, args?: Record<string, unknown>) => call<void>(command, args);
 
 /**
- * Os 30 comandos do contrato (docs/api/launcher-tv.md secao 2), um por funcao, sem outra porta.
+ * Os 32 comandos do contrato (docs/api/launcher-tv.md secao 2), um por funcao, sem outra porta.
  * Nenhum recebe caminho de executavel, argumento ou PID (SEC-03): so IDs, enums e texto de nome.
  * Falha vira `IpcError` com `ErrorDto`.
  */
@@ -75,6 +76,12 @@ export const ipc = {
   displayMonitors: () => call<MonitorDto[]>('display_monitors'),
   inputStatus: () => call<{ connected: number }>('input_status'),
   appExit: () => noValue('app_exit'),
+
+  // 2.6 Atualizacao do app (SEC-33): sem argumentos, a UI nao escolhe URL nem arquivo.
+  /** `null` = ja esta na versao mais nova. */
+  updateCheck: () => call<UpdateDto | null>('update_check'),
+  /** So resolve em erro: em sucesso o launcher fecha e o instalador o reabre. */
+  updateInstall: () => noValue('update_install'),
 } as const;
 
 export type Ipc = typeof ipc;

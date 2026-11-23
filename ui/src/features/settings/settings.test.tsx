@@ -11,7 +11,7 @@ import { useSession } from '@/features/session/store';
 import type { InputIntent } from '@/shared/input/intents';
 import type { GameDto, MonitorDto, SettingsDto } from '@/shared/ipc';
 import { emitCoreEvent, mockCore, rejectWith, resetCore } from '@/shared/ipc/testing';
-import { chosenMonitorMissing, librarySummary, mechanismLabel } from './domain';
+import { APP_VERSION, chosenMonitorMissing, librarySummary, mechanismLabel } from './domain';
 import { useSettings } from './store';
 
 const game = (id: string, name: string, origin: GameDto['origin'] = 'Steam'): GameDto => ({
@@ -155,8 +155,26 @@ describe('configuracoes (FE-12)', () => {
     expect(c.calls.find((x) => x.command === 'settings_set_autostart')!.args).toEqual({ enabled: true });
     await waitFor(() => expect(screen.getByRole('switch', { name: /Iniciar com o Windows/ })).toHaveAttribute('aria-checked', 'true'));
     expect(screen.getByText('Tarefa agendada do Windows')).toBeInTheDocument();
-    // Logs e mecanismo nao sao focaveis: so a chave tem foco no painel.
-    expect(document.querySelectorAll('.pane [data-focus-key]')).toHaveLength(1);
+    // Logs e mecanismo nao sao focaveis: so a chave e "Procurar atualizacoes" tem foco no painel.
+    expect(Array.from(document.querySelectorAll<HTMLElement>('.pane [data-focus-key]')).map((e) => e.dataset.focusKey)).toEqual([
+      'menu-auto',
+      'menu-update',
+    ]);
+  });
+
+  it('Geral: "Procurar atualizacoes" mostra a versao atual e avisa quando ja esta na mais nova', async () => {
+    const c = core({ update_check: null });
+    await openSettings();
+    await goTab('general');
+    expect(await screen.findByText(`Você usa a versão ${APP_VERSION}. Precisa de internet.`)).toBeInTheDocument();
+    intent('Right');
+    await waitFor(() => expect(focusedKey()).toBe('menu-auto'));
+    // jsdom sem layout: ↓ espacial nao anda; foca o item direto.
+    act(() => void setFocus('menu-update'));
+    await waitFor(() => expect(focusedKey()).toBe('menu-update'));
+    intent('Confirm');
+    await waitFor(() => expect(c.count('update_check')).toBe(1));
+    await waitFor(() => expect(useLibrary.getState().notice).toBe('Você já está na versão mais nova.'));
   });
 
   it('Geral: falha ao alterar mostra a linha de erro e o item segue em foco', async () => {

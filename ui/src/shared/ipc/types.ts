@@ -1,5 +1,5 @@
 /**
- * Tipos do contrato `docs/api/launcher-tv.md` (30 comandos, 8 eventos, 26 codigos). Os DTOs vem de
+ * Tipos do contrato `docs/api/launcher-tv.md` (32 comandos, 9 eventos, 28 codigos). Os DTOs vem de
  * `./generated/` (BE-10, gerado, nao editar). O resto da UI importa tipos apenas de `@/shared/ipc`.
  */
 export type {
@@ -23,6 +23,8 @@ export type {
   SessionPanelEvent,
   SessionState,
   SettingsDto,
+  UpdateDto,
+  UpdateProgressEvent,
   VolumeDirection,
   VolumeState,
 } from './generated';
@@ -31,7 +33,7 @@ import type { ErrorCode, ErrorParams } from './generated';
 
 /**
  * `code` e `string` (e nao `ErrorCode`) de proposito: a UI recebe o payload sem validacao e codigo
- * fora da tabela cai em "Desconhecido" (errors.ts). O `ErrorDto` gerado estreita para os 26 codigos.
+ * fora da tabela cai em "Desconhecido" (errors.ts). O `ErrorDto` gerado estreita para os 28 codigos.
  */
 export interface ErrorDto {
   code: string;
@@ -70,17 +72,19 @@ const CODE_TABLE: Record<ErrorCode, true> = {
   Rejected: true,
   AutostartFailed: true,
   UnknownMonitor: true,
+  UpdateFailed: true,
+  UpdateCancelled: true,
 };
 
 export const CONTRACT_ERROR_CODES = Object.keys(CODE_TABLE) as ErrorCode[];
 
 export type ContractErrorCode = ErrorCode;
 
-/** Nomes dos 30 comandos (secao 2): vem de `generated/commandNames.ts` (fonte unica: `command_list.rs`). */
+/** Nomes dos 32 comandos (secao 2): vem de `generated/commandNames.ts` (fonte unica: `command_list.rs`). */
 export { COMMAND_NAMES } from './generated/commandNames';
 export type { CommandName } from './generated/commandNames';
 
-/** Nomes dos 8 eventos (secao 3). */
+/** Nomes dos 9 eventos (secao 3). */
 export const EVENT_NAMES = [
   'input://intent',
   'input://controllers',
@@ -90,6 +94,7 @@ export const EVENT_NAMES = [
   'volume://changed',
   'display://changed',
   'system://resumed',
+  'update://progress',
 ] as const;
 
 export type EventName = (typeof EVENT_NAMES)[number];

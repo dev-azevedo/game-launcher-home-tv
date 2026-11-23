@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Capability unica do Sofa: a janela main so chama os 30 comandos da lista fechada e ouve eventos. Sem core:default, sem core:window, sem plugins, sem remote (SEC-04, SEC-05).",
+  "description": "Capability unica do Sofa: a janela main so chama os 32 comandos da lista fechada e ouve eventos. Sem core:default, sem core:window, sem permissao de plugin (o updater roda so no Rust, SEC-33), sem remote (SEC-04, SEC-05).",
   "windows": [
     "main"
   ],
@@ -36,6 +36,8 @@
     "allow-display-monitors",
     "allow-input-status",
     "allow-app-exit",
+    "allow-update-check",
+    "allow-update-install",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

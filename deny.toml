@@ -1,4 +1,6 @@
 # SEC-24, SEC-30, INV-07: nada sai do PC. Sem cliente HTTP no grafo de dependencias.
+# Unica excecao (SEC-33, ADR-0008): `tauri-plugin-updater`, que usa `reqwest` (e `hyper` por baixo)
+# para baixar a atualizacao assinada. `wrappers` barra qualquer outro crate que puxe cliente HTTP.
 [graph]
 targets = [{ triple = "x86_64-pc-windows-msvc" }, { triple = "x86_64-pc-windows-gnu" }]
 
@@ -21,8 +23,8 @@ multiple-versions = "warn"
 wildcards = "deny"
 allow-wildcard-paths = true # dependencias por path dentro do workspace
 deny = [
-  { crate = "reqwest" },
-  { crate = "hyper" },
+  { crate = "reqwest", wrappers = ["tauri-plugin-updater"] },
+  { crate = "hyper", wrappers = ["reqwest", "hyper-util", "hyper-tls", "h2"] },
   { crate = "ureq" },
   { crate = "isahc" },
   { crate = "surf" },
